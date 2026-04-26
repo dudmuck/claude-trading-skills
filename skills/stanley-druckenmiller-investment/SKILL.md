@@ -139,30 +139,30 @@ Load appropriate reference documents to provide philosophical context:
 
 ## Reference Documents
 
-### `references/investment-philosophy.md`
+### `skills/stanley-druckenmiller-investment/references/investment-philosophy.md`
 - Core Druckenmiller principles: concentration, capital preservation, 18-month horizon
 - Quantitative rules: daily vol targets, max position sizing
 - Load when providing philosophical context for conviction assessment
 
-### `references/market-analysis-guide.md`
+### `skills/stanley-druckenmiller-investment/references/market-analysis-guide.md`
 - Signal-to-action mapping framework
 - Macro regime interpretation for allocation decisions
 - Load when explaining component scores or allocation rationale
 
-### `references/case-studies.md`
+### `skills/stanley-druckenmiller-investment/references/case-studies.md`
 - Historical examples: 1992 GBP, 2000 tech bubble, 2008 crisis
 - Pattern classification examples with actual market conditions
 - Load when user asks about historical parallels
 
-### `references/conviction_matrix.md`
+### `skills/stanley-druckenmiller-investment/references/conviction_matrix.md`
 - Quantitative signal-to-action mapping tables
 - Market Top Zone x Macro Regime matrix
 - Load when user needs precise exposure numbers for specific signal combinations
 
 ### When to Load References
-- **First use:** Load `investment-philosophy.md` for framework understanding
-- **Allocation questions:** Load `market-analysis-guide.md` + `conviction_matrix.md`
-- **Historical context:** Load `case-studies.md`
+- **First use:** Load `skills/stanley-druckenmiller-investment/references/investment-philosophy.md` for framework understanding
+- **Allocation questions:** Load `skills/stanley-druckenmiller-investment/references/market-analysis-guide.md` + `skills/stanley-druckenmiller-investment/references/conviction_matrix.md`
+- **Historical context:** Load `skills/stanley-druckenmiller-investment/references/case-studies.md`
 - **Regular execution:** References not needed — script handles scoring
 
 ---
