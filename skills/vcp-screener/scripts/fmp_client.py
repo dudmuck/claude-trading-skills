@@ -30,8 +30,12 @@ except ImportError:
 
 
 def _stable_quote_url(base, symbols_str, params):
-    """stable/quote?symbol=^GSPC"""
-    params["symbol"] = symbols_str
+    """stable/quote?symbol=X for single, stable/batch-quote?symbols=A,B for multi"""
+    if "," in symbols_str:
+        base = "https://financialmodelingprep.com/stable/batch-quote"
+        params["symbols"] = symbols_str
+    else:
+        params["symbol"] = symbols_str
     return base, params
 
 
@@ -133,7 +137,6 @@ class FMPClient:
                 "or pass api_key parameter."
             )
         self.session = requests.Session()
-        self.session.headers.update({"apikey": self.api_key})
         self.cache = {}
         self.last_call_time = 0
         self.rate_limit_reached = False
@@ -152,6 +155,8 @@ class FMPClient:
 
         if params is None:
             params = {}
+        params = dict(params)
+        params["apikey"] = self.api_key
 
         elapsed = time.time() - self.last_call_time
         if elapsed < self.RATE_LIMIT_DELAY:
@@ -232,6 +237,8 @@ class FMPClient:
                     valid = False
 
             if endpoint_key == "historical":
+                if isinstance(data, list) and data and isinstance(data[0], dict) and "date" in data[0]:
+                    data = {"symbol": symbols_str, "historical": data}
                 if not isinstance(data, dict):
                     valid = False
                 elif "historicalStockList" in data:
@@ -279,8 +286,11 @@ class FMPClient:
         if cache_key in self.cache:
             return self.cache[cache_key]
 
-        url = f"{self.BASE_URL}/sp500_constituent"
+        url = "https://financialmodelingprep.com/stable/sp500-constituent"
         data = self._rate_limited_get(url)
+        if not data:
+            url = f"{self.BASE_URL}/sp500_constituent"
+            data = self._rate_limited_get(url)
         if data:
             self.cache[cache_key] = data
         return data
