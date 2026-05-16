@@ -171,10 +171,10 @@ def _run_skill(name: str, script: str, args: list[str], tmpdir: str) -> dict[str
             cmd,
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=300,
         )
     except subprocess.TimeoutExpired:
-        logger.warning("%s timed out after 120s", name)
+        logger.warning("%s timed out after 300s", name)
         return {"name": name, "status": "timeout", "data": None}
     except Exception as exc:
         logger.warning("%s failed to execute: %s", name, exc)

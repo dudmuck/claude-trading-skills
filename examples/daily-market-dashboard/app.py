@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import subprocess
+import sys
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -476,7 +477,7 @@ def render_app() -> None:
                 try:
                     result = subprocess.run(
                         [
-                            "python3",
+                            sys.executable,
                             "generate_dashboard.py",
                             "--project-root",
                             _resolve_project_root(),
