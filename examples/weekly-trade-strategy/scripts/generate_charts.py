@@ -1,25 +1,34 @@
 #!/usr/bin/env python3
 """Generate weekly chart images for the weekly-trade-strategy pipeline.
 
-Pulls weekly OHLCV bars from Alpaca Markets and renders candlestick PNGs for
-major indices, sector ETFs, and commodity ETF proxies. Optionally falls back
-to yfinance for ^VIX and ^TNX (indices not on Alpaca's equity feed).
+Pulls weekly OHLCV bars and renders candlestick PNGs for major indices, sector
+ETFs, and commodity ETF proxies. Two data sources are supported:
+
+  --source alpaca (default): Alpaca Markets weekly bars; yfinance fallback for
+                             ^VIX and ^TNX (indices not on Alpaca equity feed).
+  --source fmp             : FMP daily bars resampled to weekly; ^VIX and ^TNX
+                             pulled from FMP directly (no yfinance needed).
 
 Usage:
+    # Alpaca (default)
     export APCA_API_KEY_ID=...
     export APCA_API_SECRET_KEY=...
     # optional: export ALPACA_FEED=iex   (default; use "sip" if you have the paid feed)
+    python generate_charts.py                       # charts/<today>/
+    python generate_charts.py 2026-04-27            # charts/2026-04-27/
 
-    python generate_charts.py                # charts/<today>/
-    python generate_charts.py 2026-04-27     # charts/2026-04-27/
+    # FMP only (full-tape volume; no Alpaca creds needed)
+    export FMP_API_KEY=...
+    python generate_charts.py --source fmp 2026-04-27
 
-Dependencies: requests, matplotlib, numpy. yfinance is optional.
+Dependencies: requests, matplotlib, numpy. yfinance is optional (alpaca source only).
 Run from the weekly-trade-strategy/ directory so "charts/" is created there.
 """
 
 import argparse
 import os
 import sys
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -30,6 +39,8 @@ import requests
 from matplotlib.patches import Rectangle
 
 ALPACA_BARS_URL = "https://data.alpaca.markets/v2/stocks/bars"
+FMP_DAILY_URL = "https://financialmodelingprep.com/stable/historical-price-eod/full"
+FMP_RATE_LIMIT_DELAY = 0.3
 LOOKBACK_WEEKS = 104
 
 INDICES = {
@@ -104,6 +115,65 @@ def fetch_alpaca_bars(symbols, start, end, timeframe="1Week"):
         if not page:
             break
         params["page_token"] = page
+    return out
+
+
+def _daily_to_weekly(daily_bars):
+    """Group FMP daily bars into ISO weeks (Mon-Fri buckets).
+
+    Each input bar has keys date/open/high/low/close/volume. Output bars match
+    Alpaca shape: t (ISO Z), o, h, l, c, v.
+    """
+    if not daily_bars:
+        return []
+    daily_sorted = sorted(daily_bars, key=lambda b: b["date"])
+    weeks = {}
+    for b in daily_sorted:
+        d = datetime.strptime(b["date"], "%Y-%m-%d").date()
+        year, week, _ = d.isocalendar()
+        weeks.setdefault((year, week), []).append(b)
+    out = []
+    for (year, week), days in sorted(weeks.items()):
+        monday = datetime.strptime(f"{year}-W{week:02d}-1", "%G-W%V-%u").date()
+        out.append({
+            "t": f"{monday.isoformat()}T00:00:00Z",
+            "o": days[0]["open"],
+            "h": max(d["high"] for d in days),
+            "l": min(d["low"] for d in days),
+            "c": days[-1]["close"],
+            "v": sum(d.get("volume") or 0 for d in days),
+        })
+    return out
+
+
+def fetch_fmp_bars(symbols, start, end):
+    """Return {symbol: [weekly bar dicts]} via FMP daily aggregation."""
+    api_key = os.environ.get("FMP_API_KEY")
+    if not api_key:
+        sys.exit("Set FMP_API_KEY environment variable.")
+    out = {}
+    last_call = 0.0
+    for sym in symbols:
+        elapsed = time.time() - last_call
+        if elapsed < FMP_RATE_LIMIT_DELAY:
+            time.sleep(FMP_RATE_LIMIT_DELAY - elapsed)
+        params = {"symbol": sym, "from": start, "to": end, "apikey": api_key}
+        r = requests.get(FMP_DAILY_URL, params=params, timeout=30)
+        last_call = time.time()
+        if r.status_code != 200:
+            print(f"  FMP fetch failed for {sym}: HTTP {r.status_code}", file=sys.stderr)
+            continue
+        data = r.json()
+        if isinstance(data, dict) and "historical" in data:
+            daily = data["historical"]
+        elif isinstance(data, list):
+            daily = data
+        else:
+            print(f"  unexpected FMP shape for {sym}", file=sys.stderr)
+            continue
+        weekly = _daily_to_weekly(daily)
+        if weekly:
+            out[sym] = weekly
     return out
 
 
@@ -228,6 +298,8 @@ def main():
                    help="Target date (YYYY-MM-DD); default: today.")
     p.add_argument("--output-root", default="charts",
                    help="Root directory (default: charts).")
+    p.add_argument("--source", choices=("alpaca", "fmp"), default="alpaca",
+                   help="Bar data source (default: alpaca).")
     args = p.parse_args()
 
     target = args.date or date.today().isoformat()
@@ -239,9 +311,12 @@ def main():
     start_iso = (date.fromisoformat(target) - timedelta(weeks=LOOKBACK_WEEKS)).isoformat()
 
     all_syms = list(INDICES) + list(COMMODITIES) + list(SECTORS)
-    print(f"Fetching {len(all_syms)} symbols from Alpaca ({start_iso} -> {end_iso})...",
-          file=sys.stderr)
-    bars_by_sym = fetch_alpaca_bars(all_syms, start_iso, end_iso)
+    print(f"Fetching {len(all_syms)} symbols from {args.source.upper()} "
+          f"({start_iso} -> {end_iso})...", file=sys.stderr)
+    if args.source == "fmp":
+        bars_by_sym = fetch_fmp_bars(all_syms, start_iso, end_iso)
+    else:
+        bars_by_sym = fetch_alpaca_bars(all_syms, start_iso, end_iso)
 
     for sym, label in {**INDICES, **COMMODITIES}.items():
         data = bars_arrays(bars_by_sym.get(sym))
@@ -258,14 +333,24 @@ def main():
                        out_dir / "sector_1m.png")
     print("  OK sector_1m.png", file=sys.stderr)
 
+    if args.source == "fmp":
+        vix_tnx_bars = fetch_fmp_bars(list(YF_SYMBOLS), start_iso, end_iso)
+    else:
+        vix_tnx_bars = {}
     for sym, label in YF_SYMBOLS.items():
-        data = try_yfinance(sym)
+        data = bars_arrays(vix_tnx_bars.get(sym))
         if data is None:
-            print(f"  skip {sym}: yfinance unavailable or no data", file=sys.stderr)
+            data = try_yfinance(sym)
+            src = "yfinance"
+        else:
+            src = "fmp"
+        if data is None:
+            print(f"  skip {sym}: no data (FMP paywall? yfinance unavailable?)",
+                  file=sys.stderr)
             continue
         fname = sym.lstrip("^").lower() + ".png"
         render_candle(data, label, out_dir / fname)
-        print(f"  OK {fname}", file=sys.stderr)
+        print(f"  OK {fname} ({src})", file=sys.stderr)
 
     files = sorted(out_dir.iterdir())
     print(f"\nDone. {len(files)} files in {out_dir}/", file=sys.stderr)
