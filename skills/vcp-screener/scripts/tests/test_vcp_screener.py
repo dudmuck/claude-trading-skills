@@ -3351,3 +3351,66 @@ class TestEarlyPostBreakoutCap:
             breakout_volume=False,
         )
         assert result["state"] == "Early-post-breakout"
+
+
+class TestSP500WikipediaFallback:
+    """Wikipedia scrape fallback for the S&P 500 constituent endpoint when FMP gates it."""
+
+    def test_parser_extracts_symbol_name_sector(self):
+        from fmp_client import _parse_sp500_wikipedia_html
+
+        html_text = """
+        <html><body>
+        <table class="wikitable sortable">
+        <tr><th>Symbol</th><th>Security</th><th>GICS Sector</th><th>Sub-Industry</th></tr>
+        <tr><td><a href="/wiki/Apple_Inc.">AAPL</a></td>
+            <td><a href="/wiki/Apple_Inc.">Apple Inc.</a></td>
+            <td>Information Technology</td>
+            <td>Technology Hardware</td></tr>
+        <tr><td><a>BRK.B</a></td>
+            <td><a>Berkshire Hathaway</a></td>
+            <td>Financials</td>
+            <td>Multi-Sector Holdings</td></tr>
+        </table>
+        <table class="wikitable">
+        <tr><td>NOISE</td><td>Should not be parsed</td><td>X</td></tr>
+        </table>
+        </body></html>
+        """
+        result = _parse_sp500_wikipedia_html(html_text)
+        assert len(result) == 2
+        assert result[0] == {
+            "symbol": "AAPL",
+            "name": "Apple Inc.",
+            "sector": "Information Technology",
+        }
+        assert result[1]["symbol"] == "BRK-B"
+        assert result[1]["name"] == "Berkshire Hathaway"
+
+    def test_parser_skips_invalid_symbols(self):
+        from fmp_client import _parse_sp500_wikipedia_html
+
+        html_text = """
+        <table class="wikitable">
+        <tr><th>Symbol</th><th>Security</th><th>Sector</th></tr>
+        <tr><td>VALID</td><td>Good Co</td><td>Tech</td></tr>
+        <tr><td></td><td>Empty Symbol</td><td>X</td></tr>
+        <tr><td>TOOLONG7</td><td>Bad Length</td><td>X</td></tr>
+        <tr><td>ABC123</td><td>Has Digits</td><td>X</td></tr>
+        </table>
+        """
+        result = _parse_sp500_wikipedia_html(html_text)
+        symbols = [r["symbol"] for r in result]
+        assert symbols == ["VALID"]
+
+    def test_parser_unescapes_html_entities(self):
+        from fmp_client import _parse_sp500_wikipedia_html
+
+        html_text = """
+        <table class="wikitable">
+        <tr><th>Symbol</th><th>Security</th><th>Sector</th></tr>
+        <tr><td>JNJ</td><td>Johnson &amp; Johnson</td><td>Health Care</td></tr>
+        </table>
+        """
+        result = _parse_sp500_wikipedia_html(html_text)
+        assert result[0]["name"] == "Johnson & Johnson"

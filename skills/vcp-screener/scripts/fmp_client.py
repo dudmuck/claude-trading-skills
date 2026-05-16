@@ -13,10 +13,12 @@ Features:
 - S&P 500 constituents fetching
 """
 
+import html
 import os
 import sys
 import time
 from datetime import date, timedelta
+from html.parser import HTMLParser
 from typing import Optional
 
 try:
@@ -24,6 +26,70 @@ try:
 except ImportError:
     print("ERROR: requests library not found. Install with: pip install requests", file=sys.stderr)
     sys.exit(1)
+
+
+class _SP500WikipediaParser(HTMLParser):
+    """Extract symbol/name/sector from the first wikitable on the S&P 500 page."""
+
+    def __init__(self):
+        super().__init__()
+        self._found_first_table = False
+        self._in_first_table = False
+        self._in_row = False
+        self._in_cell = False
+        self._is_header_row = False
+        self._cell_text: list[str] = []
+        self._row: list[str] = []
+        self.rows: list[list[str]] = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs_d = dict(attrs)
+        if tag == "table" and not self._found_first_table:
+            classes = attrs_d.get("class", "")
+            if "wikitable" in classes:
+                self._in_first_table = True
+                self._found_first_table = True
+        elif tag == "tr" and self._in_first_table:
+            self._in_row = True
+            self._row = []
+            self._is_header_row = False
+        elif tag in ("td", "th") and self._in_row:
+            self._in_cell = True
+            self._cell_text = []
+            if tag == "th":
+                self._is_header_row = True
+
+    def handle_endtag(self, tag):
+        if tag == "table" and self._in_first_table:
+            self._in_first_table = False
+        elif tag == "tr" and self._in_row:
+            if self._row and not self._is_header_row:
+                self.rows.append(self._row)
+            self._in_row = False
+        elif tag in ("td", "th") and self._in_cell:
+            self._row.append("".join(self._cell_text).strip())
+            self._in_cell = False
+
+    def handle_data(self, data):
+        if self._in_cell:
+            self._cell_text.append(data)
+
+
+def _parse_sp500_wikipedia_html(html_text: str) -> list[dict]:
+    """Parse Wikipedia S&P 500 list HTML into FMP-compatible constituent dicts."""
+    parser = _SP500WikipediaParser()
+    parser.feed(html_text)
+    out = []
+    for row in parser.rows:
+        if len(row) < 3:
+            continue
+        symbol = row[0].replace(".", "-")  # Wikipedia BRK.B -> FMP BRK-B
+        name = html.unescape(row[1])
+        sector = html.unescape(row[2])
+        if not symbol or len(symbol) > 6 or not symbol.replace("-", "").isalpha():
+            continue
+        out.append({"symbol": symbol, "name": name, "sector": sector})
+    return out
 
 
 # --- FMP endpoint fallback: stable (new users) -> v3 (legacy users) ---
@@ -125,7 +191,7 @@ class FMPClient:
     """Client for Financial Modeling Prep API with rate limiting and caching"""
 
     BASE_URL = "https://financialmodelingprep.com/api/v3"
-    RATE_LIMIT_DELAY = 0.3  # 300ms between requests
+    RATE_LIMIT_DELAY = 0.1  # 100ms between requests (FMP stable tier ≥750/min)
 
     _ENDPOINT_FAILURE_THRESHOLD = 3  # disable endpoint after N consecutive failures
 
@@ -278,22 +344,52 @@ class FMPClient:
     def get_sp500_constituents(self) -> Optional[list[dict]]:
         """Fetch S&P 500 constituent list.
 
+        Tries FMP stable, then FMP v3 legacy, then Wikipedia scrape.
+        Wikipedia fallback exists because FMP gates the constituent endpoint
+        behind higher subscription tiers; symbols and sector names are
+        sufficient for downstream screening.
+
         Returns:
-            List of dicts with keys: symbol, name, sector, subSector
-            or None on failure.
+            List of dicts with keys: symbol, name, sector
+            or None on failure of all sources.
         """
         cache_key = "sp500_constituents"
         if cache_key in self.cache:
             return self.cache[cache_key]
 
         url = "https://financialmodelingprep.com/stable/sp500-constituent"
-        data = self._rate_limited_get(url)
+        data = self._rate_limited_get(url, quiet=True)
         if not data:
             url = f"{self.BASE_URL}/sp500_constituent"
-            data = self._rate_limited_get(url)
+            data = self._rate_limited_get(url, quiet=True)
+        if not data:
+            data = self._fetch_sp500_from_wikipedia()
         if data:
             self.cache[cache_key] = data
         return data
+
+    def _fetch_sp500_from_wikipedia(self) -> Optional[list[dict]]:
+        """Scrape S&P 500 constituents from Wikipedia as FMP fallback."""
+        url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+        try:
+            r = self.session.get(
+                url, timeout=30, headers={"User-Agent": "Mozilla/5.0 (vcp-screener)"}
+            )
+        except requests.exceptions.RequestException as e:
+            print(f"WARNING: Wikipedia fetch error: {e}", file=sys.stderr)
+            return None
+        if r.status_code != 200:
+            print(f"WARNING: Wikipedia fetch failed: HTTP {r.status_code}", file=sys.stderr)
+            return None
+        constituents = _parse_sp500_wikipedia_html(r.text)
+        if not constituents:
+            print("WARNING: Wikipedia parse returned 0 constituents", file=sys.stderr)
+            return None
+        print(
+            f"  (FMP gated; loaded {len(constituents)} S&P 500 names from Wikipedia)",
+            file=sys.stderr,
+        )
+        return constituents
 
     def get_quote(self, symbols: str) -> Optional[list[dict]]:
         """Fetch real-time quote data for one or more symbols (comma-separated)"""
@@ -318,9 +414,14 @@ class FMPClient:
         return data
 
     def get_batch_quotes(self, symbols: list[str]) -> dict[str, dict]:
-        """Fetch quotes for a list of symbols, batching up to 5 per request"""
+        """Fetch quotes for a list of symbols, one per request.
+
+        Per-symbol calls route to /stable/quote?symbol=X (still available on
+        all FMP tiers). The batched /stable/batch-quote endpoint was paywalled
+        in 2026; using single-symbol calls keeps the screener portable.
+        """
         results = {}
-        batch_size = 5
+        batch_size = 1
         for i in range(0, len(symbols), batch_size):
             batch = symbols[i : i + batch_size]
             batch_str = ",".join(batch)
