@@ -66,6 +66,18 @@ def _normalize(s: str) -> str:
     return s
 
 
+def _tokens(s: str) -> set[str]:
+    # Drop common filler so token-set scoring is meaningful.
+    stop = {"the", "of", "and", "a", "an", "rate", "index", "yoy", "mom", "qoq"}
+    return {t for t in _normalize(s).split() if t and t not in stop}
+
+
+# Disambiguation tokens: presence/absence MUST match between query and candidate.
+# Prevents "Core PCE Price Index MoM" matching the plain PCE card just because
+# PCE shares more tokens than Core PCE does.
+DISAMBIG_TOKENS = {"core", "ex", "excluding", "non", "manufacturing", "services"}
+
+
 def find_card(cards: list[dict], query: str) -> dict | None:
     q = _normalize(query)
     if not q:
@@ -84,24 +96,34 @@ def find_card(cards: list[dict], query: str) -> dict | None:
             if _normalize(alias) == q:
                 return c
 
-    # Pass 3: substring match (alias contains query OR query contains alias)
+    # Pass 3: token-set scoring with disambiguation-token gating.
+    q_tokens = _tokens(query)
+    q_disambig = q_tokens & DISAMBIG_TOKENS
+
     best = None
-    best_score = 0
+    best_score = 0.0
     for c in cards:
         candidates = [c.get("canonical", ""), c.get("short_name", "")] + c.get("fmp_aliases", [])
         for cand in candidates:
-            nc = _normalize(cand)
-            if not nc:
+            cand_tokens = _tokens(cand)
+            if not cand_tokens:
                 continue
-            score = 0
-            if q in nc:
-                score = len(q) / max(len(nc), 1)
-            elif nc in q:
-                score = len(nc) / max(len(q), 1)
+            cand_disambig = cand_tokens & DISAMBIG_TOKENS
+
+            # Hard gate: disambiguation tokens must match.
+            # If query mentions "core" but candidate doesn't (or vice versa), skip.
+            if q_disambig != cand_disambig:
+                continue
+
+            inter = len(q_tokens & cand_tokens)
+            union = len(q_tokens | cand_tokens) or 1
+            score = inter / union  # Jaccard
+
             if score > best_score:
                 best_score = score
                 best = c
-    if best_score >= 0.4:
+
+    if best_score >= 0.3:
         return best
     return None
 
