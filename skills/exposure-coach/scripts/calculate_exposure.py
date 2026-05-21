@@ -59,6 +59,10 @@ def extract_breadth_score(data: Optional[dict]) -> Optional[int]:
         return int(data["breadth_score"])
     if "composite_score" in data:
         return int(data["composite_score"])
+    # market-breadth-analyzer nests its score under "composite"
+    composite = data.get("composite")
+    if isinstance(composite, dict) and "composite_score" in composite:
+        return int(composite["composite_score"])
     if "ad_ratio" in data and "nh_nl_ratio" in data:
         ad = data["ad_ratio"]
         nh_nl = data["nh_nl_ratio"]
@@ -162,6 +166,11 @@ def extract_top_risk_score(data: Optional[dict]) -> Optional[int]:
         prob = data["top_probability"]
         # Invert: high probability = low score
         return max(0, min(100, int(100 - prob)))
+    # market-top-detector nests its composite under "composite". Higher
+    # composite_score = MORE top risk = LOWER exposure score, so invert.
+    composite = data.get("composite")
+    if isinstance(composite, dict) and "composite_score" in composite:
+        return max(0, min(100, int(100 - composite["composite_score"])))
     if "distribution_days" in data:
         days = data["distribution_days"]
         if days <= 2:
