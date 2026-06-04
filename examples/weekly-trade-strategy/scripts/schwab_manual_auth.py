@@ -32,5 +32,12 @@ client = client_from_manual_flow(
     callback_url=CALLBACK_URL,
     token_path=str(TOKEN_PATH),
 )
+
+# schwab-py writes the token under the process umask (commonly 022/002 -> 644/664),
+# NOT 0600 — so a live 7-day refresh token can end up group/other-readable. Enforce
+# owner-only perms explicitly. (Do this every run; re-auth recreates the file.)
+TOKEN_PATH.chmod(0o600)
+
 print(f"\nToken written to {TOKEN_PATH}")
-print(f"Permissions: {oct(TOKEN_PATH.stat().st_mode)[-3:]}")
+perms = oct(TOKEN_PATH.stat().st_mode)[-3:]
+print(f"Permissions: {perms}" + ("" if perms == "600" else "  <-- WARNING: expected 600"))
