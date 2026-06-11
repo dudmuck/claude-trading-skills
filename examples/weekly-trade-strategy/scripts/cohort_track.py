@@ -91,11 +91,12 @@ def main():
         print(f"  ⚠ no price for: {', '.join(missing)}", file=sys.stderr)
 
     marks = []           # rows for marks.jsonl
-    all_signal = []      # (cohort_date, row, ret) across everything, for cross-cohort stats
+    all_signal = []      # (entry_mode, row, ret) across everything, for cross-cohort stats
     out = [f"# Cohort tracker — as of {today.isoformat()}", ""]
 
     for c in cohorts:
         cdate = c["cohort_date"]
+        cmode = c.get("entry_mode", "pre")
         rows = signal_rows(c)
         # entry_ref_date is uniform within a cohort (prices captured same day)
         eref = rows[0]["entry_ref_date"] if rows else cdate
@@ -111,23 +112,24 @@ def main():
                              f"{'VETO' if r['gated_out'] else 'enter'} |")
                 continue
             ret = signed_return(side, entry, cur)
-            marks.append({"run": today.isoformat(), "cohort": cdate, "symbol": sym,
-                          "side": side, "entry_ref": entry, "current": cur,
+            marks.append({"run": today.isoformat(), "cohort": cdate, "mode": cmode,
+                          "symbol": sym, "side": side, "entry_ref": entry, "current": cur,
                           "return": round(ret, 4), "age_days": age,
-                          "gated_out": r["gated_out"], "aligned": r.get("aligned")})
+                          "gated_out": r["gated_out"], "aligned": r.get("aligned"),
+                          "reaction_pct": r.get("reaction_pct")})
             if r["gated_out"]:
                 # as-if we HAD shorted it: positive return here = veto missed a winner;
                 # negative = veto dodged a loser.
                 veto_asif.append((sym, ret))
             elif side == "long":
-                long_rets.append((sym, ret)); all_signal.append((cdate, r, ret))
+                long_rets.append((sym, ret)); all_signal.append((cmode, r, ret))
             else:
-                short_rets.append((sym, ret)); all_signal.append((cdate, r, ret))
+                short_rets.append((sym, ret)); all_signal.append((cmode, r, ret))
             tag = "VETO" if r["gated_out"] else "enter"
             lines.append(f"| {sym} | {side} | {entry:.2f} | {cur:.2f} | {ret*100:+.1f}% | "
                          f"{r.get('regime') or '—'} | {r.get('aligned')} | {tag} |")
 
-        out.append(f"## Cohort {cdate} — age {age}d ({horizon_label(age)})")
+        out.append(f"## Cohort {cdate} [{cmode}] — age {age}d ({horizon_label(age)})")
         we = c["would_enter"]
         out.append(f"- would-enter: {len(we['longs'])} long ({', '.join(we['longs']) or '—'}), "
                    f"{len(we['shorts'])} short ({', '.join(we['shorts']) or '—'}); "
@@ -155,22 +157,28 @@ def main():
                        f" → veto dodged {len(dodged)}/{len(veto_asif)} losers")
         out.append("")
 
-    # ---- cross-cohort aggregates ----
-    out.append("## Cross-cohort aggregates (all entered signals)")
-    if all_signal:
-        def bucket(name):
-            xs = [ret for _, r, ret in all_signal if r.get("aligned") == name]
-            return xs
+    # ---- cross-cohort aggregates, broken out by entry mode (pre vs post/PEAD) ----
+    out.append("## Cross-cohort aggregates (all entered signals, by entry mode)")
+    modes_present = sorted({m for m, _, _ in all_signal})
+    for mode in modes_present:
+        sig = [(r, ret) for m, r, ret in all_signal if m == mode]
+        label = "pre (enter before print)" if mode == "pre" else "post/PEAD (enter after print)"
+        out.append(f"### {label} — n={len(sig)}")
         for b in ("aligned", "neutral", "fighting"):
-            xs = bucket(b)
+            xs = [ret for r, ret in sig if r.get("aligned") == b]
             if xs:
                 out.append(f"- **{b}**: avg {mean(xs)*100:+.1f}% (n={len(xs)})")
-        longs = [ret for _, r, ret in all_signal if r["entry_side"] == "long"]
-        shorts = [ret for _, r, ret in all_signal if r["entry_side"] == "short"]
+        longs = [ret for r, ret in sig if r["entry_side"] == "long"]
+        shorts = [ret for r, ret in sig if r["entry_side"] == "short"]
         if longs:
             out.append(f"- all longs: avg {mean(longs)*100:+.1f}% (n={len(longs)})")
         if shorts:
             out.append(f"- all shorts (entered): avg {mean(shorts)*100:+.1f}% (n={len(shorts)})")
+        if longs or shorts:
+            allr = longs + shorts
+            out.append(f"- **mode expectancy: {mean(allr)*100:+.1f}%/name** "
+                       f"(win rate {sum(1 for x in allr if x > 0)}/{len(allr)})")
+        out.append("")
     # gate scorecard across cohorts
     all_veto = []
     for c in cohorts:
