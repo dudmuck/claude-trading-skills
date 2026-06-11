@@ -36,7 +36,13 @@ case "${1:-}" in
     log "generate: pre --date $NEXT_MON + post --date $TODAY"
     python3 "$SCRIPTS/cohort_generate.py" --date "$NEXT_MON" --mode pre  >> "$LOG" 2>&1 \
       && log "pre cohort OK" || log "pre cohort FAILED (exit $?)"
-    python3 "$SCRIPTS/cohort_generate.py" --date "$TODAY"    --mode post >> "$LOG" 2>&1 \
+    # Backtest-tuned post mode (2026-06-11, n=3489 sided events over 152 weeks):
+    # long-only (gap-down shorts mean-revert; negative expectancy every full year),
+    # |reaction| >= 5% (the 3-5% bucket adds ~nothing over the market base rate;
+    # the >=5% pocket showed positive excess every year, ~+1.4pp @T+14 for >=10%).
+    # Shorts are still logged + as-if-tracked via the disabled-side veto.
+    python3 "$SCRIPTS/cohort_generate.py" --date "$TODAY" --mode post \
+      --min-reaction 5 --no-shorts >> "$LOG" 2>&1 \
       && log "post cohort OK" || log "post cohort FAILED (exit $?)"
     ;;
   track)

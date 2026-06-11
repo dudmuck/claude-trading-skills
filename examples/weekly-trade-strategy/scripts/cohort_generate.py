@@ -217,6 +217,11 @@ def main():
                         "post = PEAD, enter after the print (reaction sides). Default pre.")
     p.add_argument("--min-reaction", type=float, default=3.0,
                    help="post mode: min |print reaction| %% to assign a drift side (default 3.0).")
+    p.add_argument("--no-shorts", action="store_true",
+                   help="Disable the short side: short candidates are still logged (and the "
+                        "tracker keeps measuring their as-if returns) but never would-enter. "
+                        "Backtest 2023-2026: gap-down large-cap shorts had negative expectancy "
+                        "at every horizon — they mean-revert, not drift.")
     p.add_argument("--window-days", type=int, default=7, help="Earnings window length (default 7).")
     p.add_argument("--min-mcap", type=float, default=20e9, help="Market-cap floor (default 20e9 = $20B).")
     p.add_argument("--top", type=int, default=10, help="Top N per bias (default 10).")
@@ -335,7 +340,10 @@ def main():
             elif ss >= args.min_score and ss - ls >= args.side_margin:
                 side = "short"
         gated_out, gate_reason = False, ""
-        if side == "short" and reg == "Bull" and isinstance(pers, (int, float)) \
+        if side == "short" and args.no_shorts:
+            gated_out = True
+            gate_reason = "short side disabled (backtest 2023-2026: negative expectancy)"
+        elif side == "short" and reg == "Bull" and isinstance(pers, (int, float)) \
                 and pers >= args.gate_persistence:
             gated_out = True
             gate_reason = f"sticky Bull (persistence {pers*100:.0f}% >= {args.gate_persistence*100:.0f}%)"
