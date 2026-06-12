@@ -27,6 +27,11 @@ except ImportError:
     print("ERROR: requests library not found. Install with: pip install requests", file=sys.stderr)
     sys.exit(1)
 
+try:
+    from _fmp_compat import v3_to_stable
+except ModuleNotFoundError:  # loaded by file path (e.g. repo-level contract tests)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from _fmp_compat import v3_to_stable
 
 class _SP500WikipediaParser(HTMLParser):
     """Extract symbol/name/sector from the first wikitable on the S&P 500 page."""
@@ -357,12 +362,13 @@ class FMPClient:
         if cache_key in self.cache:
             return self.cache[cache_key]
 
-        url = "https://financialmodelingprep.com/stable/sp500-constituent"
-        data = self._rate_limited_get(url, quiet=True)
+        # Migrate hardcoded v3 URL to /stable (this method bypasses the
+        # _FMP_ENDPOINTS stable→v3 fallback list, so rewrite at the call site).
+        url, params = v3_to_stable(f"{self.BASE_URL}/sp500_constituent")
+        data = self._rate_limited_get(url, params, quiet=True)
         if not data:
-            url = f"{self.BASE_URL}/sp500_constituent"
-            data = self._rate_limited_get(url, quiet=True)
-        if not data:
+            # Both /stable and v3 constituent endpoints are paywalled on
+            # Starter-tier keys (402/403) — Wikipedia is the working fallback.
             data = self._fetch_sp500_from_wikipedia()
         if data:
             self.cache[cache_key] = data

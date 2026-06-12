@@ -220,7 +220,10 @@ def pre_filter_stock(quote: dict) -> tuple:
     price = quote.get("price", 0)
     year_high = quote.get("yearHigh", 0)
     year_low = quote.get("yearLow", 0)
-    # FMP stable batch-quote drops avgVolume; fall back to today's volume as proxy
+    # FMP's /stable quote dropped the v3-only `avgVolume` field, so fall back to
+    # `averageVolume` (some stable responses) then the session `volume` as a
+    # liquidity floor; without this the < 200k check rejects 100% of the
+    # universe. (v3 `avgVolume` still wins when present.)
     avg_volume = quote.get("avgVolume") or quote.get("averageVolume") or quote.get("volume", 0)
 
     if price <= 10:

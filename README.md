@@ -48,7 +48,7 @@ New users should start with one of these operational workflows. Each link points
 | Record and learn from every closed trade | [`trade-memory-loop`](workflows/trade-memory-loop.yaml) | trader-memory-core, signal-postmortem | No API for manual path |
 | Review monthly performance and adjust rules | [`monthly-performance-review`](workflows/monthly-performance-review.yaml) | trader-memory-core, signal-postmortem, backtest-expert | No API for manual path |
 
-See [`workflows/README.md`](workflows/README.md) for how to read a manifest and run it manually.
+See [`workflows/README.md`](workflows/README.md) for how to read a manifest and run it manually. For a one-page "which workflow fits my situation?" guide, see [Find Your Workflow](docs/en/find-your-workflow.md) ([日本語](docs/ja/find-your-workflow.md)).
 
 ### No API Key Starter Path
 
@@ -84,7 +84,20 @@ This path lets you review market conditions, size trades, journal decisions, and
 2. Copy the desired skill folder (e.g., `backtest-expert`) into your Claude Code **Skills** directory (open Claude Code → **Settings → Skills → Open Skills Folder**, per the [Claude Code Skills documentation](https://docs.claude.com/en/docs/claude-code/skills)).
 3. Restart or reload Claude Code so the new skill is detected.
 
-> Tip: The source folders and ZIPs contain identical content. Edit a source folder if you want to customize a skill, then re-zip it before uploading to the web app.
+> Tip: `.skill` packages are built from the source folders with tests and local build artifacts omitted. Edit a source folder if you want to customize a skill, then run `python3 scripts/package_skills.py --skill <skill-name>` before uploading to the web app.
+
+## Companion Work Package
+
+Want a ready-to-run agent-style workflow? See the companion
+[Hermes Trading Research Agent Work Package](https://github.com/tradermonty/hermes-trading-research-agent-work-package).
+
+It packages these skills into a Hermes profile with task-oriented slash-command routines such as
+`/pre-market-routine`, `/after-close-review`, `/trade-journal`, `/weekly-portfolio-review`, and
+`/monthly-performance-review`.
+
+This is a research, journaling, and risk-review assistant, **not** an automated trading system.
+It does **not** place orders, provide a signal service, or run hidden scheduled jobs;
+**human decision gates remain central**.
 
 ## Core Skill Areas
 
@@ -227,7 +240,7 @@ The main Core + Satellite starting path is described above. The examples below s
 4. Use **Backtest Expert** to validate entry/exit strategies before position sizing
 
 ### Strategic Positioning
-1. Use **Stanley Druckenmiller Investment Advisor** for macro theme identification
+1. Use **Stanley Druckenmiller Investment** for macro theme identification
 2. Use **Economic Calendar Fetcher** to time entries around major data releases
 3. Use **Breadth Chart Analyst** and **Technical Analyst** for confirmation signals
 4. Use **US Market Bubble Detector** for risk management and profit-taking guidance
@@ -420,7 +433,10 @@ launchctl start com.trade-analysis.skill-generation-daily
 ## Customization & Contribution
 - Update `SKILL.md` files to tweak trigger descriptions or capability notes; ensure the frontmatter name matches the folder name when zipping.
 - Extend reference documents or add scripts inside each skill folder to support new workflows.
-- When distributing updates, regenerate the matching `.skill` file in `skill-packages/` so web-app users get the latest version.
+- When distributing updates, regenerate the matching `.skill` file in `skill-packages/` so web-app users get the latest version:
+  ```bash
+  python3 scripts/package_skills.py --skill <skill-name>
+  ```
 
 ## API Requirements
 
