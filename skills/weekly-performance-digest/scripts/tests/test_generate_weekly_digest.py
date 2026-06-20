@@ -236,6 +236,20 @@ class TestCalculateMetrics:
         assert out["summary"]["losers"] == 0
         assert out["summary"]["profit_factor"] is None
 
+    def test_mae_mfe_sign_normalized(self):
+        # MAE must be <= 0, MFE must be >= 0. TMC does not clamp, so an
+        # out-of-convention mae_pct > 0 / mfe_pct < 0 must be clamped to 0 on read.
+        t = make_thesis(outcome={"pnl_dollars": 10.0, "mae_pct": 2.0, "mfe_pct": -3.0})
+        out = gwd.calculate_metrics([t])
+        assert out["metrics"]["avg_mae_pct"] == 0.0
+        assert out["metrics"]["avg_mfe_pct"] == 0.0
+
+    def test_mae_mfe_within_convention_unchanged(self, winner, loser):
+        # In-convention values (mae<=0, mfe>=0) pass through to the average.
+        out = gwd.calculate_metrics([winner, loser])
+        assert out["metrics"]["avg_mae_pct"] == round((-2.5 - 5.0) / 2, 4)
+        assert out["metrics"]["avg_mfe_pct"] == round((8.0 + 1.0) / 2, 4)
+
 
 class TestAnalyzePatterns:
     def test_dimensions(self, winner, loser, breakeven):

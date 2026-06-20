@@ -43,6 +43,9 @@ initial_risk = (entry.actual_price − exit.stop_loss) × position.shares
   position was open. By convention it is **≤ 0** (adverse).
 - **MFE** (Maximum Favorable Excursion, `outcome.mfe_pct`) is the best unrealized gain
   while open. By convention it is **≥ 0** (favorable).
+- `trader-memory-core` does not clamp these fields, so an always-profitable trade can
+  carry `mae_pct > 0` (and an always-underwater one `mfe_pct < 0`). The digest **clamps
+  on read** to preserve the convention: MAE → `min(value, 0)`, MFE → `max(value, 0)`.
 - The digest aggregates `avg_mae_pct` and `avg_mfe_pct` across closed trades. Large
   average MFE relative to realized P&L suggests trades are being exited too early; large
   average MAE relative to risk suggests stops are too wide or entries are mistimed.

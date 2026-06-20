@@ -260,12 +260,15 @@ def calculate_metrics(theses: list[dict]) -> dict:
         r = calculate_r_multiple(thesis)
         if r is not None:
             r_multiples.append(r)
+        # Normalize to the documented sign convention: MAE is adverse (<= 0),
+        # MFE is favorable (>= 0). TMC does not clamp, so an always-profitable
+        # trade can carry mae_pct > 0 (and vice versa); clamp on read.
         mae = _get(thesis, "outcome", "mae_pct")
         if mae is not None:
-            mae_vals.append(mae)
+            mae_vals.append(min(mae, 0.0))
         mfe = _get(thesis, "outcome", "mfe_pct")
         if mfe is not None:
-            mfe_vals.append(mfe)
+            mfe_vals.append(max(mfe, 0.0))
 
     total = summary["total_trades"]
     summary["win_rate"] = round(summary["winners"] / total, 4) if total else 0.0
