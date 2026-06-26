@@ -94,6 +94,8 @@ def calculate_institutional_sponsorship(
         >>> result = calculate_institutional_sponsorship(holders, profile)
         >>> print(f"I Score: {result['score']}, Holders: {result['num_holders']}, Ownership: {result['ownership_pct']:.1f}%")
     """
+    missing_holder_input = institutional_holders is None or institutional_holders == []
+
     # Treat missing FMP data as "zero holders" instead of returning early — the
     # Finviz fallback below (line ~162) can still recover ownership_pct in many
     # cases. This matters for FMP free-tier users: /stable institutional-
@@ -189,10 +191,17 @@ def calculate_institutional_sponsorship(
         else:
             quality_warning += " Score reduced by 50%."
 
-    # Score institutional sponsorship
-    score = score_institutional_sponsorship(
-        num_holders, ownership_pct, superinvestor_present, quality_warning
-    )
+    # Preserve the original no-data semantics when both FMP and Finviz are
+    # unavailable, but do not zero valid partial FMP aggregate data.
+    if missing_holder_input and ownership_pct is None:
+        score = 0
+        quality_warning = (
+            "Institutional holder data unavailable from FMP and Finviz. Score set to 0."
+        )
+    else:
+        score = score_institutional_sponsorship(
+            num_holders, ownership_pct, superinvestor_present, quality_warning
+        )
 
     # Generate interpretation
     interpretation = interpret_institutional_sponsorship(

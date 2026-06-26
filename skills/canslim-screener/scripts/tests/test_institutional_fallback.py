@@ -19,12 +19,13 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 # Ensure imports work in the test runner.
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE.parent / "calculators"))
 
-import institutional_calculator  # noqa: E402
 from institutional_calculator import calculate_institutional_sponsorship  # noqa: E402
 
 
@@ -35,8 +36,10 @@ def _fake_finviz(_self, _symbol):
 def test_finviz_fallback_runs_when_fmp_holders_none():
     """holders=None should not short-circuit to score=0 — Finviz should fill in."""
     profile = {"sharesOutstanding": 15_000_000_000, "mktCap": 3_000_000_000_000, "price": 200.0}
-    with patch("institutional_calculator.FINVIZ_AVAILABLE", True), \
-         patch("finviz_stock_client.FinvizStockClient.get_institutional_ownership", _fake_finviz):
+    with (
+        patch("institutional_calculator.FINVIZ_AVAILABLE", True),
+        patch("finviz_stock_client.FinvizStockClient.get_institutional_ownership", _fake_finviz),
+    ):
         result = calculate_institutional_sponsorship(None, profile, symbol="AAPL")
     assert result["score"] > 0, "score should not be 0 — Finviz fallback should fire"
     assert result["ownership_pct"] == 67.5
@@ -46,23 +49,35 @@ def test_finviz_fallback_runs_when_fmp_holders_none():
 def test_finviz_fallback_runs_when_fmp_holders_empty_list():
     """holders=[] (empty list, not None) should also let Finviz fill in."""
     profile = {"sharesOutstanding": 1_000_000_000, "mktCap": 200_000_000_000, "price": 200.0}
-    with patch("institutional_calculator.FINVIZ_AVAILABLE", True), \
-         patch("finviz_stock_client.FinvizStockClient.get_institutional_ownership", _fake_finviz):
+    with (
+        patch("institutional_calculator.FINVIZ_AVAILABLE", True),
+        patch("finviz_stock_client.FinvizStockClient.get_institutional_ownership", _fake_finviz),
+    ):
         result = calculate_institutional_sponsorship([], profile, symbol="NVDA")
     assert result["score"] > 0
     assert result["ownership_pct"] == 67.5
 
 
-def test_no_finviz_available_returns_degraded_but_nonzero():
-    """When Finviz is unavailable and FMP returns nothing, result should still be a real
-    dict — degraded, score-reduced, but not the misleading 'No institutional holder data'
-    early-return that pretended the calculator hadn't tried."""
+@pytest.mark.parametrize("holders", [None, []])
+def test_no_finviz_available_preserves_zero_score_for_true_no_data(holders):
+    """When FMP and Finviz both have no data, true no-data inputs score 0."""
     profile = {"sharesOutstanding": 1_000_000_000, "mktCap": 200_000_000_000, "price": 200.0}
     with patch("institutional_calculator.FINVIZ_AVAILABLE", False):
-        result = calculate_institutional_sponsorship(None, profile, symbol="AMD")
+        result = calculate_institutional_sponsorship(holders, profile, symbol="AMD")
     assert "score" in result
     assert "num_holders" in result
+    assert result["score"] == 0
     # ownership_pct must remain None so callers can detect the gap.
+    assert result["ownership_pct"] is None
+
+
+def test_no_finviz_available_does_not_zero_partial_fmp_aggregate():
+    """Valid FMP aggregate holder counts still use reduced holder-count scoring."""
+    holders = {"num_holders": 40, "ownership_pct": None, "top_holders": []}
+    profile = {"sharesOutstanding": 1_000_000_000, "mktCap": 200_000_000_000, "price": 200.0}
+    with patch("institutional_calculator.FINVIZ_AVAILABLE", False):
+        result = calculate_institutional_sponsorship(holders, profile, symbol="AMD")
+    assert result["score"] == 40
     assert result["ownership_pct"] is None
 
 
@@ -80,8 +95,10 @@ def test_with_valid_fmp_holders_finviz_not_called():
         finviz_called["hit"] = True
         return {"inst_own_pct": 99.9, "error": None}
 
-    with patch("institutional_calculator.FINVIZ_AVAILABLE", True), \
-         patch("finviz_stock_client.FinvizStockClient.get_institutional_ownership", _spy_finviz):
+    with (
+        patch("institutional_calculator.FINVIZ_AVAILABLE", True),
+        patch("finviz_stock_client.FinvizStockClient.get_institutional_ownership", _spy_finviz),
+    ):
         result = calculate_institutional_sponsorship(holders, profile, symbol="AAPL")
     assert finviz_called["hit"] is False, "Finviz path must not run when FMP data is present"
     assert result["ownership_pct"] == 65.0
