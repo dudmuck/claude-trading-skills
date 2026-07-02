@@ -183,12 +183,14 @@ def main():
     all_veto = []
     for c in cohorts:
         for r in c["candidates"]:
-            if r.get("gated_out") and r.get("entry_ref_price") and price.get(r["symbol"]):
-                all_veto.append((r["symbol"], signed_return("short", r["entry_ref_price"], price[r["symbol"]])))
+            if r.get("gated_out") and r.get("entry_side") and r.get("entry_ref_price") \
+                    and price.get(r["symbol"]):
+                all_veto.append((r["symbol"],
+                                 signed_return(r["entry_side"], r["entry_ref_price"], price[r["symbol"]])))
     if all_veto:
         dodged = [s for s, r in all_veto if r < 0]
-        out.append(f"- **Gate scorecard:** {len(dodged)}/{len(all_veto)} vetoed shorts would have lost "
-                   f"as shorts (avg as-if {mean(r for _, r in all_veto)*100:+.1f}%). "
+        out.append(f"- **Gate scorecard:** {len(dodged)}/{len(all_veto)} vetoed names would have lost "
+                   f"on their vetoed side (avg as-if {mean(r for _, r in all_veto)*100:+.1f}%). "
                    f"Negative = veto correctly dodged a loser.")
     out.append("")
     out.append("_Marks are signal returns (entry-ref vs current price; no borrow/slippage). "

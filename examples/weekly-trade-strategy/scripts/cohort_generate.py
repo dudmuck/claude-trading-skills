@@ -26,15 +26,22 @@ BOTH modes.
 
 FMP-efficient pipeline (the mcap pre-filter is the key optimization):
   1. earnings-calendar [date, date+7d]                 -> 1 FMP call
+     (rows carry epsActual/epsEstimated + revenue fields -> surprise is free)
   2. company-screener marketCapMoreThan=min_mcap        -> 1 FMP call  (pre-filter)
   3. intersect: reporting AND >= mcap, drop ETFs/funds  -> ~20-50 names, each
      already tagged with marketCap/sector/industry/beta from the screener
-  4. rank_earnings_candidates.py on that subset          -> 7 calls x survivors
+  3b. post mode only: print reaction per name            -> 1 EOD call each
+     (full bars: also yields reaction-day volume ratio + close-location);
+     names below the |reaction| threshold stop here — no ranker calls spent
+  4. rank_earnings_candidates.py on the sided subset     -> 7 calls x survivors
   5. Markov regime fit per candidate + SPY               -> 0 FMP (yfinance)
-  6. short-side Markov gate (veto sticky Bull)           -> the T+5-validated rule
+  6. gates: short-side Markov (veto sticky Bull) + post-mode drift-quality
+     (EPS/revenue surprise, volume, close-location — pops without confirmation
+     are logged + as-if-tracked but not would-enter)
   7. write cohort_YYYY-MM-DD.{json,md}
 
-Total ~150-280 FMP calls vs ~800 unoptimized (the ~660-call profile loop is gone).
+Post mode: ~2 + N + 7*sided calls (e.g. 30 reporters, 8 sided -> ~90); the
+reaction check runs BEFORE the ranker so sub-threshold names cost 1 call, not 8.
 
 Usage:
     export FMP_API_KEY=...
@@ -111,33 +118,87 @@ def fetch_earnings_rows(start: str, end: str) -> dict[str, dict]:
 
 
 def fetch_print_reaction(symbol: str, report_date: str) -> dict | None:
-    """Earnings-print reaction from EOD closes around the report date. 1 FMP call.
+    """Earnings-print reaction + confirmation stats from EOD bars. 1 FMP call.
 
     reaction_pct = first close AFTER report_date vs last close BEFORE it —
     captures the print move whether the report was BMO or AMC (for BMO names
     this includes one extra session; acceptable noise for a weekly cadence).
     Returns None if there is no post-report close yet (reported today AMC).
+
+    The full-bar endpoint (same 1 call as light) also yields the drift-quality
+    confirmation inputs:
+      volume_ratio = reaction-day volume / mean volume of the <=20 prior sessions
+      close_loc    = (close - low) / (high - low) on the reaction day
+                     (1.0 = closed at the high — accumulation; 0.0 = at the low)
     """
     d0 = datetime.strptime(report_date, "%Y-%m-%d").date()
-    rows = _fmp("historical-price-eod/light", {
+    rows = _fmp("historical-price-eod/full", {
         "symbol": symbol,
-        "from": (d0 - timedelta(days=10)).isoformat(),
+        "from": (d0 - timedelta(days=45)).isoformat(),
         "to": (d0 + timedelta(days=10)).isoformat(),
     })
     if not isinstance(rows, list) or not rows:
         return None
-    closes = sorted(((r["date"], r["price"]) for r in rows if r.get("price")), key=lambda x: x[0])
-    pre = [c for c in closes if c[0] < report_date]
-    post = [c for c in closes if c[0] > report_date]
+    bars = sorted((r for r in rows if r.get("close")), key=lambda r: r["date"])
+    pre = [b for b in bars if b["date"] < report_date]
+    post = [b for b in bars if b["date"] > report_date]
     if not pre or not post:
         return None
-    pre_close, post_close = pre[-1][1], post[0][1]
+    rb = post[0]  # the reaction day
+    pre_close = pre[-1]["close"]
+    vols = [b["volume"] for b in pre[-20:] if b.get("volume")]
+    vol_ratio = rb["volume"] / (sum(vols) / len(vols)) if vols and rb.get("volume") else None
+    hi, lo = rb.get("high"), rb.get("low")
+    close_loc = (rb["close"] - lo) / (hi - lo) if hi and lo and hi > lo else None
     return {
         "report_date": report_date,
         "pre_close": pre_close,
-        "post_close": post_close,
-        "reaction_pct": (post_close / pre_close - 1) * 100,
+        "post_close": rb["close"],
+        "reaction_pct": (rb["close"] / pre_close - 1) * 100,
+        "volume_ratio": round(vol_ratio, 2) if vol_ratio is not None else None,
+        "close_loc": round(close_loc, 2) if close_loc is not None else None,
     }
+
+
+def surprise_fields(row: dict) -> dict:
+    """EPS/revenue surprise from an earnings-calendar row (0 extra FMP calls —
+    the calendar rows already carry actual + estimate for both)."""
+    def pct(actual, est):
+        if actual is None or est is None or est == 0:
+            return None
+        return round((actual - est) / abs(est) * 100, 1)
+    return {
+        "eps_surprise_pct": pct(row.get("epsActual"), row.get("epsEstimated")),
+        "revenue_surprise_pct": pct(row.get("revenueActual"), row.get("revenueEstimated")),
+    }
+
+
+def drift_quality(side: str, rx: dict, sur: dict) -> tuple[int, list[str]]:
+    """0-4 drift-quality score: does the reaction look like institutional
+    repricing (drifts) or a headline pop/dump (fades)? One point each for
+    surprise direction agreeing with the move (EPS + revenue), reaction-day
+    volume expansion, and a close-location confirming conviction. Missing
+    data scores 0 for that component (conservative)."""
+    bits = []
+    eps, rev = sur.get("eps_surprise_pct"), sur.get("revenue_surprise_pct")
+    vr, cl = rx.get("volume_ratio"), rx.get("close_loc")
+    if side == "long":
+        if eps is not None and eps > 0:
+            bits.append(f"EPS beat {eps:+.0f}%")
+        if rev is not None and rev > 0:
+            bits.append(f"rev beat {rev:+.1f}%")
+        if cl is not None and cl >= 0.6:
+            bits.append(f"closed strong ({cl:.2f})")
+    else:
+        if eps is not None and eps < 0:
+            bits.append(f"EPS miss {eps:+.0f}%")
+        if rev is not None and rev < 0:
+            bits.append(f"rev miss {rev:+.1f}%")
+        if cl is not None and cl <= 0.4:
+            bits.append(f"closed weak ({cl:.2f})")
+    if vr is not None and vr >= 1.5:
+        bits.append(f"vol {vr:.1f}x")
+    return len(bits), bits
 
 
 def fetch_largecap_universe(min_mcap: float) -> dict[str, dict]:
@@ -230,6 +291,11 @@ def main():
                    help="Short candidate is vetoed if in a Bull regime with persistence >= this (default 0.80).")
     p.add_argument("--min-score", type=int, default=6,
                    help="Min bias score for a name to be a would-enter candidate (default 6).")
+    p.add_argument("--min-quality", type=int, default=2,
+                   help="post mode: min drift-quality score (0-4: EPS surprise, revenue "
+                        "surprise, volume >= 1.5x, close-location) for would-enter. Names "
+                        "below it are logged + as-if-tracked but vetoed — a pop without "
+                        "confirmation is a fade candidate, not a drift candidate. Default 2.")
     p.add_argument("--side-margin", type=int, default=2,
                    help="A name enters a side only if that side's score beats the other by >= this (default 2). "
                         "Prevents a name landing on both lists; ambiguous names are dropped from would-enter.")
@@ -254,15 +320,31 @@ def main():
     keep = [s for s in earnings_rows if s in universe]
     print(f"  intersect: {len(keep)} names reporting AND >= mcap (pre-filter saved "
           f"~{len(earnings_rows)-len(keep)} profile calls)", file=sys.stderr)
+    # collapse dual share classes (e.g. MKC / MKC-V — same print, same company):
+    # keep the more liquid listing so one company can't double-enter a cohort.
+    by_co: dict[str, str] = {}
+    for s in keep:
+        co = (universe[s].get("companyName") or s).strip()
+        cur = by_co.get(co)
+        if cur is None or (universe[s].get("volume") or 0) > (universe[cur].get("volume") or 0):
+            by_co[co] = s
+    if len(by_co) < len(keep):
+        dupes = sorted(set(keep) - set(by_co.values()))
+        print(f"  dedup share classes: dropped {', '.join(dupes)}", file=sys.stderr)
+        keep = [s for s in keep if s in set(by_co.values())]
     if not keep:
         sys.exit("No large-cap names in the window — nothing to rank.")
 
     # post mode: compute the print reaction per name (1 EOD call each); a name only
     # stays a candidate if it actually reported (epsActual) and has a measurable
     # post-print close. Side comes from the reaction direction, NOT the ranker.
+    # The reaction check runs BEFORE the ranker: names under the |reaction|
+    # threshold ("ambient") stop at 1 call — no 7-call fundamentals spend — and
+    # are still logged in the cohort table for context.
     reactions: dict[str, dict] = {}
+    ambient: list[str] = []
     if args.mode == "post":
-        confirmed = []
+        sided = []
         for s in keep:
             row = earnings_rows[s]
             if row.get("epsActual") is None:
@@ -273,33 +355,42 @@ def main():
                 print(f"    {s}: skipped (no post-report close yet)", file=sys.stderr)
                 continue
             reactions[s] = r
-            confirmed.append(s)
-            print(f"    {s}: reported {r['report_date']}, print reaction {r['reaction_pct']:+.1f}%",
+            if abs(r["reaction_pct"]) >= args.min_reaction:
+                sided.append(s)
+            else:
+                ambient.append(s)
+            print(f"    {s}: reported {r['report_date']}, print reaction {r['reaction_pct']:+.1f}% "
+                  f"(vol {r['volume_ratio'] or '?'}x, close-loc {r['close_loc'] if r['close_loc'] is not None else '?'})"
+                  + ("" if s in sided else " — sub-threshold, not ranked"),
                   file=sys.stderr)
-        keep = confirmed
-        if not keep:
+        keep = sided
+        if not keep and not ambient:
             sys.exit("post mode: no confirmed-reported names with measurable reactions.")
     enriched = [{"symbol": s, "marketCap": universe[s].get("marketCap")} for s in keep]
 
-    # 4: run the ranker (subprocess, JSON) on the pre-filtered set
-    with tempfile.TemporaryDirectory(prefix="cohort-") as td:
-        tmp = Path(td)
-        (tmp / "earnings.json").write_text(json.dumps(enriched))
-        cand_path = tmp / "candidates.json"
-        print(f"  ranking {min(len(keep), args.max_names)} names "
-              f"(~{min(len(keep), args.max_names)*7} FMP calls)...", file=sys.stderr)
-        rr = subprocess.run([sys.executable, str(RANKER),
-                             "--earnings-json", str(tmp / "earnings.json"),
-                             "--min-mcap", str(args.min_mcap),
-                             "--top", str(args.max_names),  # ALL scored names (each carries both scores)
-                             "--max-names", str(args.max_names),
-                             "--bias", "both", "--format", "json",
-                             "--output", str(cand_path)],
-                            capture_output=True, text=True)
-        if rr.returncode != 0 or not cand_path.is_file():
-            sys.exit(f"Ranker failed:\n{rr.stderr[-1500:]}")
-        ranked = json.loads(cand_path.read_text())
-    fmp_calls += min(len(keep), args.max_names) * 7  # ranker fundamentals estimate
+    # 4: run the ranker (subprocess, JSON) on the sided/pre-filtered set
+    ranked = {"long_candidates": [], "short_candidates": []}
+    if keep:
+        with tempfile.TemporaryDirectory(prefix="cohort-") as td:
+            tmp = Path(td)
+            (tmp / "earnings.json").write_text(json.dumps(enriched))
+            cand_path = tmp / "candidates.json"
+            print(f"  ranking {min(len(keep), args.max_names)} names "
+                  f"(~{min(len(keep), args.max_names)*7} FMP calls)...", file=sys.stderr)
+            rr = subprocess.run([sys.executable, str(RANKER),
+                                 "--earnings-json", str(tmp / "earnings.json"),
+                                 "--min-mcap", str(args.min_mcap),
+                                 "--top", str(args.max_names),  # ALL scored names (each carries both scores)
+                                 "--max-names", str(args.max_names),
+                                 "--bias", "both", "--format", "json",
+                                 "--output", str(cand_path)],
+                                capture_output=True, text=True)
+            if rr.returncode != 0 or not cand_path.is_file():
+                sys.exit(f"Ranker failed:\n{rr.stderr[-1500:]}")
+            ranked = json.loads(cand_path.read_text())
+        fmp_calls += min(len(keep), args.max_names) * 7  # ranker fundamentals estimate
+    else:
+        print("  no sided names — skipping ranker (0 fundamentals calls)", file=sys.stderr)
 
     # Each ranker record carries BOTH long_score and short_score, so unioning the
     # two bias lists by symbol gives full per-name data in one pass.
@@ -347,6 +438,16 @@ def main():
                 and pers >= args.gate_persistence:
             gated_out = True
             gate_reason = f"sticky Bull (persistence {pers*100:.0f}% >= {args.gate_persistence*100:.0f}%)"
+        # post-mode drift-quality gate: a >=threshold reaction still needs
+        # confirmation (surprise agreeing with the move, volume, close-location)
+        # to be a drift candidate rather than a one-day pop/dump.
+        quality, qbits, sur = None, [], {}
+        if args.mode == "post" and side and rx:
+            sur = surprise_fields(earnings_rows.get(sym, {}))
+            quality, qbits = drift_quality(side, rx, sur)
+            if not gated_out and quality < args.min_quality:
+                gated_out = True
+                gate_reason = f"drift-quality {quality}/4 < {args.min_quality} (unconfirmed pop)"
         return {
             "symbol": sym, "long_score": ls, "short_score": ss,
             "entry_mode": args.mode,
@@ -357,10 +458,36 @@ def main():
             "entry_ref_date": date.today().isoformat(),  # when prices were actually captured
             "report_date": rx["report_date"] if rx else None,
             "reaction_pct": round(rx["reaction_pct"], 2) if rx else None,
+            "eps_surprise_pct": sur.get("eps_surprise_pct"),
+            "revenue_surprise_pct": sur.get("revenue_surprise_pct"),
+            "volume_ratio": rx.get("volume_ratio") if rx else None,
+            "close_loc": rx.get("close_loc") if rx else None,
+            "quality": quality, "quality_bits": qbits,
             "sector": f.get("sector"), "market_cap": f.get("market_cap"),
             "regime": reg, "signal": m.get("signal"), "persistence": pers,
             "aligned": alignment(side, reg) if side else "—",
             "gated_out": gated_out, "gate_reason": gate_reason,
+        }
+
+    def ambient_record(sym: str, note: str = "") -> dict:
+        # post-mode name that never reached the ranker: sub-threshold reaction
+        # ("ambient", saves 7 FMP calls) or sided-but-ranker-dropped. Logged for
+        # context, never would-enter (no live quote for a clean entry ref).
+        rx = reactions[sym]
+        u = universe.get(sym, {})
+        return {
+            "symbol": sym, "long_score": None, "short_score": None,
+            "entry_mode": args.mode, "entry_side": None, "entry_flags": [],
+            "entry_ref_price": rx["post_close"],
+            "entry_ref_date": date.today().isoformat(),
+            "report_date": rx["report_date"],
+            "reaction_pct": round(rx["reaction_pct"], 2),
+            "eps_surprise_pct": None, "revenue_surprise_pct": None,
+            "volume_ratio": rx.get("volume_ratio"), "close_loc": rx.get("close_loc"),
+            "quality": None, "quality_bits": [],
+            "sector": u.get("sector"), "market_cap": u.get("marketCap"),
+            "regime": None, "signal": None, "persistence": None,
+            "aligned": "—", "gated_out": False, "gate_reason": "", "note": note,
         }
 
     def conviction(r: dict) -> float:
@@ -369,15 +496,27 @@ def main():
             return abs(r["reaction_pct"] or 0)
         return max(r["long_score"], r["short_score"])
 
-    records = sorted((build(c) for c in by_sym.values()), key=lambda r: -conviction(r))
-    enter_longs = sorted([r for r in records if r["entry_side"] == "long"],
+    ranker_dropped = [s for s in keep if s not in by_sym]
+    if ranker_dropped:
+        print(f"  WARNING: ranker dropped sided names (shown unranked, no would-enter): "
+              f"{', '.join(ranker_dropped)}", file=sys.stderr)
+    records = sorted([build(c) for c in by_sym.values()]
+                     + [ambient_record(s) for s in ambient]
+                     + [ambient_record(s, note="sided but ranker dropped — no fundamentals")
+                        for s in ranker_dropped],
+                     key=lambda r: -conviction(r))
+    enter_longs = sorted([r for r in records if r["entry_side"] == "long" and not r["gated_out"]],
                          key=lambda r: -conviction(r))[: args.top]
     enter_shorts = sorted([r for r in records if r["entry_side"] == "short" and not r["gated_out"]],
                           key=lambda r: -conviction(r))[: args.top]
-    vetoed = [r["symbol"] for r in records if r["entry_side"] == "short" and r["gated_out"]]
+    quality_vetoed = [r["symbol"] for r in records
+                      if r["gated_out"] and r["gate_reason"].startswith("drift-quality")]
+    vetoed = [r["symbol"] for r in records if r["entry_side"] == "short" and r["gated_out"]
+              and r["symbol"] not in quality_vetoed]
 
     side_rule = (
-        f"post/PEAD: side = print-reaction direction (|reaction| >= {args.min_reaction}%)"
+        f"post/PEAD: side = print-reaction direction (|reaction| >= {args.min_reaction}%), "
+        f"then drift-quality >= {args.min_quality}/4 (EPS/rev surprise, volume, close-loc)"
         if args.mode == "post" else
         f"pre: side score >= {args.min_score} AND beats the other side by >= {args.side_margin}"
     )
@@ -389,7 +528,8 @@ def main():
         "params": {
             "min_mcap": args.min_mcap, "top": args.top, "max_names": args.max_names,
             "min_score": args.min_score, "side_margin": args.side_margin,
-            "min_reaction": args.min_reaction, "side_rule": side_rule,
+            "min_reaction": args.min_reaction, "min_quality": args.min_quality,
+            "side_rule": side_rule,
             "gate": f"short-side: veto Bull regime with persistence >= {args.gate_persistence}",
         },
         "spy_regime": spy,
@@ -401,6 +541,7 @@ def main():
             "longs": [r["symbol"] for r in enter_longs],
             "shorts": [r["symbol"] for r in enter_shorts],
             "shorts_vetoed_by_gate": vetoed,
+            "quality_vetoed": quality_vetoed,
         },
     }
 
@@ -423,14 +564,17 @@ def _row(r: dict) -> str:
     pers = f"{r['persistence']*100:.0f}%" if isinstance(r.get("persistence"), (int, float)) else "—"
     px = f"{r['entry_ref_price']:.2f}" if isinstance(r.get("entry_ref_price"), (int, float)) else "—"
     rx = f"{r['reaction_pct']:+.1f}%" if isinstance(r.get("reaction_pct"), (int, float)) else "—"
+    ls = r["long_score"] if r.get("long_score") is not None else "—"
+    ss = r["short_score"] if r.get("short_score") is not None else "—"
+    q = f"{r['quality']}/4" if isinstance(r.get("quality"), int) else "—"
     if r["entry_side"] is None:
-        decision = "— (no edge / ambiguous)"
+        decision = f"— ({r['note']})" if r.get("note") else "— (no edge / ambiguous)"
     elif r["gated_out"]:
-        decision = f"**SHORT→VETO** ({r['gate_reason']})"
+        decision = f"**{r['entry_side'].upper()}→VETO** ({r['gate_reason']})"
     else:
         decision = f"**{r['entry_side'].upper()}**"
-    flags = "; ".join(r["entry_flags"][:3]) if r.get("entry_flags") else "-"
-    return (f"| {r['symbol']} | {r['long_score']} | {r['short_score']} | {rx} | {px} "
+    flags = "; ".join((r.get("quality_bits") or [])[:2] + (r.get("entry_flags") or [])[:2]) or "-"
+    return (f"| {r['symbol']} | {ls} | {ss} | {rx} | {q} | {px} "
             f"| {r.get('regime') or '—'} | {sig} | {pers} | {r['aligned']} | {decision} | {flags} |")
 
 
@@ -457,15 +601,21 @@ def render_md(c: dict) -> str:
     if we["shorts_vetoed_by_gate"]:
         o.append(f"- **Gate vetoed shorts:** {', '.join(we['shorts_vetoed_by_gate'])} "
                  f"(would-enter ex-gate, blocked by sticky-Bull rule)")
+    if we.get("quality_vetoed"):
+        o.append(f"- **Quality vetoed:** {', '.join(we['quality_vetoed'])} "
+                 f"(reaction over threshold but unconfirmed — pop without drift evidence)")
     o.append("")
-    o.append("## All candidates (Lng/Sht = ranker bias scores; Rx = print reaction; Decision = side after gate)")
-    o.append("| Symbol | Lng | Sht | Rx | Entry ref | Regime | Sig | Sticky | Aligned | Decision | Key flags |")
-    o.append("|---|---:|---:|---:|---:|---|---:|---:|:-:|:--|---|")
+    o.append("## All candidates (Lng/Sht = ranker bias scores; Rx = print reaction; "
+             "Q = drift-quality 0-4; Decision = side after gates)")
+    o.append("| Symbol | Lng | Sht | Rx | Q | Entry ref | Regime | Sig | Sticky | Aligned | Decision | Key flags |")
+    o.append("|---|---:|---:|---:|---:|---:|---|---:|---:|:-:|:--|---|")
     o += [_row(r) for r in c["candidates"]]
     o.append("")
     o.append("_Forward-test cohort: would-enter names are logged at entry-ref price for mark-to-market "
              "at T+5/14/30/90 (no paper order placed). The short-side gate encodes the T+5 finding that "
-             "shorting into a sticky Bull regime is a losing trade. Ambiguous/low-conviction names are "
+             "shorting into a sticky Bull regime is a losing trade. The drift-quality gate (post mode) "
+             "requires the reaction to be confirmed by surprise/volume/close-location; vetoed names stay "
+             "as-if-tracked so the gate itself is forward-testable. Ambiguous/low-conviction names are "
              "logged but excluded from would-enter._")
     return "\n".join(o)
 

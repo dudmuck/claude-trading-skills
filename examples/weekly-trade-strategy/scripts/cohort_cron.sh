@@ -41,8 +41,15 @@ case "${1:-}" in
     # |reaction| >= 5% (the 3-5% bucket adds ~nothing over the market base rate;
     # the >=5% pocket showed positive excess every year, ~+1.4pp @T+14 for >=10%).
     # Shorts are still logged + as-if-tracked via the disabled-side veto.
+    #
+    # 2026-07-02 widening: mcap floor 20B -> 5B (PEAD is empirically stronger in
+    # mid-caps — thinner coverage, slower price discovery; the $20B funnel was
+    # starving: ~9 names/week -> ~1 entry). Affordable because the generator now
+    # reaction-checks BEFORE ranking (sub-threshold names cost 1 FMP call, not 8)
+    # and gates would-enter on drift-quality (default --min-quality 2: EPS/rev
+    # surprise + volume + close-location must confirm the pop).
     python3 "$SCRIPTS/cohort_generate.py" --date "$TODAY" --mode post \
-      --min-reaction 5 --no-shorts >> "$LOG" 2>&1 \
+      --min-reaction 5 --no-shorts --min-mcap 5e9 >> "$LOG" 2>&1 \
       && log "post cohort OK" || log "post cohort FAILED (exit $?)"
     ;;
   track)
