@@ -44,7 +44,7 @@ New users should start with one of these operational workflows. Each link points
 | --- | --- | --- | --- |
 | 15-minute daily market check | [`market-regime-daily`](workflows/market-regime-daily.yaml) | market-breadth-analyzer, uptrend-analyzer, exposure-coach | No API for basic path |
 | Weekly long-term portfolio review | [`core-portfolio-weekly`](workflows/core-portfolio-weekly.yaml) | portfolio-manager, kanchi-dividend-review-monitor, trader-memory-core | Alpaca required; manual CSV is a degraded fallback |
-| Find swing candidates only when risk is allowed | [`swing-opportunity-daily`](workflows/swing-opportunity-daily.yaml) | vcp-screener, technical-analyst, position-sizer | FMP for screeners |
+| Find swing candidates only when risk is allowed | [`swing-opportunity-daily`](workflows/swing-opportunity-daily.yaml) | vcp-screener, drawdown-circuit-breaker, technical-analyst, position-sizer, trader-memory-core | FMP for screeners; local state for risk gate |
 | Record and learn from every closed trade | [`trade-memory-loop`](workflows/trade-memory-loop.yaml) | trader-memory-core, signal-postmortem | No API for manual path |
 | Review monthly performance and adjust rules | [`monthly-performance-review`](workflows/monthly-performance-review.yaml) | trader-memory-core, signal-postmortem, backtest-expert | No API for manual path |
 
@@ -165,6 +165,7 @@ The detailed catalog below is **auto-generated** from `skills-index.yaml` by `sc
 
 | Skill | Summary | Integrations | Status |
 |---|---|---|---|
+| **Drawdown Circuit Breaker** (`drawdown-circuit-breaker`) | Account-level circuit breaker that reads trader-memory-core state and decides whether new trade risk is allowed today using daily loss limits, losing-streak cooldowns, and weekly/monthly drawdown halts. | `local_calculation` — | beta |
 | **Position Sizer** (`position-sizer`) | Calculate risk-based position sizes for long stock trades. | `local_calculation` — | production |
 | **Technical Analyst** (`technical-analyst`) | This skill should be used when analyzing weekly price charts for stocks, stock indices, cryptocurrencies, or forex pairs. | `chart_image` **required** | production |
 | **US Stock Analysis** (`us-stock-analysis`) | Comprehensive US stock analysis including fundamental analysis (financial metrics, business quality, valuation), technical analysis (indicators, chart patterns, support/resistance), stock comparisons, and investment report generation. | `user_input` **required** | production |
