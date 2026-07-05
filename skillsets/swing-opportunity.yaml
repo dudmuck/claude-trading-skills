@@ -20,14 +20,18 @@ when_not_to_use: >-
 
 required_skills:
   - vcp-screener
+  - drawdown-circuit-breaker
   - technical-analyst
   - position-sizer
   - trader-memory-core
+  - pre-trade-discipline-gate
 recommended_skills:
   - canslim-screener
   - breakout-trade-planner
   - theme-detector
 optional_skills:
+  - stockbee-momentum-burst-screener
+  - stockbee-exhaustion-hammer-screener
   - finviz-screener
 
 related_workflows:

@@ -119,6 +119,22 @@
       "timeframe": "research"
     },
     {
+      "category": "trade-planning",
+      "difficulty": "beginner",
+      "display_name": "Drawdown Circuit Breaker",
+      "id": "drawdown-circuit-breaker",
+      "integrations": [
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Account-level circuit breaker that reads trader-memory-core state and decides whether new trade risk is allowed today using daily loss limits, losing-streak cooldowns, and weekly/monthly drawdown halts.",
+      "timeframe": "daily"
+    },
+    {
       "category": "meta",
       "difficulty": "intermediate",
       "display_name": "Dual Axis Skill Reviewer",
@@ -609,6 +625,22 @@
       "timeframe": "event-driven"
     },
     {
+      "category": "trade-planning",
+      "difficulty": "intermediate",
+      "display_name": "Pre-Trade Discipline Gate",
+      "id": "pre-trade-discipline-gate",
+      "integrations": [
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Offline manual-execution checklist gate that blocks planless, oversized, revenge-risk, market-regime-blocked, or circuit-breaker-blocked entries and journals the result.",
+      "timeframe": "event-driven"
+    },
+    {
       "category": "strategy-research",
       "difficulty": "advanced",
       "display_name": "Scenario Analyzer",
@@ -719,6 +751,151 @@
       "status": "production",
       "summary": "Druckenmiller Strategy Synthesizer - Integrates 8 upstream skill outputs (Market Breadth, Uptrend Analysis, Market Top, Macro Regime, FTD Detector, VCP Screener, Theme Detector, CANSLIM Screener) into a unified conviction score (0-100),...",
       "timeframe": "weekly"
+    },
+    {
+      "category": "strategy-research",
+      "difficulty": "advanced",
+      "display_name": "Stockbee 20% Study",
+      "id": "stockbee-20pct-study",
+      "integrations": [
+        {
+          "id": "fmp",
+          "requirement": "required",
+          "type": "market_data"
+        },
+        {
+          "id": "prices_json",
+          "requirement": "optional",
+          "type": "local_file"
+        },
+        {
+          "id": "news_events_json",
+          "requirement": "optional",
+          "type": "local_file"
+        },
+        {
+          "id": "websearch",
+          "requirement": "optional",
+          "type": "web"
+        },
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Build a daily Stockbee-style +20%/-20% mover event study, classify catalysts and setup context, update forward outcomes, and export evidence-backed edge hints without treating movers as buy/sell signals.",
+      "timeframe": "daily"
+    },
+    {
+      "category": "advanced-satellite",
+      "difficulty": "advanced",
+      "display_name": "Stockbee Episodic Pivot Analyzer",
+      "id": "stockbee-episodic-pivot-analyzer",
+      "integrations": [
+        {
+          "id": "catalyst_events_json",
+          "requirement": "required",
+          "type": "local_file"
+        },
+        {
+          "id": "fmp",
+          "requirement": "optional",
+          "type": "market_data"
+        },
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Analyze Stockbee-style Day 1 Episodic Pivot candidates from earnings, guidance, M&A, FDA, analyst, contract, product, short-squeeze, and story/theme catalysts using catalyst quality, gap/range expansion, volume shock, neglect/revaluation context, liquidity, and EP-day-low risk.",
+      "timeframe": "event-driven"
+    },
+    {
+      "category": "swing-opportunity",
+      "difficulty": "intermediate",
+      "display_name": "Stockbee Exhaustion Hammer Screener",
+      "id": "stockbee-exhaustion-hammer-screener",
+      "integrations": [
+        {
+          "id": "fmp",
+          "requirement": "required",
+          "type": "market_data"
+        },
+        {
+          "id": "prices_json",
+          "requirement": "optional",
+          "type": "local_file"
+        },
+        {
+          "id": "profiles_json",
+          "requirement": "optional",
+          "type": "local_file"
+        },
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Screen US stocks for Stockbee-style selling-exhaustion hammer candidates using quality/liquidity gates, prior momentum, pullback depth, undercut/reclaim, hammer geometry, volume confirmation, market gate, and risk-distance filters.",
+      "timeframe": "daily"
+    },
+    {
+      "category": "swing-opportunity",
+      "difficulty": "intermediate",
+      "display_name": "Stockbee Momentum Burst Screener",
+      "id": "stockbee-momentum-burst-screener",
+      "integrations": [
+        {
+          "id": "fmp",
+          "requirement": "required",
+          "type": "market_data"
+        },
+        {
+          "id": "prices_json",
+          "requirement": "optional",
+          "type": "local_file"
+        },
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Screen US stocks for Stockbee-style 3-5 day momentum burst candidates using 4% breakout, dollar breakout, range expansion, volume expansion, setup quality, and risk-distance filters.",
+      "timeframe": "daily"
+    },
+    {
+      "category": "trade-memory",
+      "difficulty": "intermediate",
+      "display_name": "Stockbee Setup Fluency Trainer",
+      "id": "stockbee-setup-fluency-trainer",
+      "integrations": [
+        {
+          "id": "prices_json",
+          "requirement": "optional",
+          "type": "local_file"
+        },
+        {
+          "id": "fmp",
+          "requirement": "optional",
+          "type": "market_data"
+        },
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Build a Stockbee-style setup model book from momentum-burst screener candidates, then update 3-day and 5-day forward outcomes with MFE/MAE, stop-hit status, outcome tags, and cohort statistics.",
+      "timeframe": "daily"
     },
     {
       "category": "strategy-research",
@@ -921,6 +1098,22 @@
       "status": "production",
       "summary": "Screen S&P 500 stocks for Mark Minervini's Volatility Contraction Pattern (VCP).",
       "timeframe": "daily"
+    },
+    {
+      "category": "trade-memory",
+      "difficulty": "beginner",
+      "display_name": "Weekly Performance Digest",
+      "id": "weekly-performance-digest",
+      "integrations": [
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "production",
+      "summary": "Generate a weekly performance summary from closed trades with win rate, expectancy, and pattern analysis.",
+      "timeframe": "weekly"
     }
   ],
   "skillsets": [
@@ -991,6 +1184,8 @@
       "display_name": "Swing Opportunity",
       "id": "swing-opportunity",
       "optional_skills": [
+        "stockbee-momentum-burst-screener",
+        "stockbee-exhaustion-hammer-screener",
         "finviz-screener"
       ],
       "recommended_skills": [
@@ -1003,9 +1198,11 @@
       ],
       "required_skills": [
         "vcp-screener",
+        "drawdown-circuit-breaker",
         "technical-analyst",
         "position-sizer",
-        "trader-memory-core"
+        "trader-memory-core",
+        "pre-trade-discipline-gate"
       ],
       "target_users": [
         "part-time-swing-trader"
@@ -1140,13 +1337,91 @@
       ]
     },
     {
+      "api_profile": "mixed",
+      "cadence": "daily",
+      "difficulty": "advanced",
+      "display_name": "Stockbee 20% Study Daily",
+      "estimated_minutes": 30,
+      "id": "stockbee-20pct-study-daily",
+      "optional_skills": [
+        "trader-memory-core",
+        "edge-candidate-agent",
+        "edge-hint-extractor",
+        "stockbee-episodic-pivot-analyzer",
+        "theme-detector",
+        "backtest-expert"
+      ],
+      "prerequisite_workflows": [],
+      "required_skills": [
+        "stockbee-20pct-study"
+      ],
+      "target_users": [
+        "part-time-swing-trader",
+        "growth-investor",
+        "strategy-researcher"
+      ]
+    },
+    {
+      "api_profile": "mixed",
+      "cadence": "daily",
+      "difficulty": "advanced",
+      "display_name": "Stockbee EP Daily",
+      "estimated_minutes": 40,
+      "id": "stockbee-ep-daily",
+      "optional_skills": [
+        "earnings-trade-analyzer",
+        "stockbee-momentum-burst-screener",
+        "pead-screener",
+        "theme-detector",
+        "breakout-trade-planner"
+      ],
+      "prerequisite_workflows": [
+        "market-regime-daily"
+      ],
+      "required_skills": [
+        "drawdown-circuit-breaker",
+        "stockbee-episodic-pivot-analyzer",
+        "technical-analyst",
+        "position-sizer",
+        "trader-memory-core",
+        "pre-trade-discipline-gate"
+      ],
+      "target_users": [
+        "part-time-swing-trader",
+        "growth-investor"
+      ]
+    },
+    {
+      "api_profile": "no-api-basic",
+      "cadence": "daily",
+      "difficulty": "intermediate",
+      "display_name": "Stockbee Setup Fluency Loop",
+      "estimated_minutes": 20,
+      "id": "stockbee-fluency-loop",
+      "optional_skills": [
+        "trader-memory-core",
+        "signal-postmortem",
+        "backtest-expert"
+      ],
+      "prerequisite_workflows": [],
+      "required_skills": [
+        "stockbee-setup-fluency-trainer"
+      ],
+      "target_users": [
+        "part-time-swing-trader",
+        "growth-investor"
+      ]
+    },
+    {
       "api_profile": "fmp-required",
       "cadence": "daily",
       "difficulty": "intermediate",
       "display_name": "Swing Opportunity Daily",
-      "estimated_minutes": 30,
+      "estimated_minutes": 40,
       "id": "swing-opportunity-daily",
       "optional_skills": [
+        "stockbee-momentum-burst-screener",
+        "stockbee-exhaustion-hammer-screener",
         "canslim-screener",
         "breakout-trade-planner",
         "theme-detector"
@@ -1156,9 +1431,11 @@
       ],
       "required_skills": [
         "vcp-screener",
+        "drawdown-circuit-breaker",
         "technical-analyst",
         "position-sizer",
-        "trader-memory-core"
+        "trader-memory-core",
+        "pre-trade-discipline-gate"
       ],
       "target_users": [
         "part-time-swing-trader"

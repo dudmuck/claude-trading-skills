@@ -26,7 +26,10 @@ permalink: /ja/workflows/
 | [`market-regime-daily`](#market-regime-daily) — Market Regime Daily | daily | 15 | no-api-basic | beginner |
 | [`monthly-performance-review`](#monthly-performance-review) — Monthly Performance Review | monthly | 90 | no-api-basic | intermediate |
 | [`multi-asset-opportunity-daily`](#multi-asset-opportunity-daily) — Multi-Asset Opportunity Daily | daily | 45 | mixed | intermediate |
-| [`swing-opportunity-daily`](#swing-opportunity-daily) — Swing Opportunity Daily | daily | 30 | fmp-required | intermediate |
+| [`stockbee-20pct-study-daily`](#stockbee-20pct-study-daily) — Stockbee 20% Study Daily | daily | 30 | mixed | advanced |
+| [`stockbee-ep-daily`](#stockbee-ep-daily) — Stockbee EP Daily | daily | 40 | mixed | advanced |
+| [`stockbee-fluency-loop`](#stockbee-fluency-loop) — Stockbee Setup Fluency Loop | daily | 20 | no-api-basic | intermediate |
+| [`swing-opportunity-daily`](#swing-opportunity-daily) — Swing Opportunity Daily | daily | 40 | fmp-required | intermediate |
 | [`trade-memory-loop`](#trade-memory-loop) — Trade Memory Loop | ad-hoc | 30 | no-api-basic | beginner |
 
 ---
@@ -292,17 +295,232 @@ permalink: /ja/workflows/
 
 ---
 
+## Stockbee 20% Study Daily {#stockbee-20pct-study-daily}
+
+**`stockbee-20pct-study-daily`** · daily · ~30 min · mixed · advanced
+
+**実行タイミング:** Run after the US market close, or during historical research backfills, to identify +20%/-20% movers, classify event context, update matured outcomes, and accumulate a model book of explosive market moves.
+
+**実行してはいけないとき:** Do not use as a buy/sell signal workflow or automatic execution system. Do not promote new rules from small samples, current-only universes, or events without survivorship-bias and data-quality notes.
+
+**必須スキル:** `stockbee-20pct-study`
+
+**任意スキル:** `trader-memory-core`, `edge-candidate-agent`, `edge-hint-extractor`, `stockbee-episodic-pivot-analyzer`, `theme-detector`, `backtest-expert`
+
+**artifact 一覧:**
+
+| Artifact | 生成ステップ | 必須 | 下流ヒント |
+|---|---|---|---|
+| `twenty_pct_mover_events` | 1 | あり | — |
+| `classified_event_study` | 2 | あり | — |
+| `matured_event_outcomes` | 3 | あり | — |
+| `twenty_pct_cohort_summary` | 4 | あり | `monthly-performance-review` |
+| `edge_hints_yaml` | 4 | なし | `monthly-performance-review` |
+| `accepted_lessons_log` | 5 | なし | `monthly-performance-review` |
+
+**ステップ:**
+
+**ステップ 1: Scan daily +20% and -20% movers** → `stockbee-20pct-study`
+
+- produces: `twenty_pct_mover_events`
+
+**ステップ 2: Classify catalyst, chart context, theme cluster, and risk flags** → `stockbee-20pct-study`
+
+- consumes: `twenty_pct_mover_events`
+- produces: `classified_event_study`
+
+**ステップ 3: Update matured forward outcomes for prior 20% study records** → `stockbee-20pct-study`
+
+- consumes: `classified_event_study`
+- produces: `matured_event_outcomes`
+
+**ステップ 4: Summarize cohorts and export edge hints** （判断ゲート） → `stockbee-20pct-study`
+
+- consumes: `matured_event_outcomes`
+- produces: `twenty_pct_cohort_summary`, `edge_hints_yaml`
+- **判断:** Which 20% mover patterns have enough sample size, stable outcome behavior, and execution realism to promote into edge research rather than journal-only observation?
+
+**ステップ 5: Log accepted lessons** （任意） （判断ゲート） → `trader-memory-core`
+
+- consumes: `twenty_pct_cohort_summary`, `edge_hints_yaml`
+- produces: `accepted_lessons_log`
+- **判断:** Which findings are accepted as operating-rule candidates, which are rejected, and which remain pending more examples?
+
+**手動レビュー:**
+
+- Inspect representative winner and failure charts before accepting any pattern.
+- Separate observation, research hypothesis, and executable trade plan.
+- Mark current-universe backfills as survivorship-biased unless delisted symbols are included.
+- Require explicit sample-size thresholds before promoting a cohort rule.
+- Feed accepted lessons into monthly-performance-review rather than changing rules ad hoc.
+
+**Journal 出力先:** `trader-memory-core`
+
+---
+
+## Stockbee EP Daily {#stockbee-ep-daily}
+
+**`stockbee-ep-daily`** · daily · ~40 min · mixed · advanced
+
+**実行タイミング:** Run on earnings/news-heavy days after the market-regime workflow allows new risk, or ad hoc when a game-changing catalyst appears. Use this workflow to classify Day 1 Episodic Pivot candidates and decide whether they are actionable today, delayed-EP watchlist names, or PEAD handoff candidates.
+
+**実行してはいけないとき:** Do not run as a blind stock screener without catalyst inputs. Do not use it to bypass market-regime gates, chart validation, position sizing, or manual catalyst review.
+
+**必須スキル:** `drawdown-circuit-breaker`, `stockbee-episodic-pivot-analyzer`, `technical-analyst`, `position-sizer`, `trader-memory-core`, `pre-trade-discipline-gate`
+
+**任意スキル:** `earnings-trade-analyzer`, `stockbee-momentum-burst-screener`, `pead-screener`, `theme-detector`, `breakout-trade-planner`
+
+**前提ワークフロー（informational）:**
+
+- `market-regime-daily` が期待する artifact `exposure_decision` — New EP trades should still respect the market-regime exposure gate.
+
+**artifact 一覧:**
+
+| Artifact | 生成ステップ | 必須 | 下流ヒント |
+|---|---|---|---|
+| `circuit_breaker_decision` | 1 | あり | — |
+| `earnings_candidates` | 2 | なし | — |
+| `momentum_burst_candidates` | 3 | なし | — |
+| `episodic_pivot_candidates` | 4 | あり | — |
+| `pead_handoff_candidates` | 4 | なし | `swing-opportunity-daily` |
+| `delayed_ep_watchlist` | 4 | なし | — |
+| `validated_ep_setups` | 5 | あり | — |
+| `ep_position_sizing` | 6 | あり | — |
+| `ep_trade_plan` | 7 | なし | — |
+| `ep_journal_entry` | 8 | あり | `trade-memory-loop` |
+| `pre_trade_discipline_decision` | 9 | あり | — |
+
+**ステップ:**
+
+**ステップ 1: Check account circuit breaker** （判断ゲート） → `drawdown-circuit-breaker`
+
+- produces: `circuit_breaker_decision`
+- **判断:** Is the account circuit breaker clear (TRADING_ALLOWED) for new EP trade risk today?
+
+**ステップ 2: Optional earnings candidate scan** （任意） → `earnings-trade-analyzer`
+
+- produces: `earnings_candidates`
+
+**ステップ 3: Optional momentum confirmation scan** （任意） → `stockbee-momentum-burst-screener`
+
+- produces: `momentum_burst_candidates`
+
+**ステップ 4: Analyze Day 1 Episodic Pivot candidates** （判断ゲート） → `stockbee-episodic-pivot-analyzer`
+
+- consumes: `earnings_candidates`, `momentum_burst_candidates`
+- produces: `episodic_pivot_candidates`, `pead_handoff_candidates`, `delayed_ep_watchlist`
+- **判断:** Which candidates have a true game-changing catalyst plus price/volume confirmation? Separate ACTIONABLE_DAY1 from DELAYED_EP_WATCH and reject low-quality headline-only moves.
+
+**ステップ 5: Validate EP chart quality** （判断ゲート） → `technical-analyst`
+
+- consumes: `episodic_pivot_candidates`
+- produces: `validated_ep_setups`
+- **判断:** Does the chart confirm a clean EP reaction with acceptable close quality, liquidity, and risk to the EP-day low?
+
+**ステップ 6: Calculate EP position size** → `position-sizer`
+
+- consumes: `validated_ep_setups`
+- produces: `ep_position_sizing`
+
+**ステップ 7: Build optional EP trade plan** （任意） → `breakout-trade-planner`
+
+- consumes: `validated_ep_setups`, `ep_position_sizing`
+- produces: `ep_trade_plan`
+
+**ステップ 8: Register EP thesis or watchlist entry** （判断ゲート） → `trader-memory-core`
+
+- consumes: `validated_ep_setups`, `ep_position_sizing`, `ep_trade_plan`
+- produces: `ep_journal_entry`
+- **判断:** Which candidates deserve an active thesis, which belong on delayed EP / PEAD watch, and which should be ignored despite a high initial score?
+
+**ステップ 9: Run EP manual execution discipline gate** （判断ゲート） → `pre-trade-discipline-gate`
+
+- consumes: `circuit_breaker_decision`, `ep_journal_entry`, `ep_position_sizing`, `ep_trade_plan`
+- produces: `pre_trade_discipline_decision`
+- **判断:** Before placing any manual broker order, do ACTIONABLE_DAY1 or ENTRY_READY EP candidates pass the written-plan, predefined-stop, position-size, recent-loss, market-regime, and circuit-breaker discipline checks? Treat delayed EP, PEAD handoff, ignored, or rejected candidates as no-action journal entries, not order approvals.
+
+**手動レビュー:**
+
+- Confirm market-regime-daily allows new risk before acting.
+- Confirm circuit_breaker_decision is TRADING_ALLOWED before analyzing new EP trade risk.
+- Verify the catalyst manually; this workflow does not discover or validate news truth by itself.
+- Treat analyst-only and story-only EPs as lower quality unless price/volume confirmation is exceptional.
+- Use EP-day low as the default stop reference only if the distance is realistically sizeable.
+- Send overextended earnings/guidance EPs to PEAD monitoring instead of chasing Day 1.
+- Confirm pre_trade_discipline_decision is GO before placing any manual broker order; watchlist and PEAD handoff candidates should not be treated as order approvals.
+- All orders are placed manually at the broker; no auto-execution.
+
+**Journal 出力先:** `trader-memory-core`
+
+---
+
+## Stockbee Setup Fluency Loop {#stockbee-fluency-loop}
+
+**`stockbee-fluency-loop`** · daily · ~20 min · no-api-basic · intermediate
+
+**実行タイミング:** After stockbee-momentum-burst-screener produces candidate reports, and again after 3/5 trading-day windows have matured. Builds a model book of Stockbee Momentum Burst examples so the trader can improve setup recognition.
+
+**実行してはいけないとき:** Do not use as an execution workflow or signal service. Do not change trading rules from tiny samples; require enough matured examples and manual chart review before promoting or filtering a setup tag.
+
+**必須スキル:** `stockbee-setup-fluency-trainer`
+
+**任意スキル:** `trader-memory-core`, `signal-postmortem`, `backtest-expert`
+
+**artifact 一覧:**
+
+| Artifact | 生成ステップ | 必須 | 下流ヒント |
+|---|---|---|---|
+| `model_book_ingest` | 1 | あり | — |
+| `matured_setup_outcomes` | 2 | あり | — |
+| `setup_fluency_summary` | 3 | あり | `monthly-performance-review` |
+| `rule_candidates` | 3 | なし | `monthly-performance-review` |
+| `accepted_lessons_log` | 4 | なし | `monthly-performance-review` |
+
+**ステップ:**
+
+**ステップ 1: Ingest latest Stockbee momentum burst candidates** → `stockbee-setup-fluency-trainer`
+
+- produces: `model_book_ingest`
+
+**ステップ 2: Update matured 3-day and 5-day outcomes** → `stockbee-setup-fluency-trainer`
+
+- consumes: `model_book_ingest`
+- produces: `matured_setup_outcomes`
+
+**ステップ 3: Summarize setup cohorts and rule candidates** （判断ゲート） → `stockbee-setup-fluency-trainer`
+
+- consumes: `matured_setup_outcomes`
+- produces: `setup_fluency_summary`, `rule_candidates`
+- **判断:** Which setup tags have enough matured examples to promote, downgrade, or continue monitoring? Require representative chart review before changing trade rules.
+
+**ステップ 4: Log accepted lessons** （任意） （判断ゲート） → `trader-memory-core`
+
+- consumes: `setup_fluency_summary`, `rule_candidates`
+- produces: `accepted_lessons_log`
+- **判断:** Which findings are accepted as operating-rule changes, and which remain journal-only observations pending more examples?
+
+**手動レビュー:**
+
+- Inspect representative winner and failure charts before accepting a rule change.
+- Separate evidence from execution decisions; this workflow records setup behavior, not actual P&L.
+- Keep sample-size thresholds explicit, especially when market regime changes.
+- Feed accepted lessons into monthly-performance-review rather than adding ad-hoc rules daily.
+
+**Journal 出力先:** `trader-memory-core`
+
+---
+
 ## Swing Opportunity Daily {#swing-opportunity-daily}
 
-**`swing-opportunity-daily`** · daily · ~30 min · fmp-required · intermediate
+**`swing-opportunity-daily`** · daily · ~40 min · fmp-required · intermediate
 
 **実行タイミング:** Only after market-regime-daily has produced a non-restrictive exposure decision. Identifies swing trade candidates and builds entry plans.
 
 **実行してはいけないとき:** Do not run when the latest market-regime-daily exposure_decision is cash-priority or restrictive. Do not use as a standalone screener without the regime gate.
 
-**必須スキル:** `vcp-screener`, `technical-analyst`, `position-sizer`, `trader-memory-core`
+**必須スキル:** `vcp-screener`, `drawdown-circuit-breaker`, `technical-analyst`, `position-sizer`, `trader-memory-core`, `pre-trade-discipline-gate`
 
-**任意スキル:** `canslim-screener`, `breakout-trade-planner`, `theme-detector`
+**任意スキル:** `stockbee-momentum-burst-screener`, `stockbee-exhaustion-hammer-screener`, `canslim-screener`, `breakout-trade-planner`, `theme-detector`
 
 **前提ワークフロー（informational）:**
 
@@ -312,55 +530,82 @@ permalink: /ja/workflows/
 
 | Artifact | 生成ステップ | 必須 | 下流ヒント |
 |---|---|---|---|
-| `vcp_candidates` | 1 | あり | — |
-| `canslim_candidates` | 2 | なし | — |
-| `theme_candidates` | 3 | なし | — |
-| `validated_setups` | 4 | あり | — |
-| `position_sizing` | 5 | あり | — |
-| `trade_plans` | 6 | なし | `trade-memory-loop` |
-| `candidate_journal_entry` | 7 | あり | `trade-memory-loop` |
+| `circuit_breaker_decision` | 1 | あり | — |
+| `vcp_candidates` | 2 | あり | — |
+| `momentum_burst_candidates` | 3 | なし | — |
+| `exhaustion_hammer_candidates` | 4 | なし | — |
+| `canslim_candidates` | 5 | なし | — |
+| `theme_candidates` | 6 | なし | — |
+| `validated_setups` | 7 | あり | — |
+| `position_sizing` | 8 | あり | — |
+| `trade_plans` | 9 | なし | `trade-memory-loop` |
+| `candidate_journal_entry` | 10 | あり | `trade-memory-loop` |
+| `pre_trade_discipline_decision` | 11 | あり | — |
 
 **ステップ:**
 
-**ステップ 1: Run VCP screener** → `vcp-screener`
+**ステップ 1: Check account circuit breaker** （判断ゲート） → `drawdown-circuit-breaker`
+
+- produces: `circuit_breaker_decision`
+- **判断:** Is the account circuit breaker clear (TRADING_ALLOWED) for new trade risk today?
+
+**ステップ 2: Run VCP screener** → `vcp-screener`
 
 - produces: `vcp_candidates`
 
-**ステップ 2: Run CANSLIM screener** （任意） → `canslim-screener`
+**ステップ 3: Run Stockbee momentum burst screener** （任意） → `stockbee-momentum-burst-screener`
+
+- produces: `momentum_burst_candidates`
+
+**ステップ 4: Run Stockbee exhaustion hammer screener** （任意） → `stockbee-exhaustion-hammer-screener`
+
+- produces: `exhaustion_hammer_candidates`
+
+**ステップ 5: Run CANSLIM screener** （任意） → `canslim-screener`
 
 - produces: `canslim_candidates`
 
-**ステップ 3: Theme detection cross-check** （任意） → `theme-detector`
+**ステップ 6: Theme detection cross-check** （任意） → `theme-detector`
 
 - produces: `theme_candidates`
 
-**ステップ 4: Validate setups on weekly chart** （判断ゲート） → `technical-analyst`
+**ステップ 7: Validate setups on weekly chart** （判断ゲート） → `technical-analyst`
 
-- consumes: `vcp_candidates`, `canslim_candidates`, `theme_candidates`
+- consumes: `vcp_candidates`, `momentum_burst_candidates`, `exhaustion_hammer_candidates`, `canslim_candidates`, `theme_candidates`
 - produces: `validated_setups`
-- **判断:** Which candidates have a clean weekly setup (Stage 2 uptrend, tight base) and pass the manual chart review? Reject candidates that don't.
+- **判断:** Which candidates have a clean weekly setup (Stage 2 uptrend, tight base, or Stockbee-style range expansion from a controlled base) and pass the manual chart review? For exhaustion hammers, confirm the pullback is not thesis-breaking and risk to the day low is acceptable. Reject candidates that don't pass.
 
-**ステップ 5: Calculate position size** → `position-sizer`
+**ステップ 8: Calculate position size** → `position-sizer`
 
 - consumes: `validated_setups`
 - produces: `position_sizing`
 
-**ステップ 6: Build entry plan** （任意） → `breakout-trade-planner`
+**ステップ 9: Build entry plan** （任意） → `breakout-trade-planner`
 
 - consumes: `validated_setups`, `position_sizing`
 - produces: `trade_plans`
 
-**ステップ 7: Register thesis in journal** （判断ゲート） → `trader-memory-core`
+**ステップ 10: Register thesis in journal** （判断ゲート） → `trader-memory-core`
 
 - consumes: `position_sizing`, `trade_plans`
 - produces: `candidate_journal_entry`
 - **判断:** For each candidate that survived validation, register the thesis with entry / stop / target. Confirm risk per trade matches position-sizer output and total portfolio heat is within budget.
 
+**ステップ 11: Run manual execution discipline gate** （判断ゲート） → `pre-trade-discipline-gate`
+
+- consumes: `candidate_journal_entry`, `position_sizing`, `trade_plans`, `circuit_breaker_decision`
+- produces: `pre_trade_discipline_decision`
+- **判断:** Before placing any manual broker order, does each actionable candidate pass the written-plan, predefined-stop, position-size, recent-loss, market-regime, and circuit-breaker discipline checks?
+
 **手動レビュー:**
 
 - Confirm market-regime-daily exposure_decision allows new risk before acting.
+- Confirm circuit_breaker_decision is TRADING_ALLOWED before screening or sizing new candidates.
 - Reject any candidate where weekly setup is unclear, even if screener passed.
+- Treat Stockbee momentum burst output as candidate generation only; require chart validation and risk-distance review.
+- Treat Stockbee exhaustion hammer output as candidate generation only; confirm the pullback is not caused by a thesis-breaking news event and verify risk to the day low.
 - Verify total portfolio heat is within budget before placing any order.
+- Confirm pre_trade_discipline_decision is GO before placing any manual broker order.
 - All orders are placed manually at the broker; no auto-execution.
 
 **Journal 出力先:** `trader-memory-core`

@@ -79,11 +79,11 @@ permalink: /ja/skillsets/
 
 **対象ユーザー:** `part-time-swing-trader`
 
-**必須スキル:** `vcp-screener`, `technical-analyst`, `position-sizer`, `trader-memory-core`
+**必須スキル:** `vcp-screener`, `drawdown-circuit-breaker`, `technical-analyst`, `position-sizer`, `trader-memory-core`, `pre-trade-discipline-gate`
 
 **推奨スキル:** `canslim-screener`, `breakout-trade-planner`, `theme-detector`
 
-**任意スキル:** `finviz-screener`
+**任意スキル:** `stockbee-momentum-burst-screener`, `stockbee-exhaustion-hammer-screener`, `finviz-screener`
 
 **関連ワークフロー:** `swing-opportunity-daily`
 
