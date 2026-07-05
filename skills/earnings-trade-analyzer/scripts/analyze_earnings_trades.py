@@ -90,6 +90,27 @@ def analyze_stock(daily_prices, earnings_date, timing):
     }
 
 
+def extract_earnings_prices(daily_prices, earnings_date):
+    """Extract OHLC for the day before, earnings day, and day after earnings.
+
+    daily_prices is most-recent-first. Returns a dict with keys:
+      d_minus_1, d0, d_plus_1 — each with open/close/date (None if unavailable).
+    """
+    idx = next((i for i, b in enumerate(daily_prices) if b.get("date") == earnings_date), -1)
+
+    def bar(i):
+        if 0 <= i < len(daily_prices):
+            b = daily_prices[i]
+            return {"open": b.get("open"), "close": b.get("close"), "date": b.get("date")}
+        return {"open": None, "close": None, "date": None}
+
+    return {
+        "d_minus_1": bar(idx + 1) if idx != -1 else bar(-1),  # day before
+        "d0": bar(idx) if idx != -1 else bar(-1),  # earnings day
+        "d_plus_1": bar(idx - 1) if idx != -1 else bar(-1),  # day after
+    }
+
+
 def apply_entry_filter(results):
     """Apply entry quality filter to exclude poor setups.
 
@@ -132,6 +153,14 @@ def main():
         help="Minimum market cap in dollars (default: 500000000)",
     )
     parser.add_argument("--min-gap", type=float, default=0, help="Minimum gap %% (default: 0)")
+    parser.add_argument(
+        "--min-revenue",
+        type=float,
+        default=1_000_000_000,
+        help="Minimum revenue (estimated or actual, from the earnings calendar) in "
+        "dollars (default: 1000000000, 0 = no filter). Applied before profile "
+        "fetching to cut API calls on large lookback windows.",
+    )
     parser.add_argument(
         "--max-api-calls",
         type=int,
@@ -184,6 +213,22 @@ def main():
         sys.exit(1)
 
     print(f"Raw earnings announcements: {len(earnings)}", file=sys.stderr)
+
+    # Pre-filter by calendar revenue (estimated or actual) to skip small
+    # companies before the profile fetch spends API budget on them.
+    if args.min_revenue and args.min_revenue > 0:
+        before = len(earnings)
+        earnings = [
+            e
+            for e in earnings
+            if max(e.get("revenueEstimated") or 0, e.get("revenueActual") or 0)
+            >= args.min_revenue
+        ]
+        print(
+            f"Revenue filter (>=${args.min_revenue / 1e9:.1f}B): "
+            f"{before} -> {len(earnings)} announcements",
+            file=sys.stderr,
+        )
 
     # Get unique symbols
     symbols = list(set(e.get("symbol") for e in earnings if e.get("symbol")))
@@ -310,12 +355,14 @@ def main():
             continue
 
         current_price = daily_prices[0]["close"] if daily_prices else candidate["price"]
+        earnings_prices = extract_earnings_prices(daily_prices, candidate["earnings_date"])
 
         result = {
             "symbol": symbol,
             "company_name": candidate["company_name"],
             "earnings_date": candidate["earnings_date"],
             "earnings_timing": candidate["earnings_timing"],
+            "earnings_prices": earnings_prices,
             "gap_pct": gap_pct,
             "composite_score": composite["composite_score"],
             "grade": composite["grade"],
@@ -370,6 +417,7 @@ def main():
         "total_screened": len(all_results),
         "min_market_cap": args.min_market_cap,
         "min_gap": args.min_gap,
+        "min_revenue": args.min_revenue,
         "entry_filter_applied": args.apply_entry_filter,
         "api_stats": api_stats,
     }

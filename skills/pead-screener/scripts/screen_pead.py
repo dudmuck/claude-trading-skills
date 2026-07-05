@@ -142,6 +142,14 @@ def parse_arguments():
         default=500_000_000,
         help="Minimum market cap (Mode A, default: 500000000)",
     )
+    parser.add_argument(
+        "--min-revenue",
+        type=float,
+        default=1_000_000_000,
+        help="Minimum revenue (estimated or actual, from the earnings calendar) in "
+        "dollars (Mode A, default: 1000000000, 0 = no filter). Applied before the "
+        "profile fetch to cut API calls.",
+    )
 
     # Mode B arguments
     parser.add_argument(
@@ -612,6 +620,21 @@ def _get_candidates_mode_a(client: FMPClient, args) -> list[dict]:
         return []
 
     print(f"  Raw earnings events: {len(earnings)}")
+
+    # Pre-filter by calendar revenue (estimated or actual) to drop small
+    # companies before the profile fetch spends API budget on them.
+    if args.min_revenue and args.min_revenue > 0:
+        before = len(earnings)
+        earnings = [
+            e
+            for e in earnings
+            if max(e.get("revenueEstimated") or 0, e.get("revenueActual") or 0)
+            >= args.min_revenue
+        ]
+        print(
+            f"  Revenue filter (>=${args.min_revenue / 1e9:.1f}B): "
+            f"{before} -> {len(earnings)} events"
+        )
 
     # Get unique symbols
     symbols = list(set(e.get("symbol", "") for e in earnings if e.get("symbol")))
