@@ -56,6 +56,16 @@ case "${1:-}" in
     log "track: marking all cohorts"
     python3 "$SCRIPTS/cohort_track.py" >> "$LOG" 2>&1 \
       && log "track OK" || log "track FAILED (exit $?)"
+    # Friday-only web-sentiment overlay on the newest PEAD cohort's would-enter
+    # longs (advisory; NEVER mutates cohort JSON or marks.jsonl). Adds the one
+    # signal the drift-quality gate can't see — analyst-revision momentum after
+    # the print — via claude_agent_sdk (WebSearch/WebFetch, subscription auth).
+    # MUST use the venv python (the SDK is not on the system python). Runs in
+    # --mode auto: if the headless agent can't authenticate it writes a runnable
+    # prompt-pack instead of failing, so it can never break the track job.
+    log "sentiment overlay: researching newest post cohort"
+    "$HOME/.venv/bin/python" "$SCRIPTS/cohort_sentiment_overlay.py" --model sonnet >> "$LOG" 2>&1 \
+      && log "sentiment overlay OK" || log "sentiment overlay returned $? (advisory; track already done)"
     ;;
   *)
     echo "usage: $0 {generate|track}" >&2
