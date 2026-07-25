@@ -301,6 +301,26 @@ skills:
   - scored_candidates
   - five_factor_grades
   workflows: []
+- id: econ-indicator-explainer
+  display_name: Econ Indicator Explainer
+  category: market-regime
+  status: production
+  summary: Look up the "why it matters" context for a US economic indicator — what it measures, why
+    markets care, and the typical 60-minute SPY/TLT/DXY/VIX reaction. Pairs with economic-calendar-fetcher,
+    which supplies the schedule and consensus.
+  timeframe: event-driven
+  difficulty: beginner
+  integrations:
+  - id: local_calculation
+    type: calculation
+    requirement: not_required
+    note: Static lookup against a version-controlled reference file; no API calls, works offline
+  inputs:
+  - indicator_name
+  - economic_calendar_event
+  outputs:
+  - indicator_card
+  workflows: []
 - id: economic-calendar-fetcher
   display_name: Economic Calendar Fetcher
   category: meta

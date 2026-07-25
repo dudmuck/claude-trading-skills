@@ -110,6 +110,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **[US Stock Analysis]({{ '/ja/skills/us-stock-analysis/' | relative_url }})** | ファンダメンタル、テクニカル、同業比較を網羅した包括的米国株リサーチアシスタント | <span class="badge badge-free">API不要</span> |
 | **Earnings Calendar** | FMP APIで今後の決算発表を取得。時価総額$2B以上の中大型株に焦点 | <span class="badge badge-api">FMP必須</span> |
 | **Economic Calendar Fetcher** | FMP APIで7-90日間の経済イベントを取得。インパクト評価付き時系列レポート | <span class="badge badge-api">FMP必須</span> |
+| **[Econ Indicator Explainer]({{ '/ja/skills/econ-indicator-explainer/' | relative_url }})** | 米国主要指標約30種の静的ナレッジカード。各指標の内容、市場が注目する理由、発表後60分の典型的なSPY/TLT/DXY/VIX反応を提供。API呼び出しなしでeconomic-calendar-fetcherの出力を補完 | <span class="badge badge-free">API不要</span> |
 | **[FXMacroData Calendar]({{ '/ja/skills/fxmacrodata-calendar/' | relative_url }})** | FXMacroDataを使い公式ソースのマクロ発表カレンダーイベントを取得。トレードプランニングとイベントリスクフィルタに利用。USDの公開カレンダー行はキーなしで動作。Beta | <span class="badge badge-optional">FXMacroDataキー任意</span> |
 
 ---
@@ -223,6 +224,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | Trader Memory Core | 任意 | - | - |
 | Earnings Calendar | 必須 | - | - |
 | Economic Calendar Fetcher | 必須 | - | - |
+| Econ Indicator Explainer | - | - | - |
 | Downtrend Duration Analyzer | 必須 | - | - |
 | IBD Distribution Day Monitor | 必須 | - | - |
 | Parabolic Short Trade Planner | 必須 | - | - |

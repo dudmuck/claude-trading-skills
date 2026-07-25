@@ -110,6 +110,7 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | **[US Stock Analysis]({{ '/en/skills/us-stock-analysis/' | relative_url }})** | Comprehensive US equity research: fundamentals, technicals, peer comparisons, and structured investment memos with bull/bear cases | <span class="badge badge-free">No API</span> |
 | **Earnings Calendar** | Fetches upcoming earnings announcements via FMP API. Focuses on mid-cap+ companies (>$2B market cap), organized by date and timing (BMO/AMC) | <span class="badge badge-api">FMP Required</span> |
 | **Economic Calendar Fetcher** | Fetches economic events (FOMC, NFP, CPI, GDP) for 7-90 days via FMP API. Impact assessment (High/Medium/Low) with market implications analysis | <span class="badge badge-api">FMP Required</span> |
+| **[Econ Indicator Explainer]({{ '/en/skills/econ-indicator-explainer/' | relative_url }})** | Static knowledge cards for ~30 US tier-1 indicators: what each one measures, why markets care, and the typical 60-minute SPY/TLT/DXY/VIX reaction. Enriches raw economic-calendar-fetcher output without an API call | <span class="badge badge-free">No API</span> |
 | **[FXMacroData Calendar]({{ '/en/skills/fxmacrodata-calendar/' | relative_url }})** | Fetches official-source macro release-calendar events using FXMacroData for trade planning and event-risk filters. Public USD calendar rows work without a key. Beta | <span class="badge badge-optional">FXMacroData Key Optional</span> |
 
 ---
@@ -281,5 +282,6 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | Crypto Regime Analyzer | -- | -- | -- |
 | Futures Position Sizer | -- | -- | -- |
 | FXMacroData Calendar | -- | -- | -- |
+| Econ Indicator Explainer | -- | -- | -- |
 
 "--" means not required. "Optional" means functionality is enhanced but the skill works without it.
