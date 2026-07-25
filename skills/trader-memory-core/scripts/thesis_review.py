@@ -122,7 +122,7 @@ def generate_postmortem(
 
     content = _render_postmortem(thesis)
     pm_path = j_dir / f"pm_{thesis_id}.md"
-    pm_path.write_text(content)
+    pm_path.write_text(content, encoding="utf-8")
 
     logger.info("Generated postmortem: %s", pm_path)
     return str(pm_path)
@@ -143,6 +143,24 @@ def _render_postmortem(thesis: dict) -> str:
         if val is None:
             return "—"
         return f"{val}{suffix}"
+
+    # Position table is unit-aware (D7): position_value/risk_dollars are
+    # equity-only fields, just like "shares" — a futures thesis shows its
+    # own audit fields (Contracts/Multiplier/Risk-per-contract/Total risk)
+    # instead of three blank "—" rows.
+    if thesis_store._is_futures(thesis):
+        position_rows = (
+            f"| Contracts | {_fmt(position.get('quantity'))} |\n"
+            f"| Multiplier | {_fmt(position.get('multiplier'))} |\n"
+            f"| Risk/Contract ($) | {_fmt(position.get('risk_per_contract_usd'))} |\n"
+            f"| Total Risk ($) | {_fmt(position.get('total_risk_usd'))} |"
+        )
+    else:
+        position_rows = (
+            f"| Shares | {_fmt(position.get('shares'))} |\n"
+            f"| Position Value | {_fmt(position.get('position_value'))} |\n"
+            f"| Risk ($) | {_fmt(position.get('risk_dollars'))} |"
+        )
 
     return f"""# Postmortem: {thesis["thesis_id"]}
 
@@ -177,9 +195,7 @@ def _render_postmortem(thesis: dict) -> str:
 
 | Metric | Value |
 |--------|-------|
-| Shares | {_fmt(position.get("shares"))} |
-| Position Value | {_fmt(position.get("position_value"))} |
-| Risk ($) | {_fmt(position.get("risk_dollars"))} |
+{position_rows}
 
 ## Evidence at Entry
 
@@ -382,7 +398,7 @@ def monthly_report(
         j_dir = Path(journal_dir) if journal_dir else state_path.parent / JOURNAL_DIR_NAME
         out_path = j_dir / f"monthly-review-{month}.md"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(content)
+    out_path.write_text(content, encoding="utf-8")
     return str(out_path)
 
 

@@ -389,12 +389,55 @@ class FMPClient:
         if failures >= self._ENDPOINT_FAILURE_THRESHOLD:
             self._disabled_endpoints.add(base_url)
 
+    # Public-dataset fallback for keys where no FMP tier serves constituents:
+    # /stable/sp500-constituent 402s (Restricted Endpoint) on the free tier
+    # and /api/v3/sp500_constituent 403s (Legacy Endpoint) for keys created
+    # after 2025-08-31.
+    _CONSTITUENTS_CSV_URL = (
+        "https://raw.githubusercontent.com/datasets/"
+        "s-and-p-500-companies/main/data/constituents.csv"
+    )
+
+    def _fetch_constituents_csv(self) -> Optional[list[dict]]:
+        """Fetch the public S&P 500 list, mapped to the v3 response shape.
+
+        Uses a bare requests.get, NOT self.session — the FMP apikey header
+        must not leak to a third-party host.
+        """
+        import csv
+        import io
+
+        try:
+            response = requests.get(self._CONSTITUENTS_CSV_URL, timeout=30)
+            if response.status_code != 200:
+                print(
+                    f"ERROR: constituents CSV fallback failed: {response.status_code}",
+                    file=sys.stderr,
+                )
+                return None
+            data = [
+                {
+                    # FMP uses dash-style class symbols (BRK-B), the CSV uses dots.
+                    "symbol": row["Symbol"].replace(".", "-"),
+                    "name": row["Security"],
+                    "sector": row["GICS Sector"],
+                    "subSector": row["GICS Sub-Industry"],
+                }
+                for row in csv.DictReader(io.StringIO(response.text))
+                if row.get("Symbol")
+            ]
+        except (requests.exceptions.RequestException, csv.Error, KeyError) as e:
+            print(f"ERROR: constituents CSV fallback failed: {e}", file=sys.stderr)
+            return None
+        return data or None
+
     def get_sp500_constituents(self) -> Optional[list[dict]]:
         """Fetch S&P 500 constituent list.
 
-        Tries FMP stable, then FMP v3 legacy, then Wikipedia scrape.
-        Wikipedia fallback exists because FMP gates the constituent endpoint
-        behind higher subscription tiers; symbols and sector names are
+        Tries FMP stable, then FMP v3 legacy, then the public constituents
+        CSV, then a Wikipedia scrape. The non-FMP fallbacks exist because FMP
+        gates the constituent endpoint behind higher subscription tiers
+        (402/403 on Starter-tier keys); symbols and sector names are
         sufficient for downstream screening.
 
         Returns:
@@ -410,8 +453,10 @@ class FMPClient:
         url, params = v3_to_stable(f"{self.BASE_URL}/sp500_constituent")
         data = self._rate_limited_get(url, params, quiet=True)
         if not data:
-            # Both /stable and v3 constituent endpoints are paywalled on
-            # Starter-tier keys (402/403) — Wikipedia is the working fallback.
+            # No FMP tier serves this list on some keys (402 on stable, 403
+            # on v3) — fall back to the public dataset, then to Wikipedia.
+            data = self._fetch_constituents_csv()
+        if not data:
             data = self._fetch_sp500_from_wikipedia()
         if data:
             self.cache[cache_key] = data
