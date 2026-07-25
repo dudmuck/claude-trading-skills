@@ -268,6 +268,49 @@ def alignment(side: str, regime: str | None) -> str:
     return "fighting"
 
 
+def data_completeness_veto(side, mode, entry_ref_price, regime, persistence, quality):
+    """Fail closed: a name may only enter on data the gates could actually act on.
+
+    Returns a gate_reason string, or None when the record is complete.
+
+    The sticky-Bull gate reads ``reg == "Bull" and pers >= threshold``. When the
+    Markov fit failed, ``reg`` is None, that expression is False, and the short
+    enters UNVETOED — passing the gate by absence of data rather than by evidence.
+    Same class of bug as the upstream ingest_pead adapter reading field names that
+    never existed: the check silently evaluates to "fine" instead of "unknown".
+    Observed once live (FDXF, cohort 2026-06-22, regime/signal/persistence all
+    null, gated_out false) — on the long side, where nothing was bypassed, but the
+    path reaches would_enter.
+
+    Scoped deliberately narrowly, because a guard that shrinks the book is worse
+    than the hole it closes:
+
+    - ``entry_ref_price`` is required on BOTH sides. Without it the name has no
+      mark, and cohort_track silently drops it from the basket return — a
+      shrinking denominator, not a wrong number, which is the harder bug to see.
+      (Never observed: 0 of 42 entered names across every cohort to date.)
+    - ``regime``/``persistence`` are required on SHORTS ONLY — the short side is
+      the only one the Markov gate can veto, so it is the only side where missing
+      data buys a free pass. A long with a failed fit gets ``aligned: "?"`` and
+      bypasses nothing, so it still enters (FDXF would still enter today).
+    - ``quality`` is required only in post mode, where the drift-quality gate
+      runs. In pre mode it is legitimately None, and before the 2026-07-02
+      drift-quality commit post-mode cohorts have it null too — requiring it
+      unconditionally would retroactively veto most of the book.
+    """
+    if not isinstance(entry_ref_price, (int, float)) or isinstance(entry_ref_price, bool) \
+            or not entry_ref_price > 0:
+        return f"incomplete data — entry_ref_price ({entry_ref_price!r})"
+    if side == "short":
+        if regime is None:
+            return "incomplete data — regime (Markov fit failed; sticky-Bull gate cannot evaluate)"
+        if not isinstance(persistence, (int, float)) or isinstance(persistence, bool):
+            return f"incomplete data — persistence ({persistence!r}); sticky-Bull gate cannot evaluate"
+    if mode == "post" and quality is None:
+        return "incomplete data — drift-quality not computed in post mode"
+    return None
+
+
 # ----------------------------------------------------------------------------- main
 def main():
     p = argparse.ArgumentParser(description=__doc__,
@@ -448,6 +491,16 @@ def main():
             if not gated_out and quality < args.min_quality:
                 gated_out = True
                 gate_reason = f"drift-quality {quality}/4 < {args.min_quality} (unconfirmed pop)"
+        # Fail-closed data guard, LAST so a real gate reason always wins the label:
+        # a name already vetoed on evidence keeps that reason, and this only fires
+        # where no other gate could have evaluated at all.
+        if side and not gated_out:
+            incomplete = data_completeness_veto(
+                side, args.mode, f.get("price"), reg, pers, quality
+            )
+            if incomplete:
+                gated_out = True
+                gate_reason = incomplete
         return {
             "symbol": sym, "long_score": ls, "short_score": ss,
             "entry_mode": args.mode,
@@ -511,8 +564,17 @@ def main():
                           key=lambda r: -conviction(r))[: args.top]
     quality_vetoed = [r["symbol"] for r in records
                       if r["gated_out"] and r["gate_reason"].startswith("drift-quality")]
+    # Data vetoes are their own bucket on BOTH sides — folding them into
+    # shorts_vetoed_by_gate would label a missing Markov fit as a sticky-Bull
+    # veto, i.e. report an evidence-based decision that was never made.
+    data_vetoed = [r["symbol"] for r in records
+                   if r["gated_out"] and r["gate_reason"].startswith("incomplete data")]
     vetoed = [r["symbol"] for r in records if r["entry_side"] == "short" and r["gated_out"]
-              and r["symbol"] not in quality_vetoed]
+              and r["symbol"] not in quality_vetoed and r["symbol"] not in data_vetoed]
+    if data_vetoed:
+        print(f"  Data-incomplete vetoes ({len(data_vetoed)}): " + ", ".join(
+            f"{r['symbol']} [{r['gate_reason']}]"
+            for r in records if r["symbol"] in data_vetoed), file=sys.stderr)
 
     side_rule = (
         f"post/PEAD: side = print-reaction direction (|reaction| >= {args.min_reaction}%), "
@@ -542,6 +604,7 @@ def main():
             "shorts": [r["symbol"] for r in enter_shorts],
             "shorts_vetoed_by_gate": vetoed,
             "quality_vetoed": quality_vetoed,
+            "data_vetoed": data_vetoed,
         },
     }
 
@@ -604,6 +667,10 @@ def render_md(c: dict) -> str:
     if we.get("quality_vetoed"):
         o.append(f"- **Quality vetoed:** {', '.join(we['quality_vetoed'])} "
                  f"(reaction over threshold but unconfirmed — pop without drift evidence)")
+    if we.get("data_vetoed"):
+        o.append(f"- **Data vetoed:** {', '.join(we['data_vetoed'])} "
+                 f"(fail-closed — a gate could not evaluate, so the name is held out rather "
+                 f"than passed by absence of data; see each row's Decision cell for the field)")
     o.append("")
     o.append("## All candidates (Lng/Sht = ranker bias scores; Rx = print reaction; "
              "Q = drift-quality 0-4; Decision = side after gates)")
