@@ -157,7 +157,72 @@ def fetch_print_reaction(symbol: str, report_date: str) -> dict | None:
         "reaction_pct": (rb["close"] / pre_close - 1) * 100,
         "volume_ratio": round(vol_ratio, 2) if vol_ratio is not None else None,
         "close_loc": round(close_loc, 2) if close_loc is not None else None,
+        # Baseline volatility from the PRE-print bars only — deliberately excludes
+        # the reaction day. One earnings gap dominates a 14-bar ATR, so including
+        # it would just restate reaction_pct in ATR units. Callers wanting the
+        # post-gap regime can combine the two; they cannot separate them if the
+        # gap is baked in here.
+        "atr14_pre": atr14(pre),
     }
+
+
+def atr14(bars: list[dict], period: int = 14) -> float | None:
+    """ATR over `period` sessions: arithmetic mean of the last N true ranges.
+
+    RECORDED ONLY — never gates, never sizes, never exits. This is the risk
+    denominator the harness has always lacked: it makes `return / atr14_pct`
+    computable so a 3% move in a 1%-ATR name and a 3% move in a 4%-ATR name stop
+    reading as the same result, and it is the natural input a stop policy would
+    need if one is ever added to the paper account.
+
+    Plain mean of true ranges, not Wilder's smoothing — deterministic, needs no
+    seed value, and reproducible from any 15-bar window. `bars` must be ascending
+    by date and carry high/low/close. Returns None when fewer than period+1 bars
+    are usable (period true ranges need period+1 closes).
+    """
+    usable = [b for b in bars if b.get("high") is not None
+              and b.get("low") is not None and b.get("close") is not None]
+    if len(usable) < period + 1:
+        return None
+    trs = []
+    for prev, cur in zip(usable[-(period + 1):-1], usable[-period:]):
+        pc = prev["close"]
+        trs.append(max(cur["high"] - cur["low"], abs(cur["high"] - pc), abs(cur["low"] - pc)))
+    return sum(trs) / len(trs)
+
+
+def atr_fields(atr: float | None, ref_price: float | None, basis: str) -> dict:
+    """The three recorded ATR columns, uniform across every record path.
+
+    `atr14_basis` is not decoration: post mode measures pre-print baseline vol
+    while pre mode measures trailing vol to today, and comparing the two without
+    knowing which is which would be a silent apples-to-oranges error.
+    """
+    usable_ref = isinstance(ref_price, (int, float)) and not isinstance(ref_price, bool) \
+        and ref_price > 0
+    return {
+        "atr14": round(atr, 4) if atr is not None else None,
+        "atr14_pct": round(atr / ref_price * 100, 3) if atr is not None and usable_ref else None,
+        "atr14_basis": basis if atr is not None else None,
+    }
+
+
+def fetch_atr_bars(symbol: str) -> list[dict] | None:
+    """45 calendar days of EOD bars for a pre-mode ATR. 1 FMP call, opt-in only.
+
+    Post mode gets ATR for free out of fetch_print_reaction's existing fetch;
+    pre-mode names have not reported, so there is no such call to piggyback on.
+    Gated behind --atr so the default call budget is unchanged.
+    """
+    today = date.today()
+    rows = _fmp("historical-price-eod/full", {
+        "symbol": symbol,
+        "from": (today - timedelta(days=45)).isoformat(),
+        "to": today.isoformat(),
+    })
+    if not isinstance(rows, list) or not rows:
+        return None
+    return sorted((r for r in rows if r.get("close")), key=lambda r: r["date"])
 
 
 def surprise_fields(row: dict) -> dict:
@@ -339,6 +404,11 @@ def main():
                         "surprise, volume >= 1.5x, close-location) for would-enter. Names "
                         "below it are logged + as-if-tracked but vetoed — a pop without "
                         "confirmation is a fade candidate, not a drift candidate. Default 2.")
+    p.add_argument("--atr", action="store_true",
+                   help="pre mode: also fetch ATR(14) per ranked candidate (+1 FMP call each) "
+                        "as a recorded risk denominator. Post mode gets ATR free from the "
+                        "existing print-reaction fetch, so this flag is a no-op there. ATR is "
+                        "RECORDED ONLY — it never gates, sizes, or exits anything.")
     p.add_argument("--side-margin", type=int, default=2,
                    help="A name enters a side only if that side's score beats the other by >= this (default 2). "
                         "Prevents a name landing on both lists; ambiguous names are dropped from would-enter.")
@@ -450,6 +520,19 @@ def main():
     print(f"  Markov ok {ok}/{len(syms)}", file=sys.stderr)
     spy = markov.get("SPY")
 
+    # 5b: pre-mode ATR (opt-in, 1 FMP call per ranked candidate). Post mode
+    #     already has it free from fetch_print_reaction's bar window.
+    atr_pre_mode: dict[str, float] = {}
+    if args.atr and args.mode != "post" and by_sym:
+        print(f"  ATR(14) for {len(by_sym)} candidates (+{len(by_sym)} FMP calls)...",
+              file=sys.stderr)
+        for s in by_sym:
+            bars = fetch_atr_bars(s)
+            fmp_calls += 1
+            v = atr14(bars) if bars else None
+            if v is not None:
+                atr_pre_mode[s] = v
+
     # 6: per-symbol record — side assignment then short-side gate.
     #    pre mode:  side from the fundamental ranker (min-score + margin).
     #    post mode: side from the print-reaction direction (PEAD drift-following);
@@ -516,6 +599,11 @@ def main():
             "volume_ratio": rx.get("volume_ratio") if rx else None,
             "close_loc": rx.get("close_loc") if rx else None,
             "quality": quality, "quality_bits": qbits,
+            **atr_fields(
+                (rx or {}).get("atr14_pre") if args.mode == "post" else atr_pre_mode.get(sym),
+                f.get("price"),
+                "pre-print" if args.mode == "post" else "trailing",
+            ),
             "sector": f.get("sector"), "market_cap": f.get("market_cap"),
             "regime": reg, "signal": m.get("signal"), "persistence": pers,
             "aligned": alignment(side, reg) if side else "—",
@@ -538,6 +626,10 @@ def main():
             "eps_surprise_pct": None, "revenue_surprise_pct": None,
             "volume_ratio": rx.get("volume_ratio"), "close_loc": rx.get("close_loc"),
             "quality": None, "quality_bits": [],
+            # Ambient names never enter, but their reaction fetch already paid for
+            # the bars — recording ATR keeps the control group comparable to the
+            # entered group on the risk axis.
+            **atr_fields(rx.get("atr14_pre"), rx["post_close"], "pre-print"),
             "sector": u.get("sector"), "market_cap": u.get("marketCap"),
             "regime": None, "signal": None, "persistence": None,
             "aligned": "—", "gated_out": False, "gate_reason": "", "note": note,
@@ -677,6 +769,13 @@ def render_md(c: dict) -> str:
     o.append("| Symbol | Lng | Sht | Rx | Q | Entry ref | Regime | Sig | Sticky | Aligned | Decision | Key flags |")
     o.append("|---|---:|---:|---:|---:|---:|---|---:|---:|:-:|:--|---|")
     o += [_row(r) for r in c["candidates"]]
+    o.append("")
+    o.append("_ATR(14) is recorded per candidate in the JSON (`atr14`, `atr14_pct`, `atr14_basis`) "
+             "as a risk denominator only — it never gates, sizes, or exits anything. Post mode "
+             "measures it on PRE-print bars (excludes the earnings gap, which would otherwise "
+             "dominate a 14-bar window and just restate the reaction); pre mode measures trailing "
+             "vol to today and only when --atr is passed. Always check `atr14_basis` before "
+             "comparing across modes._")
     o.append("")
     o.append("_Forward-test cohort: would-enter names are logged at entry-ref price for mark-to-market "
              "at T+5/14/30/90 (no paper order placed). The short-side gate encodes the T+5 finding that "

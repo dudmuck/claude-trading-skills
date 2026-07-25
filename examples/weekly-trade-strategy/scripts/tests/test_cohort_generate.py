@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from cohort_generate import data_completeness_veto  # noqa: E402
+from cohort_generate import atr14, atr_fields, data_completeness_veto  # noqa: E402
 
 # FDXF as it was actually written to cohort_2026-06-22.json.
 FDXF = dict(
@@ -123,3 +123,86 @@ class TestReasonStrings:
         reason = veto(**over)
         assert reason is not None
         assert reason.startswith("incomplete data — ")
+
+
+# ─── ATR stop-reference (recorded only) ──────────────────────────────────────
+
+
+def bars(*hlc):
+    return [{"high": h, "low": lo, "close": c} for h, lo, c in hlc]
+
+
+def flat_bars(n, high=102.0, low=100.0, close=101.0):
+    """n identical bars: TR is exactly (high - low) every session, no gaps."""
+    return bars(*[(high, low, close)] * n)
+
+
+class TestAtr14:
+    def test_mean_of_true_ranges(self):
+        assert atr14(flat_bars(15)) == pytest.approx(2.0)
+
+    def test_needs_period_plus_one_bars(self):
+        # 14 true ranges require 15 closes.
+        assert atr14(flat_bars(14)) is None
+        assert atr14(flat_bars(15)) is not None
+
+    def test_uses_only_the_last_period_bars(self):
+        # A huge bar 20 sessions back must not leak into a 14-period window.
+        old = bars((500.0, 100.0, 300.0))
+        assert atr14(old + flat_bars(20)) == pytest.approx(2.0)
+
+    def test_gap_up_uses_high_minus_prev_close(self):
+        # prev close 101, next bar 150/148 -> TR = |150 - 101| = 49, not 2.
+        series = flat_bars(14) + bars((150.0, 148.0, 149.0))
+        # 13 sessions of TR 2 plus one of 49
+        assert atr14(series) == pytest.approx((13 * 2.0 + 49.0) / 14)
+
+    def test_gap_down_uses_low_minus_prev_close(self):
+        series = flat_bars(14) + bars((60.0, 50.0, 55.0))
+        assert atr14(series) == pytest.approx((13 * 2.0 + 51.0) / 14)
+
+    def test_bars_missing_ohlc_are_skipped(self):
+        series = flat_bars(15) + [{"high": None, "low": 1.0, "close": 2.0}]
+        assert atr14(series) == pytest.approx(2.0)
+
+    def test_all_unusable_returns_none(self):
+        assert atr14([{"close": 5.0}] * 40) is None
+
+    def test_empty(self):
+        assert atr14([]) is None
+
+
+class TestAtrFields:
+    def test_percent_is_relative_to_entry_reference(self):
+        f = atr_fields(2.5, 50.0, "pre-print")
+        assert f == {"atr14": 2.5, "atr14_pct": 5.0, "atr14_basis": "pre-print"}
+
+    def test_missing_atr_nulls_every_column_including_basis(self):
+        # A basis label with no ATR behind it would imply a measurement was made.
+        assert atr_fields(None, 100.0, "trailing") == {
+            "atr14": None, "atr14_pct": None, "atr14_basis": None
+        }
+
+    @pytest.mark.parametrize("bad_ref", [None, 0, -10.0, "100", True])
+    def test_unusable_reference_keeps_atr_but_drops_the_percent(self, bad_ref):
+        f = atr_fields(2.0, bad_ref, "pre-print")
+        assert f["atr14"] == 2.0
+        assert f["atr14_pct"] is None
+
+    def test_basis_is_recorded_so_modes_are_never_silently_compared(self):
+        assert atr_fields(1.0, 100.0, "pre-print")["atr14_basis"] == "pre-print"
+        assert atr_fields(1.0, 100.0, "trailing")["atr14_basis"] == "trailing"
+
+
+class TestAtrNeverGates:
+    """ATR is a recorded reference. If it ever reaches the veto it has become a
+    gate, which is exactly what this field was scoped not to be."""
+
+    def test_a_null_atr_does_not_hold_a_name_out(self):
+        assert veto(entry_ref_price=100.0, regime="Bear", persistence=0.8, side="short") is None
+
+    def test_veto_signature_has_no_atr_parameter(self):
+        import inspect
+
+        from cohort_generate import data_completeness_veto as f
+        assert "atr" not in "".join(inspect.signature(f).parameters)
