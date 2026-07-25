@@ -219,6 +219,7 @@ The table below is **auto-generated** from `skills-index.yaml` by `scripts/gener
 
 | Skill | FMP API | FINVIZ Elite | Alpaca | Notes |
 |-------|---------|--------------|--------|-------|
+| **Adversarial Trade Debate** | ❌ Not used | ❌ Not used | ❌ Not used | LLM-orchestrated; consumes upstream analyst outputs, no paid data of its own |
 | **Backtest Expert** | ❌ Not used | ❌ Not used | ❌ Not used | User provides strategy parameters |
 | **Breadth Chart Analyst** | ❌ Not used | ❌ Not used | ❌ Not used | Chart screenshot input |
 | **Breakout Trade Planner** | ❌ Not used | ❌ Not used | ❌ Not used | Consumes VCP screener output; pure calculation + Alpaca order templates |
@@ -227,6 +228,7 @@ The table below is **auto-generated** from `skills-index.yaml` by `scripts/gener
 | **Contrarian Setup Gate** | ❌ Not used | ❌ Not used | ❌ Not used | Reads the three upstream contrarian-pipeline report JSONs; works offline |
 | **Crypto Regime Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Free public API, no key; universe, price history, BTC dominance; Public futures endpoint for perp funding; component skipped if unreachable; Offline snapshot path (--input-json); schema in references |
 | **Data Quality Checker** | ❌ Not used | ❌ Not used | ❌ Not used | Local markdown validation; works offline |
+| **Dealer Gamma Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | CBOE ~15-min delayed options JSON; free, no key, no paid options feed |
 | **Dividend Growth Pullback Screener** | ✅ Required | 🟡 Optional (Recommended) | ❌ Not used | Financial Modeling Prep API |
 | **Downtrend Duration Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Duration analysis from market data; pure calculation |
 | **Drawdown Circuit Breaker** | ❌ Not used | ❌ Not used | ❌ Not used | Reads trader-memory-core thesis YAML files; pure calculation, works offline |
@@ -267,6 +269,7 @@ The table below is **auto-generated** from `skills-index.yaml` by `scripts/gener
 | **Pre-Trade Discipline Gate** | ❌ Not used | ❌ Not used | ❌ Not used | Reads local checklist, workflow artifacts, and trader-memory-core state; works offline |
 | **Scenario Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Headline / news search via WebSearch |
 | **Sector Analyst** | ❌ Not used | ❌ Not used | ❌ Not used | Chart screenshot input |
+| **Short-Squeeze Radar** | ❌ Not used | ❌ Not used | ❌ Not used | FINRA Reg SHO daily short-volume + short-interest files; free, no auth |
 | **Signal Postmortem** | ❌ Not used | ❌ Not used | ❌ Not used | Postmortem framework; pure calculation |
 | **Skill Designer** | ❌ Not used | ❌ Not used | ❌ Not used | Generates skill scaffolding from idea specs |
 | **Skill Idea Miner** | ❌ Not used | ❌ Not used | ❌ Not used | Mines session logs for skill ideas |

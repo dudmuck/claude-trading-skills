@@ -3,7 +3,7 @@ layout: default
 title: "Contrarian Setup Gate"
 grand_parent: English
 parent: Skill Guides
-nav_order: 13
+nav_order: 14
 lang_peer: /ja/skills/contrarian-setup-gate/
 permalink: /en/skills/contrarian-setup-gate/
 generated: true

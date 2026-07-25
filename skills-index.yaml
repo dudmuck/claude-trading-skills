@@ -9,6 +9,27 @@ categories:
 - advanced-satellite
 - meta
 skills:
+- id: adversarial-trade-debate
+  display_name: Adversarial Trade Debate
+  category: trade-planning
+  status: beta
+  summary: Force a candidate through two staged adversarial debates — bull vs bear judged into a
+    5-tier conviction rating, then aggressive vs conservative risk judged by a Portfolio Manager into
+    a final action/entry/stop/size decision. Red-teams a thesis before capital commits.
+  timeframe: event-driven
+  difficulty: intermediate
+  integrations:
+  - id: local_calculation
+    type: calculation
+    requirement: not_required
+    note: LLM-orchestrated; consumes upstream analyst outputs, no paid data of its own
+  inputs:
+  - candidate_ticker
+  - analyst_reports
+  outputs:
+  - conviction_rating
+  - trade_decision
+  workflows: []
 - id: backtest-expert
   display_name: Backtest Expert
   category: strategy-research
@@ -177,6 +198,26 @@ skills:
   outputs:
   - quality_report
   - issue_list
+  workflows: []
+- id: dealer-gamma-analyzer
+  display_name: Dealer Gamma Analyzer
+  category: market-regime
+  status: production
+  summary: Quantify dealer options gamma (GEX) for an equity or index from FREE CBOE delayed options
+    data. Renders gamma walls, the gamma flip, and max pain as explicit support/resistance price
+    levels, and classifies the positive- (pin) vs negative-gamma (squeeze-prone) regime.
+  timeframe: daily
+  difficulty: intermediate
+  integrations:
+  - id: cboe_delayed_options
+    type: market_data
+    requirement: not_required
+    note: CBOE ~15-min delayed options JSON; free, no key, no paid options feed
+  inputs:
+  - ticker
+  outputs:
+  - gex_report
+  - gamma_wall_levels
   workflows: []
 - id: dividend-growth-pullback-screener
   display_name: Dividend Growth Pullback Screener
@@ -988,6 +1029,26 @@ skills:
   - chart_image
   outputs:
   - rotation_assessment_report
+  workflows: []
+- id: short-squeeze-radar
+  display_name: Short-Squeeze Radar
+  category: swing-opportunity
+  status: production
+  summary: Rank US equities by short-squeeze potential using FREE FINRA data (no API key). Reads Reg
+    SHO daily short-volume files for rising short-volume inflections and optional bi-monthly short
+    interest, flagging crowded-short versus low-pressure names.
+  timeframe: daily
+  difficulty: intermediate
+  integrations:
+  - id: finra_reg_sho
+    type: market_data
+    requirement: not_required
+    note: FINRA Reg SHO daily short-volume + short-interest files; free, no auth
+  inputs:
+  - ticker_list
+  outputs:
+  - squeeze_ranking
+  - crowding_flags
   workflows: []
 - id: signal-postmortem
   display_name: Signal Postmortem

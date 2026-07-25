@@ -51,6 +51,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **Dividend Growth Pullback Screener** | 年間配当成長12%以上の高品質配当成長株で、RSI 40以下のプルバック中の銘柄を検出 | <span class="badge badge-api">FMP必須</span> <span class="badge badge-optional">FINVIZ任意</span> |
 | **Earnings Trade Analyzer** | 直近決算銘柄を5要素加重スコアリング（ギャップ、トレンド、出来高、MA200、MA50）でA-Dグレード評価 | <span class="badge badge-api">FMP必須</span> |
 | **PEAD Screener** | 決算ギャップアップ銘柄のPost-Earnings Announcement Drift パターンを週足分析。MONITORING→SIGNAL_READY→BREAKOUTのステージ管理 | <span class="badge badge-api">FMP必須</span> |
+| **[Short-Squeeze Radar]({{ '/ja/skills/short-squeeze-radar/' | relative_url }})** | FINRAのReg SHO日次空売り出来高ファイル（無料・認証不要）で米国株のショートスクイーズ余地をランク付け。空売り比率の上昇変曲点を検出し、混雑ショート銘柄を抽出 | <span class="badge badge-free">API不要</span> |
 | **FTD Detector** | William O'Neilの手法でFollow-Through Day シグナルを検出。市場底打ち確認のためのデュアルインデックス追跡 | <span class="badge badge-api">FMP必須</span> |
 | **Institutional Flow Tracker** | 13F SEC提出書類で機関投資家の蓄積・分配パターンを追跡。スーパーインベスター重み付き品質フレームワーク | <span class="badge badge-api">FMP必須</span> |
 
@@ -69,6 +70,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **Uptrend Analyzer** | 約2,800銘柄・11セクターの上昇トレンド比率を5コンポーネント複合スコアで診断 | <span class="badge badge-free">API不要</span> |
 | **Macro Regime Detector** | クロスアセット比率分析で構造的マクロレジーム転換（1-2年ホライズン）を検出 | <span class="badge badge-api">FMP必須</span> |
 | **[US Market Bubble Detector]({{ '/ja/skills/us-market-bubble-detector/' | relative_url }})** | ミンスキー/キンドルバーガーフレームワークの8指標バブルメーター。ステージ別プレイブック付き | <span class="badge badge-free">API不要</span> |
+| **[Dealer Gamma Analyzer]({{ '/ja/skills/dealer-gamma-analyzer/' | relative_url }})** | CBOEの無料15分遅延オプションデータからディーラーのガンマエクスポージャー（GEX）を算出。ガンマウォール・ガンマフリップ・マックスペインを明示的なサポート/レジスタンス価格として提示し、ピン型（正ガンマ）とスクイーズ型（負ガンマ）レジームを判定。`--min-dte`/`--max-dte`で満期レンジを限定可能 | <span class="badge badge-free">API不要</span> |
 | **Market Top Detector** | O'NeilのDistribution Days、MinerviniのLeading Stock劣化、Defensive Rotationで天井確率を検出 | <span class="badge badge-free">API不要</span> |
 | **[IBD Distribution Day Monitor]({{ '/ja/skills/ibd-distribution-day-monitor/' | relative_url }})** | QQQ/SPYのIBD式Distribution Dayを日次検出。25セッション失効・5%上昇無効化を追跡し、d5/d15/d25クラスタからNORMAL/CAUTION/HIGH/SEVERE判定とTQQQ/QQQエクスポージャ推奨を生成 | <span class="badge badge-api">FMP必須</span> |
 | **[Downtrend Duration Analyzer]({{ '/ja/skills/downtrend-duration-analyzer/' | relative_url }})** | 過去の下落トレンド期間（ピーク→トラフ）を分析し、セクター・時価総額別のインタラクティブヒストグラムを生成 | <span class="badge badge-api">FMP必須</span> |
@@ -103,6 +105,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **[Drawdown Circuit Breaker]({{ '/ja/skills/drawdown-circuit-breaker/' | relative_url }})** | trader-memory-coreの状態を読み、実現損益・連敗・週次/月次ドローダウンから TRADING_ALLOWED / COOLDOWN / HALTED を返す口座レベルの新規リスクゲート | <span class="badge badge-free">API不要</span> |
 | **[Weekly Performance Digest]({{ '/ja/skills/weekly-performance-digest/' | relative_url }})** | クローズドトレードから週次パフォーマンスサマリを生成。勝率・期待値・プロフィットファクター・Rマルチプル・MAE/MFE と、ソーススキル／エグジット理由／テシスタイプ／セクター／メカニズム別の勝敗パターン分析を出力。ローカル計算のみ | <span class="badge badge-free">API不要</span> |
 | **[Position Sizer]({{ '/ja/skills/position-sizer/' | relative_url }})** | Fixed Fractional、ATRベース、Kelly Criterionの3手法でリスクベースポジションサイズを計算 | <span class="badge badge-free">API不要</span> |
+| **[Adversarial Trade Debate]({{ '/ja/skills/adversarial-trade-debate/' | relative_url }})** | 2段階のディベートで候補を反対尋問。強気vs弱気を5段階のコンビクション評価に集約し（中立回避）、次に積極vs保守のリスク議論をポートフォリオマネージャーが裁定して最終的なアクション/エントリー/ストップ/サイズを決定。Beta | <span class="badge badge-free">API不要</span> |
 | **[Futures Position Sizer]({{ '/ja/skills/futures-position-sizer/' | relative_url }})** | 方向・エントリー・ストップから先物のコントラクト数を計算。検証済みの23銘柄契約仕様テーブル（乗数・ティックサイズ・ティック価値）を使用し、明示フラグまたはcontrarian-setup-gateのREADY_FOR_PLAN引き継ぎに対応。Beta。オフラインで動作 | <span class="badge badge-free">API不要</span> |
 | **[Breakout Trade Planner]({{ '/ja/skills/breakout-trade-planner/' | relative_url }})** | VCPスクリーナー出力からミネルヴィニ式ブレイクアウトトレードプランを生成。worst-case entryベースのGate、stop-limit bracketテンプレート（pre_place / post_confirm）、ポートフォリオヒート管理 | <span class="badge badge-free">API不要</span> |
 | **[Parabolic Short Trade Planner]({{ '/ja/skills/parabolic-short-trade-planner/' | relative_url }})** | Parabolic Short 候補の日次スクリーナー（5因子加重スコア）と寄り前プラン生成器。候補ごとに3種類のトリガー（5min ORL ブレイク / First Red 5-min / VWAP fail）を条件付きプランとして出力。Alpaca ETB-only ショート確認は `requests` 直叩き（SDK 非依存）、SEC Rule 201 SSR トラッカー、blocking / advisory 分離型 manual confirmation | <span class="badge badge-api">FMP必須</span> <span class="badge badge-optional">Alpaca任意</span> |
@@ -214,6 +217,9 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | Dividend Growth Pullback Screener | 必須 | 推奨 | - |
 | Earnings Trade Analyzer | 必須 | - | - |
 | PEAD Screener | 必須 | - | - |
+| Short-Squeeze Radar | - | - | - |
+| Dealer Gamma Analyzer | - | - | - |
+| Adversarial Trade Debate | - | - | - |
 | FTD Detector | 必須 | - | - |
 | Institutional Flow Tracker | 必須 | - | - |
 | Theme Detector | 任意 | 推奨 | - |

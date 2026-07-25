@@ -3,7 +3,7 @@ layout: default
 title: "Econ Indicator Explainer"
 grand_parent: 日本語
 parent: スキルガイド
-nav_order: 23
+nav_order: 25
 lang_peer: /en/skills/econ-indicator-explainer/
 permalink: /ja/skills/econ-indicator-explainer/
 generated: true

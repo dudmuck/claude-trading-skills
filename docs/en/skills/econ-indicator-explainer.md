@@ -3,7 +3,7 @@ layout: default
 title: "Econ Indicator Explainer"
 grand_parent: English
 parent: Skill Guides
-nav_order: 23
+nav_order: 25
 lang_peer: /ja/skills/econ-indicator-explainer/
 permalink: /en/skills/econ-indicator-explainer/
 generated: true
