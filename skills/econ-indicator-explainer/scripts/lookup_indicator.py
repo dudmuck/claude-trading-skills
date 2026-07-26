@@ -77,6 +77,30 @@ def _tokens(s: str) -> set[str]:
 # PCE shares more tokens than Core PCE does.
 DISAMBIG_TOKENS = {"core", "ex", "excluding", "non", "manufacturing", "services"}
 
+# Central-bank identity. Several cards share generic event wording ("Press
+# Conference", "Rate Decision", "Minutes") and are told apart ONLY by which bank
+# issues them. Token overlap alone cannot do that: "Fed Press Conference" and the
+# BOJ card's "BoJ Press Conference" alias share {press, conference}, which scores
+# Jaccard 0.5 — comfortably over the 0.3 floor. That mis-hit shipped a spurious
+# BOJ card into the 2026-07-20 and 2026-07-27 pipeline runs on weeks with no BOJ
+# meeting at all, and a card asserting a foreign policy event is worse than no
+# card: downstream steps read these as ground truth.
+#
+# Tokens map to a bank IDENTITY, not to themselves, so "Fed" and "FOMC" stay
+# interchangeable while "Fed" and "BoJ" become mutually exclusive.
+_BANK_BY_TOKEN = {
+    "fed": "US", "fomc": "US", "federal": "US", "powell": "US",
+    "boj": "JP", "ueda": "JP",
+    "ecb": "EU", "lagarde": "EU",
+    "boe": "GB", "bailey": "GB",
+    "snb": "CH", "rba": "AU", "boc": "CA", "rbnz": "NZ", "pboc": "CN",
+}
+
+
+def _bank(tokens: set[str]) -> set[str]:
+    """Which central bank(s) a token set names. Empty = bank-agnostic."""
+    return {_BANK_BY_TOKEN[t] for t in tokens if t in _BANK_BY_TOKEN}
+
 
 def find_card(cards: list[dict], query: str) -> dict | None:
     q = _normalize(query)
@@ -99,6 +123,7 @@ def find_card(cards: list[dict], query: str) -> dict | None:
     # Pass 3: token-set scoring with disambiguation-token gating.
     q_tokens = _tokens(query)
     q_disambig = q_tokens & DISAMBIG_TOKENS
+    q_bank = _bank(q_tokens)
 
     best = None
     best_score = 0.0
@@ -113,6 +138,13 @@ def find_card(cards: list[dict], query: str) -> dict | None:
             # Hard gate: disambiguation tokens must match.
             # If query mentions "core" but candidate doesn't (or vice versa), skip.
             if q_disambig != cand_disambig:
+                continue
+
+            # Hard gate: never cross central banks. Only blocks when BOTH sides
+            # name a bank and they disagree — a bank-agnostic candidate stays
+            # eligible, so this narrows nothing that was previously correct.
+            cand_bank = _bank(cand_tokens)
+            if q_bank and cand_bank and q_bank != cand_bank:
                 continue
 
             inter = len(q_tokens & cand_tokens)
