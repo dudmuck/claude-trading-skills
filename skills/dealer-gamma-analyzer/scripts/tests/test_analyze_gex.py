@@ -37,6 +37,7 @@ from analyze_gex import (
     report_to_dict,
     rows_from_cboe,
     underlying_for,
+    window_slug,
 )
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "cboe_ztest.json"
@@ -441,3 +442,59 @@ class TestDteWindow:
         )
         assert result.returncode == 1
         assert "YYYY-MM-DD" in result.stderr
+
+
+class TestWindowSlug:
+    """Two windows on one symbol must not collide.
+
+    The timestamp is second-resolution, so a near-window and a structural-window
+    run landing in the same second wrote the same path and the second silently
+    clobbered the first (observed 2026-07-26: the whole 0-7 DTE half of a pipeline
+    overlay vanished with no error).
+    """
+
+    def test_unbounded_keeps_the_plain_name(self):
+        assert window_slug(None, None) == ""
+
+    def test_both_bounds(self):
+        assert window_slug(21, 45) == "_dte21-45"
+
+    def test_max_only_is_anchored_at_zero(self):
+        assert window_slug(None, 7) == "_dte0-7"
+
+    def test_min_only(self):
+        assert window_slug(30, None) == "_dte30plus"
+
+    def test_the_two_pipeline_windows_differ(self):
+        assert window_slug(None, 7) != window_slug(21, 45)
+
+    def test_slug_is_filename_safe(self):
+        for slug in (window_slug(None, 7), window_slug(21, 45), window_slug(30, None)):
+            assert all(ch.isalnum() or ch in "_-" for ch in slug), slug
+
+    def test_cli_writes_distinct_files_for_two_windows(self, tmp_path):
+        repo_root = Path(__file__).resolve().parents[4]
+        script = "skills/dealer-gamma-analyzer/scripts/analyze_gex.py"
+        for args in (["--max-dte", "400"], ["--min-dte", "1", "--max-dte", "400"]):
+            r = subprocess.run(
+                [
+                    sys.executable,
+                    script,
+                    "ZTEST",
+                    "--payload-json",
+                    str(FIXTURE),
+                    "--as-of",
+                    "2026-01-01",
+                    "--output-dir",
+                    str(tmp_path),
+                    *args,
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(repo_root),
+            )
+            assert r.returncode == 0, r.stderr
+        mds = sorted(p.name for p in tmp_path.glob("*.md"))
+        assert len(mds) == 2, mds  # would be 1 before the slug existed
+        assert any("_dte0-400_" in n for n in mds)
+        assert any("_dte1-400_" in n for n in mds)

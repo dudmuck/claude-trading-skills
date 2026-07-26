@@ -631,6 +631,25 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def window_slug(min_dte: int | None, max_dte: int | None) -> str:
+    """Filename fragment identifying the expiry window.
+
+    Without this, two windows on the same symbol collide: the timestamp is
+    second-resolution, and a near-window and a structural-window run that land in
+    the same second write the same path — the second silently overwrites the
+    first. Observed live on 2026-07-26, where the whole 0-7 DTE half of the
+    pipeline overlay was lost with no error and no warning. A consumer globbing
+    the directory would read one window believing it had both.
+    """
+    if min_dte is None and max_dte is None:
+        return ""
+    if min_dte is not None and max_dte is not None:
+        return f"_dte{min_dte}-{max_dte}"
+    if max_dte is not None:
+        return f"_dte0-{max_dte}"
+    return f"_dte{min_dte}plus"
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -680,7 +699,7 @@ def main() -> None:
 
     os.makedirs(args.output_dir, exist_ok=True)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    base = f"dealer_gex_{rep.ticker.lstrip('_')}_{stamp}"
+    base = f"dealer_gex_{rep.ticker.lstrip('_')}{window_slug(args.min_dte, args.max_dte)}_{stamp}"
 
     json_path = os.path.join(args.output_dir, f"{base}.json")
     with open(json_path, "w") as f:
