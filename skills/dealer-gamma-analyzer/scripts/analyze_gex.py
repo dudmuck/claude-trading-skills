@@ -102,6 +102,10 @@ class GexReport:
     note: str = ""
     # Fork-local: which expiry window this report was computed over (None = whole chain).
     dte_window: dict | None = None
+    # Fork-local: which CBOE field `spot` came from, and both candidates, so an
+    # after-hours/regular-close divergence is recorded rather than silent.
+    spot_source: str | None = None
+    spot_candidates: dict | None = None
 
 
 def parse_occ(sym: str):
@@ -116,10 +120,70 @@ def parse_occ(sym: str):
     return root, yymmdd, (cp == "C"), int(strike8) / 1000.0
 
 
-def rows_from_cboe(payload: dict):
-    """Extract (spot, [OptRow]) from a CBOE delayed_quotes/options JSON payload."""
+def extract_spot(data: dict, prefer_session_close: bool = False):
+    """Pick a spot price from a CBOE payload. Returns (spot, source, candidates).
+
+    CBOE ships three prices with different semantics:
+
+      current_price  QUOTE-derived. After hours this is a post-market quote,
+                     NOT the closing trade.
+      close          the last consolidated TRADE (~15 min delayed, like the rest
+                     of the feed). Once a session ends this is its closing trade.
+      prev_day_close the PRIOR session's close.
+
+    Measured directly on the live QQQ payload:
+
+        2026-08-02 (Sunday, market closed)   2026-08-03 (mid-session)
+          current_price   684.47  == ask       current_price   701.08  ~= quote
+          close           687.99  <- Fri close  close           700.07  <- last trade
+          prev_day_close  687.99                prev_day_close  687.99  <- Fri close
+
+    Note `close` is NOT the previous day's close intraday — `prev_day_close` is.
+    So `close` is a trade price in both regimes, whereas `current_price` degrades
+    to a quote after hours.
+
+    The old code took `current_price or close` unconditionally. Because the
+    weekly pipeline runs on Sundays, it fed 684.47 downstream labelled as
+    "QQQ Friday close", which produced a "+0.02%, flat week" reading of a week
+    that was really +0.55%. SPY and IWM were unaffected only because neither had
+    a meaningful post-market move that day — the bug is silent and intermittent.
+
+    The default is left on `current_price` so live/intraday behaviour is
+    unchanged; `auto` switches to `close` only when --as-of asserts a completed
+    session. Given the measurements above, always preferring `close` would also
+    be defensible — but that is a behavioural change to every live run and is
+    deliberately not made here.
+
+    Gamma WALLS, FLIP, MAX PAIN and the magnet strikes are derived from open
+    interest, not from spot, so they were never wrong; only spot-relative
+    figures were. See TestAnalyzeSpotSource.test_strike_levels_are_unaffected.
+
+    Both candidates are returned so callers can record them and make a future
+    divergence visible instead of silent.
+    """
+    cur = float(data.get("current_price") or 0)
+    close = float(data.get("close") or 0)
+    candidates = {"current_price": cur or None, "close": close or None}
+
+    if prefer_session_close and close > 0:
+        return close, "close", candidates
+    if cur > 0:
+        return cur, "current_price", candidates
+    # Last resort: whichever is non-zero (prefer_session_close asked for close
+    # but the payload has none — falling through to 0 would kill the run).
+    if close > 0:
+        return close, "close", candidates
+    return 0.0, "none", candidates
+
+
+def rows_from_cboe(payload: dict, prefer_session_close: bool = False):
+    """Extract (spot, [OptRow]) from a CBOE delayed_quotes/options JSON payload.
+
+    `prefer_session_close` selects the regular-session close over the last
+    quote — see extract_spot for why that is not the default.
+    """
     data = payload.get("data", {}) or {}
-    spot = float(data.get("current_price") or data.get("close") or 0)
+    spot, _source, _candidates = extract_spot(data, prefer_session_close)
     rows: list[OptRow] = []
     for o in data.get("options") or []:
         parsed = parse_occ(o.get("option", ""))
@@ -336,13 +400,24 @@ def analyze(
     min_dte: int | None = None,
     max_dte: int | None = None,
     as_of=None,
+    prefer_session_close: bool | None = None,
 ) -> GexReport:
     """Build a full GexReport from a CBOE options JSON payload.
 
     min_dte/max_dte bound the expiry window (see filter_by_dte); as_of is the
     reference date for that arithmetic and defaults to today.
+
+    prefer_session_close selects which CBOE price becomes `spot`. Left as None
+    it is INFERRED from as_of: supplying --as-of already asserts "analyze a
+    completed session", which is exactly when the regular-session close is the
+    right price and `current_price` may be an after-hours quote. Pass it
+    explicitly to override the inference in either direction.
     """
-    spot, rows = rows_from_cboe(payload)
+    if prefer_session_close is None:
+        prefer_session_close = as_of is not None
+    data = payload.get("data", {}) or {}
+    _spot, spot_source, spot_candidates = extract_spot(data, prefer_session_close)
+    spot, rows = rows_from_cboe(payload, prefer_session_close=prefer_session_close)
     sym = ticker or (payload.get("data", {}) or {}).get("symbol") or "UNKNOWN"
     dte_window = None
     if min_dte is not None or max_dte is not None:
@@ -376,6 +451,8 @@ def analyze(
                 else "No spot price or no parseable contracts in payload."
             ),
             dte_window=dte_window,
+            spot_source=spot_source,
+            spot_candidates=spot_candidates,
         )
     agg = aggregate_gex(rows, spot)
     call_wall = find_call_wall(agg["call_gex"], spot)
@@ -410,6 +487,8 @@ def analyze(
         n_contracts=len(rows),
         note=flip_note,
         dte_window=dte_window,
+        spot_source=spot_source,
+        spot_candidates=spot_candidates,
     )
 
 
@@ -460,6 +539,8 @@ def report_to_dict(rep: GexReport) -> dict:
             "contracts_analyzed": rep.n_contracts,
         },
         "dte_window": rep.dte_window,
+        "spot_source": rep.spot_source,
+        "spot_candidates": rep.spot_candidates,
         "note": rep.note,
         "caveats": [
             "GEX assumes uniform dealer positioning; the true dealer book is unobservable.",
@@ -483,6 +564,31 @@ def _dte_window_line(rep: GexReport) -> str:
     )
 
 
+def _spot_source_line(rep: GexReport) -> str:
+    """State which CBOE price `spot` came from, and flag a divergence.
+
+    Silent for the ordinary case where the two candidates agree. When they do
+    NOT agree the difference is stated outright, because that is exactly the
+    condition that mislabelled QQQ's close on 2026-08-02 and went unnoticed
+    until the figure was checked against an independent bar source.
+    """
+    cands = rep.spot_candidates or {}
+    cur, close = cands.get("current_price"), cands.get("close")
+    base = f"**Spot source:** `{rep.spot_source}` = {rep.spot:g}"
+    if cur is None or close is None or cur == close:
+        return base
+    other = "close" if rep.spot_source == "current_price" else "current_price"
+    other_val = close if rep.spot_source == "current_price" else cur
+    diff = rep.spot - other_val
+    return (
+        f"{base} — ⚠ diverges from `{other}` ({other_val:g}) by {diff:+.2f} "
+        f"({diff / other_val * 100:+.2f}%). `current_price` is QUOTE-derived and becomes "
+        f"a post-market quote after hours; `close` is the last consolidated TRADE. "
+        f"Wall / flip / max-pain strikes are open-interest-derived and unaffected; "
+        f"only spot-relative figures shift."
+    )
+
+
 def generate_markdown_report(rep: GexReport) -> str:
     """Render a GexReport to markdown with the walls as explicit S/R levels."""
     d = report_to_dict(rep)
@@ -501,6 +607,7 @@ def generate_markdown_report(rep: GexReport) -> str:
         f"**Spot:** ${rep.spot:,.2f}",
         f"**Regime:** {regime_emoji} — {d['regime_label']}",
         _dte_window_line(rep),
+        _spot_source_line(rep),
         "",
         "## Total Dealer Gamma Exposure ($MM per 1% move)",
         f"- **Net GEX (Convention A — dealers short calls / long puts):** {rep.net_gex_mm:+,.3f}",
@@ -626,7 +733,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--as-of",
         help="Reference date (YYYY-MM-DD) for the DTE arithmetic (default: today). "
-        "Set it to make a DTE-windowed run reproducible.",
+        "Set it to make a DTE-windowed run reproducible. NOTE: --as-of also switches "
+        "the spot price to the regular-session close (see --spot-source).",
+    )
+    parser.add_argument(
+        "--spot-source",
+        choices=("auto", "current", "close"),
+        default="auto",
+        help="Which CBOE price to use as spot. 'auto' (default) uses the "
+        "regular-session close when --as-of is set and the last quote otherwise. "
+        "'current' forces current_price (QUOTE-derived — after hours this is a "
+        "post-market quote). 'close' forces the last consolidated TRADE, which is "
+        "the session's closing trade once the session has ended. Wall/flip/max-pain "
+        "strikes come from open interest and are unaffected either way.",
     )
     return parser
 
@@ -692,6 +811,7 @@ def main() -> None:
         min_dte=args.min_dte,
         max_dte=args.max_dte,
         as_of=as_of,
+        prefer_session_close={"auto": None, "current": False, "close": True}[args.spot_source],
     )
     if rep.regime == "unknown":
         print(f"Error: {rep.note}", file=sys.stderr)

@@ -27,6 +27,7 @@ from analyze_gex import (
     compute_max_pain,
     dollar_gamma_1pct,
     expiry_to_date,
+    extract_spot,
     filter_by_dte,
     find_call_wall,
     find_gamma_flip,
@@ -498,3 +499,204 @@ class TestWindowSlug:
         assert len(mds) == 2, mds  # would be 1 before the slug existed
         assert any("_dte0-400_" in n for n in mds)
         assert any("_dte1-400_" in n for n in mds)
+
+
+# ─── Spot source selection (fork-local) ──────────────────────────────────────
+
+
+class TestSpotSource:
+    """CBOE ships two prices. Picking the wrong one silently mislabels the close.
+
+    `current_price` is QUOTE-derived, so after hours it is a post-market quote
+    rather than the closing trade. `close` is the last consolidated TRADE, which
+    once a session ends is that session's closing trade. `prev_day_close` — NOT
+    `close` — carries the prior session. Rule: prefer `close` when --as-of is
+    set, because that flag already means "analyze a completed session".
+
+    Measured directly on the live QQQ payload:
+        2026-08-02 (closed)  current_price 684.47 (== ask) / close 687.99
+        2026-08-03 (open)    current_price 701.08 (~ quote) / close 700.07
+                             prev_day_close 687.99 in BOTH
+    The 684.47 propagated into the weekly pipeline as "QQQ Friday close" and
+    produced a "+0.02% flat week" reading; the true week was +0.55%.
+    """
+
+    QQQ = {
+        "data": {
+            "symbol": "QQQ",
+            "current_price": 684.47,
+            "close": 687.99,
+            "prev_day_close": 687.99,
+            "options": [],
+        }
+    }
+
+    def test_default_prefers_current_price(self):
+        """Unchanged default — live/intraday runs must keep using current_price."""
+        spot, _ = rows_from_cboe(self.QQQ)
+        assert spot == 684.47
+
+    def test_prefer_session_close_picks_close(self):
+        spot, _ = rows_from_cboe(self.QQQ, prefer_session_close=True)
+        assert spot == 687.99
+
+    def test_prefer_session_close_falls_back_when_close_absent(self):
+        """A payload with no `close` must not yield spot=0 and kill the run."""
+        spot, _ = rows_from_cboe(
+            {"data": {"current_price": 55.0, "options": []}}, prefer_session_close=True
+        )
+        assert spot == 55.0
+
+    def test_prefer_session_close_ignores_zero_close(self):
+        """CBOE sometimes ships close=0 pre-open; 0 is not a usable spot."""
+        spot, _ = rows_from_cboe(
+            {"data": {"current_price": 55.0, "close": 0, "options": []}},
+            prefer_session_close=True,
+        )
+        assert spot == 55.0
+
+    def test_extract_spot_reports_source_and_candidates(self):
+        spot, source, candidates = extract_spot(self.QQQ["data"], prefer_session_close=True)
+        assert spot == 687.99
+        assert source == "close"
+        # Both values recorded so a future divergence is visible, not silent.
+        assert candidates == {"current_price": 684.47, "close": 687.99}
+
+    def test_prev_day_close_is_never_used_as_spot(self):
+        """`prev_day_close` is the PRIOR session and must never become spot.
+
+        Pins the semantics measured 2026-08-03 intraday, where close (700.07)
+        and prev_day_close (687.99) were 12 points apart. Confusing the two
+        would silently price a live chain off yesterday's close.
+        """
+        data = {"current_price": 701.08, "close": 700.07, "prev_day_close": 687.99}
+        for prefer in (True, False):
+            spot, source, candidates = extract_spot(data, prefer_session_close=prefer)
+            assert spot != 687.99
+            assert source in ("close", "current_price")
+            assert "prev_day_close" not in candidates
+
+    def test_extract_spot_default_source_label(self):
+        _spot, source, _c = extract_spot(self.QQQ["data"], prefer_session_close=False)
+        assert source == "current_price"
+
+
+class TestAnalyzeSpotSource:
+    def test_as_of_implies_session_close(self, payload):
+        """--as-of means 'a completed session', so the close is the right price."""
+        payload["data"]["current_price"] = 111.0
+        payload["data"]["close"] = 100.0
+        rep = analyze(payload, as_of=date(2026, 1, 1))
+        assert rep.spot == 100.0
+        assert rep.spot_source == "close"
+
+    def test_no_as_of_uses_current_price(self, payload):
+        payload["data"]["current_price"] = 111.0
+        payload["data"]["close"] = 100.0
+        rep = analyze(payload)
+        assert rep.spot == 111.0
+        assert rep.spot_source == "current_price"
+
+    def test_explicit_override_beats_as_of_inference(self, payload):
+        payload["data"]["current_price"] = 111.0
+        payload["data"]["close"] = 100.0
+        rep = analyze(payload, as_of=date(2026, 1, 1), prefer_session_close=False)
+        assert rep.spot == 111.0
+        assert rep.spot_source == "current_price"
+
+    def test_strike_levels_are_unaffected_by_spot_source(self, payload):
+        """The load-bearing claim: walls/flip/max-pain come from OPEN INTEREST.
+
+        This is why the 2026-08-02 bug was survivable rather than fatal — the
+        gamma STRIKES in every report were correct; only spot-relative figures
+        were wrong. If this test ever fails, that reassurance no longer holds.
+        """
+        payload["data"]["current_price"] = 100.0
+        payload["data"]["close"] = 100.0
+        base = analyze(payload)
+
+        shifted = json.loads(json.dumps(payload))
+        shifted["data"]["close"] = 96.0  # a different, still in-chain spot
+        alt = analyze(shifted, as_of=date(2026, 1, 1))
+
+        assert alt.spot == 96.0 and base.spot == 100.0
+        assert alt.max_pain == base.max_pain
+        assert alt.gamma_flip == base.gamma_flip
+        # Walls are defined relative to spot, so they may legitimately move; the
+        # per-strike gamma that produces them must not.
+        assert [m["strike"] for m in alt.magnets] == [m["strike"] for m in base.magnets]
+
+    def test_report_to_dict_records_source_and_candidates(self, payload):
+        payload["data"]["current_price"] = 111.0
+        payload["data"]["close"] = 100.0
+        d = report_to_dict(analyze(payload, as_of=date(2026, 1, 1)))
+        assert d["spot"] == 100.0
+        assert d["spot_source"] == "close"
+        assert d["spot_candidates"]["current_price"] == 111.0
+        assert d["spot_candidates"]["close"] == 100.0
+
+
+class TestSpotSourceCli:
+    """The --spot-source flag and the divergence warning in the markdown."""
+
+    def _payload_file(self, tmpdir, cur, close):
+        with open(FIXTURE) as f:
+            p = json.load(f)
+        p["data"]["current_price"] = cur
+        p["data"]["close"] = close
+        path = Path(tmpdir) / "p.json"
+        path.write_text(json.dumps(p))
+        return path
+
+    def _run(self, path, outdir, *extra):
+        return subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve().parents[1] / "analyze_gex.py"),
+                "ZTEST",
+                "--payload-json",
+                str(path),
+                "--output-dir",
+                str(outdir),
+                *extra,
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_close_flag_overrides_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._payload_file(td, 111.0, 100.0)
+            r = self._run(p, td, "--spot-source", "close")
+            assert r.returncode == 0, r.stderr
+            data = [json.loads(f.read_text()) for f in Path(td).glob("dealer_gex_*.json")][0]
+            assert data["spot"] == 100.0
+            assert data["spot_source"] == "close"
+
+    def test_current_flag_overrides_as_of_inference(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._payload_file(td, 111.0, 100.0)
+            r = self._run(p, td, "--as-of", "2026-01-01", "--spot-source", "current")
+            assert r.returncode == 0, r.stderr
+            data = [json.loads(f.read_text()) for f in Path(td).glob("dealer_gex_*.json")][0]
+            assert data["spot"] == 111.0
+            assert data["spot_source"] == "current_price"
+
+    def test_markdown_warns_on_divergence(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._payload_file(td, 111.0, 100.0)
+            r = self._run(p, td, "--as-of", "2026-01-01")
+            assert r.returncode == 0, r.stderr
+            md = [f.read_text() for f in Path(td).glob("dealer_gex_*.md")][0]
+            assert "Spot source:" in md
+            assert "diverges" in md
+            assert "111" in md and "100" in md
+
+    def test_markdown_quiet_when_prices_agree(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._payload_file(td, 100.0, 100.0)
+            r = self._run(p, td, "--as-of", "2026-01-01")
+            assert r.returncode == 0, r.stderr
+            md = [f.read_text() for f in Path(td).glob("dealer_gex_*.md")][0]
+            assert "Spot source:" in md
+            assert "diverges" not in md
