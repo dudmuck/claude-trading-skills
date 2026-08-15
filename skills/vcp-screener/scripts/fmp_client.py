@@ -8,7 +8,7 @@ FMP API Client for VCP Screener
 Provides rate-limited access to Financial Modeling Prep API endpoints.
 
 Features:
-- Rate limiting (0.3s between requests)
+- Rate limiting (0.1s between requests)
 - Automatic retry on 429 errors
 - Session caching for duplicate requests
 - Batch quote support
@@ -34,6 +34,7 @@ try:
 except ModuleNotFoundError:  # loaded by file path (e.g. repo-level contract tests)
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from _fmp_compat import v3_to_stable
+
 
 class _SP500WikipediaParser(HTMLParser):
     """Extract symbol/name/sector from the first wikitable on the S&P 500 page."""
@@ -234,8 +235,10 @@ class FMPClient:
 
         if params is None:
             params = {}
-        params = dict(params)
-        params["apikey"] = self.api_key
+        # FMP's v3 REST API authenticates via the `apikey` query parameter, not
+        # an HTTP header. Inject it on every request so auth actually succeeds
+        # (a header is silently ignored and every call would 401/403 -> None).
+        params = {**params, "apikey": self.api_key}
 
         elapsed = time.time() - self.last_call_time
         if elapsed < self.RATE_LIMIT_DELAY:
@@ -333,7 +336,12 @@ class FMPClient:
                     shape_issue = f"requested symbol '{symbols_str}' not in response"
 
             if endpoint_key == "historical":
-                if isinstance(data, list) and data and isinstance(data[0], dict) and "date" in data[0]:
+                if (
+                    isinstance(data, list)
+                    and data
+                    and isinstance(data[0], dict)
+                    and "date" in data[0]
+                ):
                     data = {"symbol": symbols_str, "historical": data}
                 if not isinstance(data, dict):
                     valid = False

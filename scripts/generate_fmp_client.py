@@ -42,7 +42,17 @@ SPECIAL_BANNER = (
 )
 
 # Flags referenced by ``# @@IF <flag>`` markers in the template.
-FLAGS = ("has_quote", "budget", "has_compat", "hist_return_list", "query_auth")
+FLAGS = (
+    "has_quote",
+    "budget",
+    "has_compat",
+    "hist_return_list",
+    "query_auth",
+    "batch_quote_url",
+    "hist_normalize_list",
+    "sp500_wikipedia",
+    "single_quote_batch",
+)
 
 
 def _load_registry() -> dict:
@@ -80,8 +90,11 @@ def _process_conditionals(text: str, flags: dict) -> str:
 
 
 def _render_extensions(cfg) -> str:
+    flags = {f: getattr(cfg, f) for f in FLAGS}
     blocks = [
-        (SRC_DIR / "extensions" / f"{name}.py.tmpl").read_text(encoding="utf-8")
+        _process_conditionals(
+            (SRC_DIR / "extensions" / f"{name}.py.tmpl").read_text(encoding="utf-8"), flags
+        )
         for name in cfg.extensions
     ]
     return "\n".join(blocks)
@@ -118,6 +131,8 @@ def render_fmp_client(cfg) -> str:
     text = text.replace("@@TITLE@@", cfg.title)
     text = text.replace("@@FEATURES@@", "\n".join(cfg.feature_lines))
     text = text.replace("@@HIST_DAYS@@", str(cfg.hist_days))
+    text = text.replace("@@RATE_LIMIT_DELAY@@", str(cfg.rate_limit_delay))
+    text = text.replace("@@RATE_LIMIT_NOTE@@", cfg.rate_limit_note)
 
     const_block = "".join(f"    {name} = {literal}\n" for name, literal in cfg.class_constants)
     text = text.replace("@@CLASS_CONSTANTS@@\n", const_block + "\n")

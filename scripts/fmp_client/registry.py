@@ -11,6 +11,14 @@ The canonical core is the evolved vcp-screener client (``_last_error`` /
 ``_warn_fallback`` / ``shape_issue`` diagnostics). Family A's quote surface and
 family B's API-budget surface are toggled by the ``has_quote`` / ``budget`` flags
 so a single core serves both families.
+
+Fork-local note: vcp-screener and ftd-detector carry a stable-endpoint migration
+that upstream does not have. Rather than let the vendored files drift from this
+generator, the migration is expressed here as per-skill knobs
+(``rate_limit_delay``/``rate_limit_note``, ``batch_quote_url``,
+``hist_normalize_list``, ``sp500_wikipedia``, ``single_quote_batch``, plus
+``query_auth``). Every knob defaults to the upstream behaviour, so the other
+seven clients render byte-identically to before.
 """
 
 from __future__ import annotations
@@ -43,6 +51,13 @@ class SkillConfig:
     batch_days: int = 260  # get_batch_historical default `days` (family A only)
     standalone_template: str | None = None  # full-file template for PR2 special clients
     query_auth: bool = False  # send FMP API key as ?apikey= instead of a header
+    # --- fork-local stable-endpoint migration knobs (see module docstring) ---
+    rate_limit_delay: float = 0.3  # RATE_LIMIT_DELAY class constant
+    rate_limit_note: str = "300ms between requests"  # its trailing comment
+    batch_quote_url: bool = False  # route multi-symbol quotes to /stable/batch-quote
+    hist_normalize_list: bool = False  # coerce a bare stable EOD list to the v3 dict shape
+    sp500_wikipedia: bool = False  # add the Wikipedia constituent scrape as a last resort
+    single_quote_batch: bool = False  # get_batch_quotes issues one symbol per request
 
 
 _FAMILY_A_FEATURES = (
@@ -113,6 +128,13 @@ SKILLS: dict[str, SkillConfig] = {
         class_constants=(),
         extensions=("sp500_constituents", "family_a_quote"),
         batch_days=260,
+        query_auth=True,
+        rate_limit_delay=0.1,
+        rate_limit_note="100ms between requests (FMP stable tier ≥750/min)",
+        batch_quote_url=True,
+        hist_normalize_list=True,
+        sp500_wikipedia=True,
+        single_quote_batch=True,
     ),
     "parabolic-short-trade-planner": SkillConfig(
         skill="parabolic-short-trade-planner",
@@ -141,6 +163,9 @@ SKILLS: dict[str, SkillConfig] = {
         class_constants=(),
         extensions=("family_a_quote", "ftd"),
         batch_days=50,
+        query_auth=True,
+        batch_quote_url=True,
+        hist_normalize_list=True,
     ),
     "canslim-screener": SkillConfig(
         skill="canslim-screener",

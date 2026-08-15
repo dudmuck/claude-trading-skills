@@ -41,12 +41,27 @@
         return data or None
 
     def get_sp500_constituents(self) -> Optional[list[dict]]:
+# @@IF sp500_wikipedia
+        """Fetch S&P 500 constituent list.
+
+        Tries FMP stable, then FMP v3 legacy, then the public constituents
+        CSV, then a Wikipedia scrape. The non-FMP fallbacks exist because FMP
+        gates the constituent endpoint behind higher subscription tiers
+        (402/403 on Starter-tier keys); symbols and sector names are
+        sufficient for downstream screening.
+
+        Returns:
+            List of dicts with keys: symbol, name, sector
+            or None on failure of all sources.
+        """
+# @@ELSE
         """Fetch S&P 500 constituent list.
 
         Returns:
             List of dicts with keys: symbol, name, sector, subSector
             or None on failure.
         """
+# @@ENDIF
         cache_key = "sp500_constituents"
         if cache_key in self.cache:
             return self.cache[cache_key]
@@ -54,11 +69,46 @@
         # Migrate hardcoded v3 URL to /stable (this method bypasses the
         # _FMP_ENDPOINTS stable→v3 fallback list, so rewrite at the call site).
         url, params = v3_to_stable(f"{self.BASE_URL}/sp500_constituent")
+# @@IF sp500_wikipedia
+        data = self._rate_limited_get(url, params, quiet=True)
+        if not data:
+            # No FMP tier serves this list on some keys (402 on stable, 403
+            # on v3) — fall back to the public dataset, then to Wikipedia.
+            data = self._fetch_constituents_csv()
+        if not data:
+            data = self._fetch_sp500_from_wikipedia()
+# @@ELSE
         data = self._rate_limited_get(url, params)
         if not data:
             # No FMP tier serves this list on some keys (402 on stable, 403
             # on v3) — fall back to the public dataset.
             data = self._fetch_constituents_csv()
+# @@ENDIF
         if data:
             self.cache[cache_key] = data
         return data
+# @@IF sp500_wikipedia
+
+    def _fetch_sp500_from_wikipedia(self) -> Optional[list[dict]]:
+        """Scrape S&P 500 constituents from Wikipedia as FMP fallback."""
+        url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+        try:
+            r = self.session.get(
+                url, timeout=30, headers={"User-Agent": "Mozilla/5.0 (vcp-screener)"}
+            )
+        except requests.exceptions.RequestException as e:
+            print(f"WARNING: Wikipedia fetch error: {e}", file=sys.stderr)
+            return None
+        if r.status_code != 200:
+            print(f"WARNING: Wikipedia fetch failed: HTTP {r.status_code}", file=sys.stderr)
+            return None
+        constituents = _parse_sp500_wikipedia_html(r.text)
+        if not constituents:
+            print("WARNING: Wikipedia parse returned 0 constituents", file=sys.stderr)
+            return None
+        print(
+            f"  (FMP gated; loaded {len(constituents)} S&P 500 names from Wikipedia)",
+            file=sys.stderr,
+        )
+        return constituents
+# @@ENDIF

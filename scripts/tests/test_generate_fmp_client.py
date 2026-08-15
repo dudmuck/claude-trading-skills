@@ -226,3 +226,100 @@ def test_generated_output_is_ruff_clean(gen):
     assert fmt.returncode == 0, fmt.stdout + fmt.stderr
     chk = subprocess.run([ruff, "check", *files], capture_output=True, text=True)
     assert chk.returncode == 0, chk.stdout + chk.stderr
+
+
+# --- fork-local stable-endpoint migration knobs -----------------------------
+#
+# vcp-screener and ftd-detector carry a migration upstream does not have. These
+# tests pin (a) that the knobs actually drive the emitted source and (b) that
+# every knob is off by default, so the other seven clients keep rendering the
+# upstream output.
+
+MIGRATION_FLAGS = (
+    "batch_quote_url",
+    "hist_normalize_list",
+    "sp500_wikipedia",
+    "single_quote_batch",
+)
+
+
+def test_migration_knobs_default_off(gen):
+    """Only vcp-screener and ftd-detector opt into the fork-local migration."""
+    expected = {
+        "batch_quote_url": {"vcp-screener", "ftd-detector"},
+        "hist_normalize_list": {"vcp-screener", "ftd-detector"},
+        "sp500_wikipedia": {"vcp-screener"},
+        "single_quote_batch": {"vcp-screener"},
+        "query_auth": {"vcp-screener", "ftd-detector", "earnings-trade-analyzer"},
+    }
+    skills = _skills(gen)
+    for flag, owners in expected.items():
+        assert {s for s, cfg in skills.items() if getattr(cfg, flag)} == owners, flag
+
+
+def test_migration_flags_are_registered_with_the_generator(gen):
+    for flag in MIGRATION_FLAGS:
+        assert flag in gen.FLAGS
+
+
+def test_batch_quote_url_only_where_enabled(gen):
+    for cfg in _skills(gen).values():
+        if cfg.standalone_template:
+            continue
+        out = gen.render_fmp_client(cfg)
+        assert ("stable/batch-quote" in out) == cfg.batch_quote_url, cfg.skill
+
+
+def test_hist_normalize_list_only_where_enabled(gen):
+    for cfg in _skills(gen).values():
+        if cfg.standalone_template:
+            continue
+        out = gen.render_fmp_client(cfg)
+        normalizes = '"historical": data}' in out
+        assert normalizes == cfg.hist_normalize_list, cfg.skill
+
+
+def test_sp500_wikipedia_only_where_enabled(gen):
+    for cfg in _skills(gen).values():
+        if cfg.standalone_template:
+            continue
+        out = gen.render_fmp_client(cfg)
+        for marker in (
+            "_SP500WikipediaParser",
+            "_parse_sp500_wikipedia_html",
+            "def _fetch_sp500_from_wikipedia",
+            "from html.parser import HTMLParser",
+        ):
+            assert (marker in out) == cfg.sp500_wikipedia, f"{cfg.skill}: {marker}"
+
+
+def test_single_quote_batch_controls_batch_size(gen):
+    for cfg in _skills(gen).values():
+        if cfg.standalone_template or not cfg.has_quote:
+            continue
+        out = gen.render_fmp_client(cfg)
+        assert ("batch_size = 1" in out) == cfg.single_quote_batch, cfg.skill
+        assert ("batch_size = 5" in out) != cfg.single_quote_batch, cfg.skill
+
+
+def test_query_auth_never_pairs_with_a_session_apikey_header(gen):
+    """A session-level apikey header would leak to third-party fallback hosts."""
+    for cfg in _skills(gen).values():
+        if cfg.standalone_template:
+            continue
+        out = gen.render_fmp_client(cfg)
+        header = 'self.session.headers.update({"apikey": self.api_key})' in out
+        assert header != cfg.query_auth, cfg.skill
+        if cfg.sp500_wikipedia:
+            # The Wikipedia scrape reuses self.session, so it must not carry auth.
+            assert not header, cfg.skill
+
+
+def test_rate_limit_delay_is_per_skill_and_matches_the_docstring(gen):
+    for cfg in _skills(gen).values():
+        if cfg.standalone_template:
+            continue
+        out = gen.render_fmp_client(cfg)
+        assert f"RATE_LIMIT_DELAY = {cfg.rate_limit_delay}  # {cfg.rate_limit_note}" in out
+        assert f"- Rate limiting ({cfg.rate_limit_delay}s between requests)" in out
+    assert _skills(gen)["vcp-screener"].rate_limit_delay == 0.1

@@ -10,9 +10,20 @@
         return data
 
     def get_batch_quotes(self, symbols: list[str]) -> dict[str, dict]:
+# @@IF single_quote_batch
+        """Fetch quotes for a list of symbols, one per request.
+
+        Per-symbol calls route to /stable/quote?symbol=X (still available on
+        all FMP tiers). The batched /stable/batch-quote endpoint was paywalled
+        in 2026; using single-symbol calls keeps the screener portable.
+        """
+        results = {}
+        batch_size = 1
+# @@ELSE
         """Fetch quotes for a list of symbols, batching up to 5 per request"""
         results = {}
         batch_size = 5
+# @@ENDIF
         for i in range(0, len(symbols), batch_size):
             batch = symbols[i : i + batch_size]
             batch_str = ",".join(batch)

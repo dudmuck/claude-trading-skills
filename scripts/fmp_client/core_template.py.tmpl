@@ -6,16 +6,22 @@
 Provides rate-limited access to Financial Modeling Prep API endpoints.
 
 Features:
-- Rate limiting (0.3s between requests)
+- Rate limiting (@@RATE_LIMIT_DELAY@@s between requests)
 - Automatic retry on 429 errors
 - Session caching for duplicate requests
 @@FEATURES@@
 """
 
+# @@IF sp500_wikipedia
+import html
+# @@ENDIF
 import os
 import sys
 import time
 from datetime import date, timedelta
+# @@IF sp500_wikipedia
+from html.parser import HTMLParser
+# @@ENDIF
 from typing import Optional
 
 try:
@@ -32,13 +38,89 @@ except ModuleNotFoundError:  # loaded by file path (e.g. repo-level contract tes
     from _fmp_compat import v3_to_stable
 # @@ENDIF
 
+# @@IF sp500_wikipedia
+
+class _SP500WikipediaParser(HTMLParser):
+    """Extract symbol/name/sector from the first wikitable on the S&P 500 page."""
+
+    def __init__(self):
+        super().__init__()
+        self._found_first_table = False
+        self._in_first_table = False
+        self._in_row = False
+        self._in_cell = False
+        self._is_header_row = False
+        self._cell_text: list[str] = []
+        self._row: list[str] = []
+        self.rows: list[list[str]] = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs_d = dict(attrs)
+        if tag == "table" and not self._found_first_table:
+            classes = attrs_d.get("class", "")
+            if "wikitable" in classes:
+                self._in_first_table = True
+                self._found_first_table = True
+        elif tag == "tr" and self._in_first_table:
+            self._in_row = True
+            self._row = []
+            self._is_header_row = False
+        elif tag in ("td", "th") and self._in_row:
+            self._in_cell = True
+            self._cell_text = []
+            if tag == "th":
+                self._is_header_row = True
+
+    def handle_endtag(self, tag):
+        if tag == "table" and self._in_first_table:
+            self._in_first_table = False
+        elif tag == "tr" and self._in_row:
+            if self._row and not self._is_header_row:
+                self.rows.append(self._row)
+            self._in_row = False
+        elif tag in ("td", "th") and self._in_cell:
+            self._row.append("".join(self._cell_text).strip())
+            self._in_cell = False
+
+    def handle_data(self, data):
+        if self._in_cell:
+            self._cell_text.append(data)
+
+
+def _parse_sp500_wikipedia_html(html_text: str) -> list[dict]:
+    """Parse Wikipedia S&P 500 list HTML into FMP-compatible constituent dicts."""
+    parser = _SP500WikipediaParser()
+    parser.feed(html_text)
+    out = []
+    for row in parser.rows:
+        if len(row) < 3:
+            continue
+        symbol = row[0].replace(".", "-")  # Wikipedia BRK.B -> FMP BRK-B
+        name = html.unescape(row[1])
+        sector = html.unescape(row[2])
+        if not symbol or len(symbol) > 6 or not symbol.replace("-", "").isalpha():
+            continue
+        out.append({"symbol": symbol, "name": name, "sector": sector})
+    return out
+
+
+# @@ENDIF
 # --- FMP endpoint fallback: stable (new users) -> v3 (legacy users) ---
 
 
 # @@IF has_quote
 def _stable_quote_url(base, symbols_str, params):
+# @@IF batch_quote_url
+    """stable/quote?symbol=X for single, stable/batch-quote?symbols=A,B for multi"""
+    if "," in symbols_str:
+        base = "https://financialmodelingprep.com/stable/batch-quote"
+        params["symbols"] = symbols_str
+    else:
+        params["symbol"] = symbols_str
+# @@ELSE
     """stable/quote?symbol=^GSPC"""
     params["symbol"] = symbols_str
+# @@ENDIF
     return base, params
 
 
@@ -143,7 +225,7 @@ class FMPClient:
 # @@ENDIF
 
     BASE_URL = "https://financialmodelingprep.com/api/v3"
-    RATE_LIMIT_DELAY = 0.3  # 300ms between requests
+    RATE_LIMIT_DELAY = @@RATE_LIMIT_DELAY@@  # @@RATE_LIMIT_NOTE@@
 
     _ENDPOINT_FAILURE_THRESHOLD = 3  # disable endpoint after N consecutive failures
 @@CLASS_CONSTANTS@@
@@ -307,6 +389,15 @@ class FMPClient:
 
 # @@ENDIF
             if endpoint_key == "historical":
+# @@IF hist_normalize_list
+                if (
+                    isinstance(data, list)
+                    and data
+                    and isinstance(data[0], dict)
+                    and "date" in data[0]
+                ):
+                    data = {"symbol": symbols_str, "historical": data}
+# @@ENDIF
                 if not isinstance(data, dict):
                     valid = False
                     shape_issue = "expected dict"
