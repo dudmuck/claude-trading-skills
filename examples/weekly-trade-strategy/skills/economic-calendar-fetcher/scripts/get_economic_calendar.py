@@ -64,6 +64,12 @@ def fetch_economic_calendar(from_date: str, to_date: str, api_key: str) -> list[
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8") if e.fp else "No error details"
+        if e.code == 402:
+            raise ValueError(
+                "FMP API returned 402 Payment Required: the Economic Calendar endpoint "
+                "is not included in your current FMP subscription tier. Upgrade your plan "
+                f"at https://financialmodelingprep.com/ to access this endpoint. Details: {error_body}"
+            )
         raise urllib.error.HTTPError(
             e.url, e.code, f"FMP API error: {e.reason}. Details: {error_body}", e.hdrs, e.fp
         )
