@@ -51,7 +51,6 @@ FLAGS = (
     "batch_quote_url",
     "hist_normalize_list",
     "sp500_wikipedia",
-    "single_quote_batch",
 )
 
 

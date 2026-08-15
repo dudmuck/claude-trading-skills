@@ -239,7 +239,6 @@ MIGRATION_FLAGS = (
     "batch_quote_url",
     "hist_normalize_list",
     "sp500_wikipedia",
-    "single_quote_batch",
 )
 
 
@@ -249,7 +248,6 @@ def test_migration_knobs_default_off(gen):
         "batch_quote_url": {"vcp-screener", "ftd-detector"},
         "hist_normalize_list": {"vcp-screener", "ftd-detector"},
         "sp500_wikipedia": {"vcp-screener"},
-        "single_quote_batch": {"vcp-screener", "ftd-detector"},
         "query_auth": {"vcp-screener", "ftd-detector", "earnings-trade-analyzer"},
     }
     skills = _skills(gen)
@@ -293,13 +291,23 @@ def test_sp500_wikipedia_only_where_enabled(gen):
             assert (marker in out) == cfg.sp500_wikipedia, f"{cfg.skill}: {marker}"
 
 
-def test_single_quote_batch_controls_batch_size(gen):
+def test_quote_clients_carry_the_per_symbol_batch_fallback(gen):
+    """Batching is unavailable on current FMP keys; every quote client must degrade.
+
+    A static per-skill "always one symbol" flag was tried first and got
+    parabolic-short-trade-planner wrong, so this pins the adaptive probe
+    instead: the state flag is initialised, and the per-symbol loop exists.
+    """
     for cfg in _skills(gen).values():
-        if cfg.standalone_template or not cfg.has_quote:
+        if cfg.standalone_template:
             continue
         out = gen.render_fmp_client(cfg)
-        assert ("batch_size = 1" in out) == cfg.single_quote_batch, cfg.skill
-        assert ("batch_size = 5" in out) != cfg.single_quote_batch, cfg.skill
+        has_state = "self._batch_quotes_unsupported = False" in out
+        assert has_state == cfg.has_quote, cfg.skill
+        if cfg.has_quote:
+            assert "self._batch_quotes_unsupported = True" in out, cfg.skill
+            assert "for symbol in batch:" in out, cfg.skill
+            assert "batch_size = 5" in out, cfg.skill
 
 
 def test_query_auth_never_pairs_with_a_session_apikey_header(gen):

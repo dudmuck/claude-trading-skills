@@ -16,7 +16,7 @@ Fork-local note: vcp-screener and ftd-detector carry a stable-endpoint migration
 that upstream does not have. Rather than let the vendored files drift from this
 generator, the migration is expressed here as per-skill knobs
 (``rate_limit_delay``/``rate_limit_note``, ``batch_quote_url``,
-``hist_normalize_list``, ``sp500_wikipedia``, ``single_quote_batch``, plus
+``hist_normalize_list``, ``sp500_wikipedia``, plus
 ``query_auth``). Every knob defaults to the upstream behaviour, so the other
 seven clients render byte-identically to before.
 """
@@ -57,7 +57,6 @@ class SkillConfig:
     batch_quote_url: bool = False  # route multi-symbol quotes to /stable/batch-quote
     hist_normalize_list: bool = False  # coerce a bare stable EOD list to the v3 dict shape
     sp500_wikipedia: bool = False  # add the Wikipedia constituent scrape as a last resort
-    single_quote_batch: bool = False  # get_batch_quotes issues one symbol per request
 
 
 _FAMILY_A_FEATURES = (
@@ -134,7 +133,6 @@ SKILLS: dict[str, SkillConfig] = {
         batch_quote_url=True,
         hist_normalize_list=True,
         sp500_wikipedia=True,
-        single_quote_batch=True,
     ),
     "parabolic-short-trade-planner": SkillConfig(
         skill="parabolic-short-trade-planner",
@@ -166,7 +164,6 @@ SKILLS: dict[str, SkillConfig] = {
         query_auth=True,
         batch_quote_url=True,
         hist_normalize_list=True,
-        single_quote_batch=True,
     ),
     "canslim-screener": SkillConfig(
         skill="canslim-screener",

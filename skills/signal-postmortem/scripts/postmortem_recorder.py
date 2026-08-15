@@ -54,7 +54,15 @@ def fetch_price_data(ticker: str, start_date: str, end_date: str, api_key: str) 
                 continue
             data = resp.json()
             historical = None
-            if isinstance(data, dict) and "historical" in data:
+            # /stable/historical-price-eod/full answers with a bare array, not
+            # the v3 {"historical": [...]} envelope. Without this branch the
+            # stable hit never matches, the call falls through to the v3
+            # endpoint (403 on keys created after 2025-08-31), and the ticker
+            # ends up with no prices at all -- which scores every return as 0
+            # and silently makes every postmortem verdict NEUTRAL.
+            if isinstance(data, list):
+                historical = data
+            elif isinstance(data, dict) and "historical" in data:
                 historical = data["historical"]
             elif isinstance(data, dict) and "historicalStockList" in data:
                 for entry in data["historicalStockList"]:
