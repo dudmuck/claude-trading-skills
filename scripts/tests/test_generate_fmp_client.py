@@ -249,7 +249,7 @@ def test_migration_knobs_default_off(gen):
         "batch_quote_url": {"vcp-screener", "ftd-detector"},
         "hist_normalize_list": {"vcp-screener", "ftd-detector"},
         "sp500_wikipedia": {"vcp-screener"},
-        "single_quote_batch": {"vcp-screener"},
+        "single_quote_batch": {"vcp-screener", "ftd-detector"},
         "query_auth": {"vcp-screener", "ftd-detector", "earnings-trade-analyzer"},
     }
     skills = _skills(gen)

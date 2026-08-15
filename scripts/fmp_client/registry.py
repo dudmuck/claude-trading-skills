@@ -166,6 +166,7 @@ SKILLS: dict[str, SkillConfig] = {
         query_auth=True,
         batch_quote_url=True,
         hist_normalize_list=True,
+        single_quote_batch=True,
     ),
     "canslim-screener": SkillConfig(
         skill="canslim-screener",

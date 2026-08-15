@@ -336,9 +336,14 @@ class FMPClient:
         return data
 
     def get_batch_quotes(self, symbols: list[str]) -> dict[str, dict]:
-        """Fetch quotes for a list of symbols, batching up to 5 per request"""
+        """Fetch quotes for a list of symbols, one per request.
+
+        Per-symbol calls route to /stable/quote?symbol=X (still available on
+        all FMP tiers). The batched /stable/batch-quote endpoint was paywalled
+        in 2026; using single-symbol calls keeps the client portable.
+        """
         results = {}
-        batch_size = 5
+        batch_size = 1
         for i in range(0, len(symbols), batch_size):
             batch = symbols[i : i + batch_size]
             batch_str = ",".join(batch)
