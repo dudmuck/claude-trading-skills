@@ -6,6 +6,7 @@ validator emits the specific error code.
 
 from __future__ import annotations
 
+import copy
 import sys
 from pathlib import Path
 
@@ -62,13 +63,49 @@ def write_index(project_root: Path, skills: list[dict]) -> None:
     )
 
 
-def write_workflow(project_root: Path, workflow_id: str, content: dict) -> Path:
+def _with_japanese_fields(content: dict) -> dict:
+    """Return a localized copy so unrelated workflow tests satisfy WF014."""
+    payload = copy.deepcopy(content)
+    payload.setdefault("display_name_ja", "サンプルワークフロー")
+    payload.setdefault("when_to_run_ja", "テスト時に実行します。")
+    payload.setdefault("when_not_to_run_ja", "条件外では実行しません。")
+
+    for prereq in payload.get("prerequisite_workflows") or []:
+        if isinstance(prereq, dict):
+            prereq.setdefault("rationale_ja", "上流の成果物が必要です。")
+    for manual_input in payload.get("manual_inputs") or []:
+        if isinstance(manual_input, dict):
+            manual_input.setdefault("description_ja", "手動入力の説明です。")
+    for step in payload.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        step.setdefault("name_ja", "ステップを実行する")
+        if step.get("decision_gate"):
+            step.setdefault("decision_question_ja", "続行してよいですか？")
+
+    payload.setdefault("manual_review", [])
+    manual_review = payload.get("manual_review") or []
+    payload.setdefault("manual_review_ja", ["確認します。" for _ in manual_review])
+    for output in payload.get("final_outputs") or []:
+        if isinstance(output, dict):
+            output.setdefault("description_ja", "最終出力の説明です。")
+    return payload
+
+
+def write_workflow(
+    project_root: Path,
+    workflow_id: str,
+    content: dict,
+    *,
+    localize: bool = True,
+) -> Path:
     import yaml as _yaml
 
     workflows_dir = project_root / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
     path = workflows_dir / f"{workflow_id}.yaml"
-    path.write_text(_yaml.safe_dump(content, sort_keys=False), encoding="utf-8")
+    payload = _with_japanese_fields(content) if localize else content
+    path.write_text(_yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     return path
 
 
@@ -100,6 +137,16 @@ def minimal_skill(skill_id: str, **overrides) -> dict:
         "inputs": ["test_input"],
         "outputs": ["test_output"],
         "workflows": [],
+        "verification": {
+            "instruction_contract": "not_verified",
+            "unit_tests": "not_verified",
+            "workflow_contract": "not_applicable",
+            "end_to_end_replay": "not_applicable",
+            "data_provenance": "not_verified",
+            "financial_logic_review": "not_verified",
+            "empirical_validation": "not_verified",
+            "security_review": "not_verified",
+        },
     }
     base.update(overrides)
     return base
@@ -487,6 +534,123 @@ def test_wf005_decision_gate_missing_question(tmp_path: Path) -> None:
     )
     findings = validate(tmp_path, strict_workflows=True)
     assert "WF005" in codes(findings)
+
+
+@pytest.mark.parametrize("invalid_value", [None, "", "   ", 123])
+def test_wf014_top_level_translation_must_be_non_empty_string(
+    tmp_path: Path, invalid_value: object
+) -> None:
+    _setup_minimal_workflow_repo(tmp_path)
+    workflow_path = tmp_path / "workflows" / "sample.yaml"
+
+    import yaml as _yaml
+
+    workflow = _yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    workflow["display_name_ja"] = invalid_value
+    write_workflow(tmp_path, "sample", workflow, localize=False)
+
+    findings = validate(tmp_path, strict_workflows=True)
+    wf014 = [finding for finding in findings if finding.code == "WF014"]
+    assert wf014, findings
+    assert any("display_name_ja" in finding.message for finding in wf014)
+
+
+def test_wf014_nested_translations_are_required(tmp_path: Path) -> None:
+    _setup_minimal_workflow_repo(
+        tmp_path,
+        prerequisite_workflows=[
+            {"id": "upstream", "artifact": "upstream_output", "rationale": "Needed"}
+        ],
+        manual_inputs=[
+            {
+                "id": "operator_input",
+                "required": False,
+                "used_by_steps": [1],
+                "description": "Operator input",
+            }
+        ],
+        steps=[
+            {
+                "step": 1,
+                "name": "Decide",
+                "skill": "alpha",
+                "produces": ["art1"],
+                "decision_gate": True,
+                "decision_question": "Continue?",
+            }
+        ],
+        manual_review=["Review the result"],
+        final_outputs=[{"id": "decision", "description": "Decision output"}],
+    )
+    workflow_path = tmp_path / "workflows" / "sample.yaml"
+
+    import yaml as _yaml
+
+    workflow = _yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    del workflow["prerequisite_workflows"][0]["rationale_ja"]
+    del workflow["manual_inputs"][0]["description_ja"]
+    del workflow["steps"][0]["name_ja"]
+    del workflow["steps"][0]["decision_question_ja"]
+    del workflow["final_outputs"][0]["description_ja"]
+    workflow["manual_review_ja"] = []
+    write_workflow(tmp_path, "sample", workflow, localize=False)
+
+    findings = validate(tmp_path, strict_workflows=True)
+    messages = [finding.message for finding in findings if finding.code == "WF014"]
+    assert any("prerequisite_workflows[0].rationale_ja" in message for message in messages)
+    assert any("manual_inputs[0].description_ja" in message for message in messages)
+    assert any("steps[0].name_ja" in message for message in messages)
+    assert any("steps[0].decision_question_ja" in message for message in messages)
+    assert any("manual_review_ja" in message for message in messages)
+    assert any("final_outputs[0].description_ja" in message for message in messages)
+
+
+@pytest.mark.parametrize(
+    "field,invalid_value",
+    [
+        ("prerequisite_workflows", {"id": "upstream"}),
+        ("manual_inputs", {"id": "operator_input"}),
+        ("steps", None),
+        ("steps", {"step": 1}),
+        ("steps", ["not-a-mapping"]),
+        ("final_outputs", {"id": "decision"}),
+        ("manual_inputs", ["not-a-mapping"]),
+    ],
+)
+def test_wf014_translation_collections_must_be_lists_of_mappings(
+    tmp_path: Path, field: str, invalid_value: object
+) -> None:
+    _setup_minimal_workflow_repo(tmp_path, **{field: invalid_value})
+
+    findings = validate(tmp_path, strict_workflows=True)
+    messages = [finding.message for finding in findings if finding.code == "WF014"]
+    assert any(field in message for message in messages), findings
+
+
+def test_wf014_manual_review_source_must_be_a_list(tmp_path: Path) -> None:
+    _setup_minimal_workflow_repo(
+        tmp_path,
+        manual_review="Review this output.",
+        manual_review_ja=[],
+    )
+
+    findings = validate(tmp_path, strict_workflows=True)
+    messages = [finding.message for finding in findings if finding.code == "WF014"]
+    assert any("manual_review must be a list" in message for message in messages), findings
+
+
+def test_wf014_not_enforced_without_strict_workflows(tmp_path: Path) -> None:
+    _setup_minimal_workflow_repo(tmp_path)
+    workflow_path = tmp_path / "workflows" / "sample.yaml"
+
+    import yaml as _yaml
+
+    workflow = _yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    del workflow["display_name_ja"]
+    write_workflow(tmp_path, "sample", workflow, localize=False)
+
+    findings = validate(tmp_path, strict_workflows=False)
+    assert "WF014" not in codes(findings)
 
 
 def test_wf006_journal_destination_missing(tmp_path: Path) -> None:
@@ -1014,6 +1178,243 @@ def test_consume_optional_artifact_passes(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # strict-metadata
 # ---------------------------------------------------------------------------
+
+
+def test_knowledge_only_marker_is_strictly_validated(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha")
+
+    write_index(tmp_path, [minimal_skill("alpha", knowledge_only="yes")])
+    findings = validate(tmp_path)
+    assert any(f.code == "IDX014" and "boolean" in f.message for f in findings)
+
+    write_index(
+        tmp_path,
+        [minimal_skill("alpha", status="beta", verification=None, knowledge_only=True)],
+    )
+    findings = validate(tmp_path)
+    assert any(f.code == "IDX014" and "production" in f.message for f in findings)
+
+
+def test_knowledge_only_conflicts_with_executable_python(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha")
+    script = tmp_path / "skills/alpha/scripts/pkg/run.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("def main():\n    return 0\n", encoding="utf-8")
+    write_index(tmp_path, [minimal_skill("alpha", knowledge_only=True)])
+
+    findings = validate(tmp_path)
+
+    assert any(f.code == "IDX014" and "executable" in f.message for f in findings)
+
+
+def test_script_free_production_accepts_knowledge_only_marker(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha")
+    write_index(tmp_path, [minimal_skill("alpha", knowledge_only=True)])
+
+    findings = validate(tmp_path)
+
+    assert not any(f.code == "IDX014" for f in findings)
+
+
+def test_production_missing_verification_warns_by_default(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha")
+    skill = minimal_skill("alpha")
+    skill.pop("verification")
+    write_index(tmp_path, [skill])
+
+    findings = validate(tmp_path)
+
+    assert codes(findings) == []
+    assert [f.code for f in findings].count("IDX013") == 1
+    assert any(f.code == "IDX013" and f.severity == "warning" for f in findings)
+
+
+def test_production_missing_verification_warns_with_strict_workflows_only(
+    tmp_path: Path,
+) -> None:
+    write_skill(tmp_path, "alpha")
+    skill = minimal_skill("alpha")
+    skill.pop("verification")
+    write_index(tmp_path, [skill])
+
+    findings = validate(tmp_path, strict_workflows=True)
+
+    assert codes(findings) == []
+    assert [f.code for f in findings].count("IDX013") == 1
+
+
+@pytest.mark.parametrize("strict_workflows", [False, True])
+def test_production_missing_verification_errors_with_strict_metadata(
+    tmp_path: Path, strict_workflows: bool
+) -> None:
+    write_skill(tmp_path, "alpha")
+    skill = minimal_skill("alpha")
+    skill.pop("verification")
+    write_index(tmp_path, [skill])
+
+    findings = validate(
+        tmp_path,
+        strict_metadata=True,
+        strict_workflows=strict_workflows,
+    )
+
+    idx013 = [f for f in findings if f.code == "IDX013"]
+    assert len(idx013) == 1
+    assert idx013[0].severity == "error"
+
+
+def test_non_production_may_omit_verification(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha")
+    skill = minimal_skill("alpha", status="beta")
+    skill.pop("verification")
+    write_index(tmp_path, [skill])
+
+    findings = validate(tmp_path, strict_metadata=True)
+
+    assert "IDX013" not in [f.code for f in findings]
+
+
+@pytest.mark.parametrize(
+    ("verification", "message_fragment"),
+    [
+        ([], "must be a mapping"),
+        (
+            {
+                "instruction_contract": "not_verified",
+                "unit_tests": "not_verified",
+                "workflow_contract": "not_applicable",
+                "end_to_end_replay": "not_applicable",
+                "data_provenance": "not_verified",
+                "financial_logic_review": "not_verified",
+                "empirical_validation": "not_verified",
+            },
+            "missing keys",
+        ),
+        (
+            {
+                **minimal_skill("unused")["verification"],
+                "unexpected_axis": "passed",
+            },
+            "unknown keys",
+        ),
+        (
+            {
+                **minimal_skill("unused")["verification"],
+                "unit_tests": "failed",
+            },
+            "invalid value",
+        ),
+        (
+            {
+                **minimal_skill("unused")["verification"],
+                "unit_tests": None,
+            },
+            "invalid value",
+        ),
+        (
+            {
+                **minimal_skill("unused")["verification"],
+                "unit_tests": ["passed"],
+            },
+            "invalid value",
+        ),
+    ],
+)
+def test_present_verification_block_is_strictly_validated_in_all_modes(
+    tmp_path: Path,
+    verification: object,
+    message_fragment: str,
+) -> None:
+    write_skill(tmp_path, "alpha")
+    write_index(tmp_path, [minimal_skill("alpha", verification=verification)])
+
+    for kwargs in (
+        {},
+        {"strict_workflows": True},
+        {"strict_metadata": True},
+        {"strict_workflows": True, "strict_metadata": True},
+    ):
+        findings = validate(tmp_path, **kwargs)
+        idx013 = [f for f in findings if f.code == "IDX013"]
+        assert len(idx013) == 1, (kwargs, findings)
+        assert idx013[0].severity == "error"
+        assert message_fragment in idx013[0].message
+
+
+@pytest.mark.parametrize(
+    ("override", "expected_code"),
+    [
+        ({"category": ["core-portfolio"]}, "IDX005"),
+        ({"status": ["production"]}, "IDX006"),
+        ({"timeframe": ["weekly"]}, "IDX-META"),
+        ({"difficulty": {"value": "advanced"}}, "IDX-META"),
+        (
+            {"integrations": [{"id": "x", "type": ["broker"], "requirement": "required"}]},
+            "IDX007",
+        ),
+        (
+            {"integrations": [{"id": "x", "type": "broker", "requirement": {"value": "required"}}]},
+            "IDX008",
+        ),
+    ],
+)
+def test_enum_type_mismatches_report_findings_instead_of_crashing(
+    tmp_path: Path, override: dict, expected_code: str
+) -> None:
+    write_skill(tmp_path, "alpha")
+    write_index(tmp_path, [minimal_skill("alpha", **override)])
+
+    for kwargs in (
+        {},
+        {"strict_workflows": True},
+        {"strict_metadata": True},
+        {"strict_workflows": True, "strict_metadata": True},
+    ):
+        findings = validate(tmp_path, **kwargs)
+        assert expected_code in [finding.code for finding in findings]
+
+
+def test_mixed_type_unknown_verification_keys_report_idx013(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha")
+    verification = {**minimal_skill("alpha")["verification"], "unexpected_axis": "passed"}
+    verification[1] = "passed"
+    write_index(tmp_path, [minimal_skill("alpha", verification=verification)])
+
+    for kwargs in (
+        {},
+        {"strict_workflows": True},
+        {"strict_metadata": True},
+        {"strict_workflows": True, "strict_metadata": True},
+    ):
+        findings = validate(tmp_path, **kwargs)
+        assert [finding.code for finding in findings].count("IDX013") == 1
+
+
+def test_categories_rejects_unhashable_items_without_crashing(tmp_path: Path) -> None:
+    import yaml as _yaml
+
+    write_skill(tmp_path, "alpha")
+    payload = {
+        "schema_version": 1,
+        "categories": [
+            "market-regime",
+            "core-portfolio",
+            "swing-opportunity",
+            "trade-planning",
+            "trade-memory",
+            "strategy-research",
+            "advanced-satellite",
+            {"bad": "meta"},
+        ],
+        "skills": [minimal_skill("alpha")],
+    }
+    (tmp_path / "skills-index.yaml").write_text(
+        _yaml.safe_dump(payload, sort_keys=False), encoding="utf-8"
+    )
+
+    findings = validate(tmp_path, strict_metadata=True)
+
+    assert "IDX011" in codes(findings)
 
 
 def test_strict_metadata_rejects_unknown_timeframe(tmp_path: Path) -> None:

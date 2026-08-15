@@ -10,7 +10,7 @@ permalink: /en/skill-catalog/
 # Skill Catalog
 {: .no_toc }
 
-A comprehensive catalog of all 64 Claude Trading Skills organized by category. Badge indicators show API requirements at a glance.
+A comprehensive catalog of all 72 Claude Trading Skills organized by category. Badge indicators show API requirements at a glance.
 {: .fs-6 .fw-300 }
 
 > Use English skill names ("CANSLIM", "VCP", "FinViz", etc.) for best search results on this page.
@@ -51,7 +51,6 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | **Dividend Growth Pullback Screener** | Finds dividend growth stocks (12%+ annual growth, 1.5%+ yield) at oversold technical levels (RSI <= 40). Two-stage FINVIZ + FMP pipeline | <span class="badge badge-api">FMP Required</span> <span class="badge badge-optional">FINVIZ Optional</span> |
 | **Earnings Trade Analyzer** | Scores post-earnings stocks using 5 weighted factors: Gap Size (25%), Pre-Earnings Trend (30%), Volume Trend (20%), MA200 Position (15%), MA50 Position (10%). A/B/C/D grades | <span class="badge badge-api">FMP Required</span> |
 | **PEAD Screener** | Screens for Post-Earnings Announcement Drift patterns using weekly candle analysis. Stage-based monitoring: MONITORING, SIGNAL_READY, BREAKOUT, EXPIRED | <span class="badge badge-api">FMP Required</span> |
-| **[Short-Squeeze Radar]({{ '/en/skills/short-squeeze-radar/' | relative_url }})** | Ranks US equities by short-squeeze potential from FREE FINRA Reg SHO daily short-volume files. Detects rising short-volume inflections (shorts piling in) and flags crowded-short vs low-pressure names | <span class="badge badge-free">No API</span> |
 | **FTD Detector** | Detects Follow-Through Day signals for market bottom confirmation using William O'Neil's methodology. Dual-index tracking with quality scoring (0-100) | <span class="badge badge-api">FMP Required</span> |
 | **Institutional Flow Tracker** | Tracks institutional ownership changes using 13F SEC filings. Tier-based quality framework weights superinvestors (Berkshire, Baupost) higher than index funds | <span class="badge badge-api">FMP Required</span> |
 
@@ -68,9 +67,8 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | **Market Environment Analysis** | Comprehensive global macro briefing covering equity indices, FX, commodities, yields, and sentiment with structured reporting templates | <span class="badge badge-free">No API</span> |
 | **[Market Breadth Analyzer]({{ '/en/skills/market-breadth-analyzer/' | relative_url }})** | Quantifies market breadth health using a data-driven 6-component scoring system (0-100) from publicly available CSV data | <span class="badge badge-free">No API</span> |
 | **Uptrend Analyzer** | Diagnoses breadth health using Uptrend Ratio Dashboard tracking ~2,800 US stocks across 11 sectors. 5-component composite scoring with warning overlays | <span class="badge badge-free">No API</span> |
-| **Macro Regime Detector** | Detects structural macro regime transitions (1-2 year horizon) using 6-component cross-asset ratio analysis (RSP/SPY, yield curve, credit, size factor, sector rotation) | <span class="badge badge-api">FMP Required</span> |
+| **Macro Regime Detector** | Detects structural macro regime transitions (1-2 year horizon) using 6-component cross-asset ratio analysis (RSP/SPY, yield curve, credit, size factor, sector rotation) | <span class="badge badge-free">No API</span> <span class="badge badge-optional">FMP Optional</span> |
 | **[US Market Bubble Detector]({{ '/en/skills/us-market-bubble-detector/' | relative_url }})** | Data-driven bubble risk assessment using Minsky/Kindleberger framework. Two-phase evaluation: quantitative scoring (0-12) + strict qualitative adjustment (0-3). Five risk phases | <span class="badge badge-free">No API</span> |
-| **[Dealer Gamma Analyzer]({{ '/en/skills/dealer-gamma-analyzer/' | relative_url }})** | Dealer options gamma (GEX) from FREE CBOE delayed data. Gamma walls, gamma flip, and max pain as explicit S/R levels; positive- (pin) vs negative-gamma (squeeze-prone) regime. `--min-dte`/`--max-dte` bounds the expiry window so 0DTE does not swamp the structural map | <span class="badge badge-free">No API</span> |
 | **Market Top Detector** | Detects market top probability using O'Neil Distribution Days, Minervini Leading Stock Deterioration, and Defensive Rotation. 6-component tactical timing system | <span class="badge badge-free">No API</span> |
 | **[IBD Distribution Day Monitor]({{ '/en/skills/ibd-distribution-day-monitor/' | relative_url }})** | Daily IBD Distribution Day detection for QQQ/SPY with 25-session expiration and 5% invalidation. Risk classification (NORMAL/CAUTION/HIGH/SEVERE) and TQQQ/QQQ exposure recommendation | <span class="badge badge-api">FMP Required</span> |
 | **[Downtrend Duration Analyzer]({{ '/en/skills/downtrend-duration-analyzer/' | relative_url }})** | Analyzes historical downtrend durations (peak-to-trough) and generates interactive HTML histograms segmented by sector and market cap | <span class="badge badge-api">FMP Required</span> |
@@ -87,6 +85,7 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | **[Theme Detector]({{ '/en/skills/theme-detector/' | relative_url }})** | Detects trending bullish and bearish market themes with 3-dimensional scoring: Theme Heat (0-100), Lifecycle Maturity, and Confidence. 14+ cross-sector themes | <span class="badge badge-free">No API</span> <span class="badge badge-optional">FMP Optional</span> <span class="badge badge-optional">FINVIZ Optional</span> |
 | **[Scenario Analyzer]({{ '/en/skills/scenario-analyzer/' | relative_url }})** | Builds 18-month scenario projections from news headlines. Dual-agent architecture with 1st/2nd/3rd order effects and recommended tickers | <span class="badge badge-free">No API</span> |
 | **[Backtest Expert]({{ '/en/skills/backtest-expert/' | relative_url }})** | Professional-grade strategy validation framework with hypothesis definition, parameter robustness checks, walk-forward testing, and failure post-mortems | <span class="badge badge-free">No API</span> |
+| **[MT5 Robot Tester]({{ '/en/skills/mt5-robot-tester/' | relative_url }})** | Batch-tests local MetaTrader 5 Expert Advisors through a resumable three-round pipeline with fail-closed file handling, deterministic gates, and cross-run learnings. Requires Windows, MT5, EA files, and broker tick data | <span class="badge badge-free">No API</span> |
 | **[Stockbee 20% Study]({{ '/en/skills/stockbee-20pct-study/' | relative_url }})** | Builds a daily +20%/-20% mover model book, classifies catalyst and chart context, updates forward outcomes, and mines cohorts for research prompts. Study workflow only — not a buy/sell signal service | <span class="badge badge-api">FMP Required</span> <span class="badge badge-optional">Local JSON Optional</span> |
 | **Options Strategy Advisor** | Educational options tool using Black-Scholes pricing. Calculates Greeks (Delta, Gamma, Theta, Vega, Rho), supports 17+ strategies, P/L simulation | <span class="badge badge-optional">FMP Optional</span> |
 | **Pair Trade Screener** | Statistical arbitrage via cointegration testing. Calculates hedge ratios, mean-reversion speed (half-life), and z-score entry/exit signals | <span class="badge badge-api">FMP Required</span> |
@@ -105,7 +104,6 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | **[Drawdown Circuit Breaker]({{ '/en/skills/drawdown-circuit-breaker/' | relative_url }})** | Account-level risk gate that reads trader-memory-core state and returns TRADING_ALLOWED / COOLDOWN / HALTED from realized P&L, losing-streak, and weekly/monthly drawdown rules | <span class="badge badge-free">No API</span> |
 | **[Weekly Performance Digest]({{ '/en/skills/weekly-performance-digest/' | relative_url }})** | Aggregate the week's closed trades into win rate, expectancy, profit factor, R-multiple, and MAE/MFE, with win/loss pattern analysis by source skill, exit reason, thesis type, sector, and mechanism. Pure local calculation | <span class="badge badge-free">No API</span> |
 | **[Position Sizer]({{ '/en/skills/position-sizer/' | relative_url }})** | Risk-based position sizing using Fixed Fractional, ATR-based, and Kelly Criterion methods. Portfolio constraints (max position %, max sector %). Works offline | <span class="badge badge-free">No API</span> |
-| **[Adversarial Trade Debate]({{ '/en/skills/adversarial-trade-debate/' | relative_url }})** | Red-teams a candidate through two staged debates: bull vs bear judged into a 5-tier conviction rating (anti-fence-sitting), then aggressive vs conservative risk judged by a Portfolio Manager into a final action/entry/stop/size call. Beta | <span class="badge badge-free">No API</span> |
 | **[Futures Position Sizer]({{ '/en/skills/futures-position-sizer/' | relative_url }})** | Contract-based futures position sizing from direction/entry/stop using a verified 23-market contract-spec table (multiplier, tick size, tick value). Explicit flags or contrarian-setup-gate READY_FOR_PLAN handoff. Beta. Works offline | <span class="badge badge-free">No API</span> |
 | **[Breakout Trade Planner]({{ '/en/skills/breakout-trade-planner/' | relative_url }})** | Generates Minervini-style breakout trade plans from VCP screener output. Worst-case entry Gate, stop-limit bracket templates (pre_place / post_confirm), portfolio heat management | <span class="badge badge-free">No API</span> |
 | **[Parabolic Short Trade Planner]({{ '/en/skills/parabolic-short-trade-planner/' | relative_url }})** | Daily Parabolic Short screener (5-factor weighted score) plus pre-market plan generator that emits three conditional triggers per candidate (5-min ORL break, first red 5-min, VWAP fail). Alpaca ETB-only short check via `requests` (no SDK), SEC Rule 201 SSR tracker, blocking vs advisory manual confirmation reasons | <span class="badge badge-api">FMP Required</span> <span class="badge badge-optional">Alpaca Optional</span> |
@@ -113,7 +111,6 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | **[US Stock Analysis]({{ '/en/skills/us-stock-analysis/' | relative_url }})** | Comprehensive US equity research: fundamentals, technicals, peer comparisons, and structured investment memos with bull/bear cases | <span class="badge badge-free">No API</span> |
 | **Earnings Calendar** | Fetches upcoming earnings announcements via FMP API. Focuses on mid-cap+ companies (>$2B market cap), organized by date and timing (BMO/AMC) | <span class="badge badge-api">FMP Required</span> |
 | **Economic Calendar Fetcher** | Fetches economic events (FOMC, NFP, CPI, GDP) for 7-90 days via FMP API. Impact assessment (High/Medium/Low) with market implications analysis | <span class="badge badge-api">FMP Required</span> |
-| **[Econ Indicator Explainer]({{ '/en/skills/econ-indicator-explainer/' | relative_url }})** | Static knowledge cards for ~30 US tier-1 indicators: what each one measures, why markets care, and the typical 60-minute SPY/TLT/DXY/VIX reaction. Enriches raw economic-calendar-fetcher output without an API call | <span class="badge badge-free">No API</span> |
 | **[FXMacroData Calendar]({{ '/en/skills/fxmacrodata-calendar/' | relative_url }})** | Fetches official-source macro release-calendar events using FXMacroData for trade planning and event-risk filters. Public USD calendar rows work without a key. Beta | <span class="badge badge-optional">FXMacroData Key Optional</span> |
 
 ---
@@ -140,6 +137,7 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | **Edge Pipeline Orchestrator** | Orchestrates the full edge research pipeline end-to-end with review-revision feedback loop (max 2 iterations). Supports resume, review-only, and dry-run modes | <span class="badge badge-free">No API</span> |
 | **[Edge Signal Aggregator]({{ '/en/skills/edge-signal-aggregator/' | relative_url }})** | Aggregates outputs from edge-candidate-agent, theme-detector, sector-analyst, and institutional-flow-tracker with configurable weighting, deduplication, and contradiction handling into a ranked conviction dashboard | <span class="badge badge-free">No API</span> |
 | **[Signal Postmortem]({{ '/en/skills/signal-postmortem/' | relative_url }})** | Records and analyzes post-trade outcomes for signals generated by edge pipeline and screeners. Classifies outcomes (true positive, false positive, regime mismatch), generates weight feedback for edge-signal-aggregator and skill improvement backlog entries | <span class="badge badge-optional">FMP Optional</span> |
+| **[Residual Edge Analyzer]({{ '/en/skills/residual-edge-analyzer/' | relative_url }})** | Separates a strategy return series into declared baseline exposure and residual edge via OLS attribution with HAC inference, rolling stability, alternate-baseline sensitivity, and regime breakdowns. Answers whether returns contain alpha independent of market, momentum, or sector exposure | <span class="badge badge-free">No API</span> |
 
 ---
 
@@ -229,7 +227,7 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | Market Environment Analysis | -- | -- | -- |
 | Market Breadth Analyzer | -- | -- | -- |
 | Uptrend Analyzer | -- | -- | -- |
-| Macro Regime Detector | Required | -- | -- |
+| Macro Regime Detector | Optional | -- | -- |
 | US Market Bubble Detector | -- | -- | -- |
 | Market Top Detector | -- | -- | -- |
 | IBD Distribution Day Monitor | Required | -- | -- |
@@ -281,13 +279,15 @@ A comprehensive catalog of all 64 Claude Trading Skills organized by category. B
 | Pre Trade Discipline Gate | -- | -- | -- |
 | COT Contrarian Detector | Required | -- | -- |
 | News Reaction Failure Analyzer | Required | -- | -- |
+| Mt5 Robot Tester | -- | -- | -- |
 | Contrarian Setup Gate | -- | -- | -- |
 | Crypto Regime Analyzer | -- | -- | -- |
 | Futures Position Sizer | -- | -- | -- |
 | FXMacroData Calendar | -- | -- | -- |
-| Econ Indicator Explainer | -- | -- | -- |
+| Residual Edge Analyzer | -- | -- | -- |
 | Adversarial Trade Debate | -- | -- | -- |
 | Dealer Gamma Analyzer | -- | -- | -- |
+| Econ Indicator Explainer | -- | -- | -- |
 | Short Squeeze Radar | -- | -- | -- |
 
 "--" means not required. "Optional" means functionality is enhanced but the skill works without it.

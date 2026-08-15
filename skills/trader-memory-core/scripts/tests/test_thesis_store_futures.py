@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 import thesis_review
 import thesis_store
+import yaml
 
 # -- Helpers -------------------------------------------------------------------
 
@@ -203,6 +204,12 @@ def _index_file_hash(state_dir) -> str:
     succeeds, but this pins that structural guarantee explicitly)."""
     path = Path(state_dir) / thesis_store.INDEX_FILE
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _write_corrupted_thesis(state_dir, thesis_id: str, thesis: dict) -> None:
+    """Bypass the save-time validator to model a hand-edited/legacy file."""
+    path = Path(state_dir) / f"{thesis_id}.yaml"
+    path.write_text(yaml.dump(thesis, default_flow_style=False), encoding="utf-8")
 
 
 # -- Tests: round-trip P&L (plan §3 test#2/#3/#4) ------------------------------
@@ -495,13 +502,32 @@ def test_update_rejects_injecting_futures_position_with_nan_multiplier(tmp_path:
     assert thesis_store.get(tmp_path, tid)["position"] is None
 
 
-def test_update_equity_position_unaffected(tmp_path: Path):
-    """Regression pin: update() touching position on an EQUITY thesis is
-    entirely unaffected by the new futures guard (out of scope, existing
-    behavior preserved)."""
+def test_update_rejects_equity_position_rewrite(tmp_path: Path):
+    """Issue #255: equity position writes also belong to lifecycle APIs."""
     tid = _active_equity(tmp_path, 10, ticker="EQUPDATE")
-    t = thesis_store.update(tmp_path, tid, {"position": {"shares": 10, "note": "test"}})
-    assert t["position"]["shares"] == 10
+    before_state = _state_file_hash(tmp_path, tid)
+    before_index = _index_file_hash(tmp_path)
+
+    with pytest.raises(ValueError, match=r"update\(\) cannot modify position"):
+        thesis_store.update(tmp_path, tid, {"position": {"shares": 10, "note": "test"}})
+
+    assert _state_file_hash(tmp_path, tid) == before_state
+    assert _index_file_hash(tmp_path) == before_index
+    assert thesis_store.get(tmp_path, tid)["position"]["shares"] == 10
+
+
+def test_update_rejects_pnl_fabrication_on_active_futures(tmp_path: Path):
+    """An active futures thesis cannot receive fabricated P&L via update()."""
+    tid = _active_futures(tmp_path, contracts=2, ticker="ESOUTCOME")
+    before_state = _state_file_hash(tmp_path, tid)
+    before_index = _index_file_hash(tmp_path)
+
+    with pytest.raises(ValueError, match=r"update\(\) outcome"):
+        thesis_store.update(tmp_path, tid, {"outcome": {"pnl_pct": 999.0}})
+
+    assert _state_file_hash(tmp_path, tid) == before_state
+    assert _index_file_hash(tmp_path) == before_index
+    assert thesis_store.get(tmp_path, tid)["status"] == "ACTIVE"
 
 
 def test_validate_futures_position_fields_rejects_nonfinite_multiplier(tmp_path: Path):
@@ -1453,6 +1479,35 @@ def test_open_position_direct_open_rejects_nan_price(tmp_path: Path):
     assert thesis_store.get(tmp_path, tid)["status"] == "ENTRY_READY"
 
 
+@pytest.mark.parametrize("bad_price", [0, -1.0])
+def test_open_position_futures_still_rejects_nonpositive_price(tmp_path: Path, bad_price):
+    """Issue #257 must not weaken futures' finite-positive price contract."""
+    tid, _ = _register_and_get(
+        tmp_path,
+        ticker=f"ESNONPOS{abs(int(bad_price))}",
+        _source_date="2026-05-01",
+    )
+    thesis_store.transition(
+        tmp_path,
+        tid,
+        "ENTRY_READY",
+        "ok",
+        event_date="2026-05-01T00:00:00+00:00",
+    )
+
+    with pytest.raises(ValueError, match="requires a finite positive actual_price"):
+        thesis_store.open_position(
+            tmp_path,
+            tid,
+            bad_price,
+            "2026-05-01T00:00:00+00:00",
+            contracts=2,
+            multiplier=50,
+            direction="LONG",
+            contract_currency="USD",
+        )
+
+
 def test_close_futures_rejects_infinite_price(tmp_path: Path):
     """P1-3: an Infinity exit price must be rejected at close time —
     state (status, outcome) must stay unchanged, not persist inf/nan."""
@@ -1719,6 +1774,97 @@ def test_trim_futures_rejects_overflow_with_finite_operands(tmp_path: Path):
     t = thesis_store.get(tmp_path, tid)
     assert t["status"] == "ACTIVE"
     assert t["position"]["quantity_remaining"] == 2
+
+
+def test_close_futures_rejects_disk_corrupted_huge_quantity_remaining(tmp_path: Path):
+    """Issue #258: huge quantity_remaining must not leak OverflowError."""
+    tid = _active_futures(tmp_path, contracts=2, ticker="ESDISKHUGEREM")
+    thesis = thesis_store.get(tmp_path, tid)
+    thesis["position"]["quantity_remaining"] = 10**400
+    _write_corrupted_thesis(tmp_path, tid, thesis)
+    before = _state_file_hash(tmp_path, tid)
+    before_index = _index_file_hash(tmp_path)
+
+    with pytest.raises(ValueError, match="computed proceeds/realized_pnl overflowed") as exc_info:
+        thesis_store.close(tmp_path, tid, "manual", 5010.0, "2026-05-10T00:00:00+00:00")
+
+    assert isinstance(exc_info.value.__cause__, OverflowError)
+    assert _state_file_hash(tmp_path, tid) == before
+    assert _index_file_hash(tmp_path) == before_index
+    reloaded = thesis_store.get(tmp_path, tid)
+    assert reloaded["status"] == "ACTIVE"
+    assert reloaded["outcome"]["pnl_dollars"] is None
+    assert reloaded["position"]["quantity_remaining"] == 10**400
+
+
+def test_close_futures_rejects_disk_corrupted_huge_realized_ledger(tmp_path: Path):
+    """Issue #258: cumulative ledger arithmetic is independently guarded."""
+    tid = _active_futures(tmp_path, contracts=2, ticker="ESDISKHUGELEDGER")
+    thesis = thesis_store.get(tmp_path, tid)
+    thesis["status_history"].append(
+        {
+            "status": "PARTIALLY_CLOSED",
+            "at": "2026-05-05T00:00:00+00:00",
+            "reason": "disk corruption fixture",
+            "realized_pnl": 10**400,
+        }
+    )
+    _write_corrupted_thesis(tmp_path, tid, thesis)
+    before = _state_file_hash(tmp_path, tid)
+    before_index = _index_file_hash(tmp_path)
+
+    with pytest.raises(ValueError, match="computed cumulative pnl_dollars overflowed") as exc_info:
+        thesis_store.close(tmp_path, tid, "manual", 5010.0, "2026-05-10T00:00:00+00:00")
+
+    assert isinstance(exc_info.value.__cause__, OverflowError)
+    assert _state_file_hash(tmp_path, tid) == before
+    assert _index_file_hash(tmp_path) == before_index
+    reloaded = thesis_store.get(tmp_path, tid)
+    assert reloaded["status"] == "ACTIVE"
+    assert reloaded["outcome"]["pnl_dollars"] is None
+
+
+def test_close_futures_rejects_disk_corrupted_huge_original_quantity(tmp_path: Path):
+    """Issue #258: pnl_pct denominator arithmetic is independently guarded."""
+    tid = _active_futures(tmp_path, contracts=2, ticker="ESDISKHUGEORIGINAL")
+    thesis = thesis_store.get(tmp_path, tid)
+    thesis["position"]["quantity"] = 10**400
+    thesis["position"]["quantity_remaining"] = 1
+    _write_corrupted_thesis(tmp_path, tid, thesis)
+    before = _state_file_hash(tmp_path, tid)
+    before_index = _index_file_hash(tmp_path)
+
+    with pytest.raises(ValueError, match="computed pnl_pct overflowed") as exc_info:
+        thesis_store.close(tmp_path, tid, "manual", 5010.0, "2026-05-10T00:00:00+00:00")
+
+    assert isinstance(exc_info.value.__cause__, OverflowError)
+    assert _state_file_hash(tmp_path, tid) == before
+    assert _index_file_hash(tmp_path) == before_index
+    reloaded = thesis_store.get(tmp_path, tid)
+    assert reloaded["status"] == "ACTIVE"
+    assert reloaded["outcome"]["pnl_dollars"] is None
+    assert reloaded["position"]["quantity_remaining"] == 1
+
+
+def test_trim_futures_rejects_disk_corrupted_huge_multiplier(tmp_path: Path):
+    """Issue #258: trim P&L arithmetic converts OverflowError to ValueError."""
+    tid = _active_futures(tmp_path, contracts=2, ticker="ESDISKHUGEMULT")
+    thesis = thesis_store.get(tmp_path, tid)
+    thesis["position"]["multiplier"] = 10**400
+    _write_corrupted_thesis(tmp_path, tid, thesis)
+    before = _state_file_hash(tmp_path, tid)
+    before_index = _index_file_hash(tmp_path)
+
+    with pytest.raises(ValueError, match="computed realized_pnl/proceeds overflowed") as exc_info:
+        thesis_store.trim(tmp_path, tid, 1, 5010.0, "2026-05-10")
+
+    assert isinstance(exc_info.value.__cause__, OverflowError)
+    assert _state_file_hash(tmp_path, tid) == before
+    assert _index_file_hash(tmp_path) == before_index
+    reloaded = thesis_store.get(tmp_path, tid)
+    assert reloaded["status"] == "ACTIVE"
+    assert reloaded["outcome"]["pnl_dollars"] is None
+    assert reloaded["position"]["quantity_remaining"] == 2
 
 
 def test_open_position_direct_open_requires_contract_currency(tmp_path: Path):

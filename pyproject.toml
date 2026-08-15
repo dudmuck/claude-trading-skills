@@ -13,6 +13,7 @@ description = "Claude Skills for equity investors and traders"
 requires-python = ">=3.9"
 dependencies = [
     "jsonschema>=4.25.1",
+    "packaging>=24.0",
     "pyyaml>=6.0",
     "requests>=2.31.0",
     "scipy>=1.13.1",
@@ -67,12 +68,13 @@ testpaths = [
     "skills/stockbee-20pct-study/scripts/tests",
     "skills/stockbee-exhaustion-hammer-screener/scripts/tests",
     "skills/stockbee-momentum-burst-screener/scripts/tests",
-    # theme-detector excluded: 27+ pre-existing failures + duplicate basenames
+    "skills/theme-detector/scripts/tests",
     "skills/uptrend-analyzer/scripts/tests",
     "skills/vcp-screener/scripts/tests",
     "skills/earnings-trade-analyzer/scripts/tests",
     "skills/pead-screener/scripts/tests",
     "skills/position-sizer/scripts/tests",
+    "skills/residual-edge-analyzer/scripts/tests",
     "skills/data-quality-checker/scripts/tests",
     "skills/edge-strategy-reviewer/scripts/tests",
     "skills/edge-pipeline-orchestrator/scripts/tests",
@@ -97,11 +99,12 @@ testpaths = [
     "skills/kanchi-dividend-sop/scripts/tests",
     "skills/kanchi-dividend-us-tax-accounting/scripts/tests",
     "skills/market-environment-analysis/scripts/tests",
+    # pair-trade-screener runs in its dedicated matrix row with statsmodels
+    "skills/portfolio-manager/scripts/tests",
     "skills/sector-analyst/scripts/tests",
     "skills/scenario-analyzer/scripts/tests",
     "skills/strategy-pivot-designer/scripts/tests",
     "skills/technical-analyst/scripts/tests",
-    # pair-trade-screener, portfolio-manager, signal-postmortem: tests/ exists but no test_*.py
     "skills/relative-strength-momentum-scanner/scripts/tests",
     "skills/signal-postmortem-analyzer/scripts/tests",
     "skills/downtrend-duration-analyzer/scripts/tests",
@@ -134,12 +137,12 @@ skips = [
 [tool.codespell]
 skip = ".venv,*.json,*.csv,*.baseline,skill-packages,*.pyc,__pycache__"
 ignore-words-list = "trough,ore,cna,acn,blok,hims,pont,claus,theses"
+ignore-regex = "(Depósito|Deposito) inicial"  # codespell:ignore inicial
 
 [tool.coverage.run]
 source = ["skills"]
 
 [tool.coverage.report]
-fail_under = 40
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

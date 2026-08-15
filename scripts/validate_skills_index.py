@@ -6,7 +6,7 @@ Strictness levels:
   --strict-workflows   : also resolve workflow references and check internal-consistency
   --strict-metadata    : also enforce timeframe/difficulty/inputs/outputs completeness
 
-Emits stable error codes (IDX001-012, WF001-013). See
+Emits stable error codes (IDX001-014, WF001-014). See
 docs/dev/metadata-and-workflow-schema.md for the full catalog.
 """
 
@@ -67,6 +67,25 @@ VALID_REQUIREMENTS = frozenset(
 
 VALID_TIMEFRAMES = frozenset({"daily", "weekly", "event-driven", "research", "unknown"})
 VALID_DIFFICULTIES = frozenset({"beginner", "intermediate", "advanced", "unknown"})
+
+VERIFICATION_AXES = frozenset(
+    {
+        "instruction_contract",
+        "unit_tests",
+        "workflow_contract",
+        "end_to_end_replay",
+        "data_provenance",
+        "financial_logic_review",
+        "empirical_validation",
+        "security_review",
+    }
+)
+VALID_VERIFICATION_VALUES = frozenset({"passed", "not_verified", "not_applicable"})
+
+
+def _valid_enum(value: object, allowed: frozenset[str]) -> bool:
+    return isinstance(value, str) and value in allowed
+
 
 # ---------------------------------------------------------------------------
 # Frontmatter parser (mirrors scripts/hooks/check_skill_frontmatter.py)
@@ -157,6 +176,7 @@ def _validate_index_structure(
     categories = index.get("categories")
     if (
         not isinstance(categories, list)
+        or not all(isinstance(item, str) for item in categories)
         or set(categories) != VALID_CATEGORIES
         or len(categories) != len(VALID_CATEGORIES)
     ):
@@ -220,12 +240,83 @@ def _validate_index_structure(
             )
 
         category = entry.get("category")
-        if category not in VALID_CATEGORIES:
+        if not _valid_enum(category, VALID_CATEGORIES):
             findings.append(Finding("IDX005", "error", loc, f"invalid category {category!r}"))
 
         status = entry.get("status")
-        if status not in VALID_STATUSES:
+        if not _valid_enum(status, VALID_STATUSES):
             findings.append(Finding("IDX006", "error", loc, f"invalid status {status!r}"))
+
+        if "knowledge_only" in entry:
+            knowledge_only = entry.get("knowledge_only")
+            if not isinstance(knowledge_only, bool):
+                findings.append(
+                    Finding("IDX014", "error", loc, "`knowledge_only` must be a boolean")
+                )
+            elif knowledge_only:
+                scripts_dir = project_root / "skills" / skill_id / "scripts"
+                executable_scripts = [
+                    path
+                    for path in scripts_dir.rglob("*.py")
+                    if path.is_file()
+                    and path.name != "__init__.py"
+                    and "tests" not in path.relative_to(scripts_dir).parts
+                ]
+                if status != "production":
+                    findings.append(
+                        Finding(
+                            "IDX014",
+                            "error",
+                            loc,
+                            "`knowledge_only: true` is only valid for production skills",
+                        )
+                    )
+                if executable_scripts:
+                    findings.append(
+                        Finding(
+                            "IDX014",
+                            "error",
+                            loc,
+                            "`knowledge_only: true` conflicts with executable Python scripts",
+                        )
+                    )
+
+        verification_present = "verification" in entry
+        if status == "production" and not verification_present:
+            severity = "error" if strict_metadata else "warning"
+            findings.append(
+                Finding(
+                    "IDX013",
+                    severity,
+                    loc,
+                    "production skill is missing required `verification` block",
+                )
+            )
+        elif verification_present:
+            verification = entry.get("verification")
+            verification_error: str | None = None
+            if not isinstance(verification, dict):
+                verification_error = "`verification` must be a mapping"
+            else:
+                keys = set(verification)
+                missing = sorted(VERIFICATION_AXES - keys)
+                unknown = sorted(keys - VERIFICATION_AXES, key=repr)
+                invalid = sorted(
+                    (axis, verification[axis])
+                    for axis in keys & VERIFICATION_AXES
+                    if not isinstance(verification[axis], str)
+                    or verification[axis] not in VALID_VERIFICATION_VALUES
+                )
+                if missing:
+                    verification_error = f"`verification` missing keys: {missing}"
+                elif unknown:
+                    verification_error = f"`verification` has unknown keys: {unknown}"
+                elif invalid:
+                    verification_error = "`verification` has invalid value(s): " + ", ".join(
+                        f"{axis}={value!r}" for axis, value in invalid
+                    )
+            if verification_error:
+                findings.append(Finding("IDX013", "error", loc, verification_error))
 
         if not str(entry.get("summary") or "").strip():
             findings.append(Finding("IDX009", "error", loc, "summary is empty"))
@@ -237,12 +328,12 @@ def _validate_index_structure(
                 findings.append(Finding("IDX-PARSE", "error", iloc, "must be a mapping"))
                 continue
             itype = integ.get("type")
-            if itype is not None and itype not in VALID_INTEGRATION_TYPES:
+            if itype is not None and not _valid_enum(itype, VALID_INTEGRATION_TYPES):
                 findings.append(
                     Finding("IDX007", "error", iloc, f"invalid integration type {itype!r}")
                 )
             ireq = integ.get("requirement")
-            if ireq is not None and ireq not in VALID_REQUIREMENTS:
+            if ireq is not None and not _valid_enum(ireq, VALID_REQUIREMENTS):
                 findings.append(Finding("IDX008", "error", iloc, f"invalid requirement {ireq!r}"))
             # IDX012: explicit `unknown` markers are warnings by default,
             # errors under --strict-metadata. Severity is consistent with the
@@ -260,7 +351,7 @@ def _validate_index_structure(
 
         # Best-effort fields (warn vs error)
         timeframe = entry.get("timeframe", "unknown")
-        if timeframe not in VALID_TIMEFRAMES:
+        if not _valid_enum(timeframe, VALID_TIMEFRAMES):
             sev = "error" if strict_metadata else "warning"
             findings.append(Finding("IDX-META", sev, loc, f"invalid timeframe {timeframe!r}"))
         elif timeframe == "unknown":
@@ -268,7 +359,7 @@ def _validate_index_structure(
             findings.append(Finding("IDX-META", sev, loc, "timeframe is `unknown`"))
 
         difficulty = entry.get("difficulty", "unknown")
-        if difficulty not in VALID_DIFFICULTIES:
+        if not _valid_enum(difficulty, VALID_DIFFICULTIES):
             sev = "error" if strict_metadata else "warning"
             findings.append(Finding("IDX-META", sev, loc, f"invalid difficulty {difficulty!r}"))
         elif difficulty == "unknown":
@@ -366,6 +457,135 @@ def _validate_workflow_references(
     return findings, available
 
 
+def _validate_workflow_japanese(
+    wf: dict[str, Any],
+    rel_loc: str,
+) -> list[Finding]:
+    """Enforce complete human-facing Japanese workflow prose (WF014)."""
+    findings: list[Finding] = []
+
+    def require_text(item: dict[str, Any], field: str, path: str) -> None:
+        value = item.get(field)
+        if not isinstance(value, str) or not value.strip():
+            findings.append(
+                Finding(
+                    "WF014",
+                    "error",
+                    rel_loc,
+                    f"{path}.{field} must be a non-empty string",
+                )
+            )
+
+    for field in ("display_name_ja", "when_to_run_ja", "when_not_to_run_ja"):
+        require_text(wf, field, rel_loc)
+
+    nested_fields = (
+        ("prerequisite_workflows", "rationale_ja"),
+        ("manual_inputs", "description_ja"),
+        ("final_outputs", "description_ja"),
+    )
+    for collection_name, field in nested_fields:
+        collection = wf.get(collection_name)
+        if collection is None:
+            collection = []
+        if not isinstance(collection, list):
+            findings.append(
+                Finding(
+                    "WF014",
+                    "error",
+                    rel_loc,
+                    f"{collection_name} must be a list for Japanese localization",
+                )
+            )
+            continue
+        for index, item in enumerate(collection):
+            if not isinstance(item, dict):
+                findings.append(
+                    Finding(
+                        "WF014",
+                        "error",
+                        rel_loc,
+                        f"{collection_name}[{index}] must be a mapping",
+                    )
+                )
+                continue
+            require_text(item, field, f"{collection_name}[{index}]")
+
+    steps = wf.get("steps")
+    if not isinstance(steps, list):
+        findings.append(
+            Finding(
+                "WF014",
+                "error",
+                rel_loc,
+                "steps must be a list for Japanese localization",
+            )
+        )
+    else:
+        for index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                findings.append(
+                    Finding(
+                        "WF014",
+                        "error",
+                        rel_loc,
+                        f"steps[{index}] must be a mapping",
+                    )
+                )
+                continue
+            require_text(step, "name_ja", f"steps[{index}]")
+            if step.get("decision_gate"):
+                require_text(step, "decision_question_ja", f"steps[{index}]")
+
+    manual_review = wf.get("manual_review")
+    if not isinstance(manual_review, list):
+        findings.append(
+            Finding(
+                "WF014",
+                "error",
+                rel_loc,
+                "manual_review must be a list for Japanese localization",
+            )
+        )
+        manual_review = []
+    manual_review_ja = wf.get("manual_review_ja")
+    if not isinstance(manual_review_ja, list):
+        findings.append(
+            Finding(
+                "WF014",
+                "error",
+                rel_loc,
+                "manual_review_ja must be a list matching manual_review",
+            )
+        )
+    else:
+        expected_count = len(manual_review)
+        if len(manual_review_ja) != expected_count:
+            findings.append(
+                Finding(
+                    "WF014",
+                    "error",
+                    rel_loc,
+                    (
+                        "manual_review_ja must contain exactly "
+                        f"{expected_count} item(s) to match manual_review"
+                    ),
+                )
+            )
+        for index, item in enumerate(manual_review_ja):
+            if not isinstance(item, str) or not item.strip():
+                findings.append(
+                    Finding(
+                        "WF014",
+                        "error",
+                        rel_loc,
+                        f"manual_review_ja[{index}] must be a non-empty string",
+                    )
+                )
+
+    return findings
+
+
 def _validate_workflow_internal(
     workflow_path: Path,
     skills_by_id: dict[str, dict],
@@ -380,6 +600,8 @@ def _validate_workflow_internal(
 
     if not isinstance(wf, dict):
         return [Finding("WF-PARSE", "error", rel_loc, "top-level must be a mapping")]
+
+    findings.extend(_validate_workflow_japanese(wf, rel_loc))
 
     wf_id = str(wf.get("id") or "")
     if wf_id != workflow_path.stem:

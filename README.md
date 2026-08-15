@@ -43,16 +43,27 @@ New users should start with one of these operational workflows. Each link points
 | Goal | Workflow | Anchor Skills | API Profile |
 | --- | --- | --- | --- |
 | 15-minute daily market check | [`market-regime-daily`](workflows/market-regime-daily.yaml) | market-breadth-analyzer, uptrend-analyzer, exposure-coach | No API for basic path |
-| Weekly long-term portfolio review | [`core-portfolio-weekly`](workflows/core-portfolio-weekly.yaml) | portfolio-manager, kanchi-dividend-review-monitor, trader-memory-core | Alpaca required; manual CSV is a degraded fallback |
-| Find swing candidates only when risk is allowed | [`swing-opportunity-daily`](workflows/swing-opportunity-daily.yaml) | vcp-screener, drawdown-circuit-breaker, technical-analyst, position-sizer, trader-memory-core, pre-trade-discipline-gate | FMP for screeners; local state for risk and discipline gates |
+| Weekly long-term portfolio review | [`core-portfolio-weekly`](workflows/core-portfolio-weekly.yaml) ([sample](examples/workflows/core-portfolio-weekly/sample-run/)) | portfolio-manager, kanchi-dividend-review-monitor, trader-memory-core | Alpaca required; manual CSV is a degraded fallback |
+| Find swing candidates only when risk is allowed | [`swing-opportunity-daily`](workflows/swing-opportunity-daily.yaml) ([sample](examples/workflows/swing-opportunity-daily/sample-run/)) | vcp-screener, drawdown-circuit-breaker, technical-analyst, position-sizer, trader-memory-core, pre-trade-discipline-gate | FMP for screeners; local state for risk and discipline gates |
 | Record and learn from every closed trade | [`trade-memory-loop`](workflows/trade-memory-loop.yaml) | trader-memory-core, signal-postmortem | No API for manual path |
-| Review monthly performance and adjust rules | [`monthly-performance-review`](workflows/monthly-performance-review.yaml) | trader-memory-core, signal-postmortem, backtest-expert | No API for manual path |
+| Review monthly performance and adjust rules | [`monthly-performance-review`](workflows/monthly-performance-review.yaml) ([sample](examples/workflows/monthly-performance-review/sample-run/)) | trader-memory-core, signal-postmortem, backtest-expert | No API for manual path |
 
 See [`workflows/README.md`](workflows/README.md) for how to read a manifest and run it manually. For a one-page "which workflow fits my situation?" guide, see [Find Your Workflow](docs/en/find-your-workflow.md) ([日本語](docs/ja/find-your-workflow.md)).
 
+New here? Follow [Your First Week](docs/en/your-first-week.md) ([日本語](docs/ja/your-first-week.md)) from installation through a no-paid-data-API market check, first journal entry, and first weekly review.
+
 ### What This Actually Costs
 
-Claude Skills require a paid Claude plan that supports the Skills feature. FMP, FINVIZ Elite, and Alpaca are optional data or broker integrations for specific workflows; the five-skill starter path below works with public CSVs, chart screenshots, and local files, so it does not require any paid data API subscription beyond your Claude plan.
+Claude Web Skills are currently available on Free, Pro, Max, Team, and
+Enterprise accounts; see Anthropic's
+[current Skills help](https://support.claude.com/en/articles/12512180-use-skills-in-claude)
+because access can change. Claude Code has separate account requirements, and
+the Claude.ai Free plan does not include it; see the
+[Claude Code setup guide](https://code.claude.com/docs/en/getting-started).
+FMP, FINVIZ Elite, and Alpaca are optional data or broker integrations for
+specific workflows. The five-skill starter path below works with public CSVs,
+chart screenshots, and local files, so it does not require a paid market-data
+API subscription.
 
 ### No API Key Starter Path
 
@@ -78,15 +89,19 @@ This path lets you review market conditions, size trades, journal decisions, and
 - `skillsets/` – Purpose-specific install bundles defining required / recommended / optional skills for major goals (4 core skillsets shipped: market-regime, core-portfolio, swing-opportunity, trade-memory; consumed by the Navigator).
 
 ## Getting Started
+
+First time here? Read the [FAQ](docs/en/faq.md) for plan, cost, safety, and scope
+answers.
+
 ### Use with Claude Web App
 1. Download the `.skill` file that matches the skill you want from `skill-packages/`.
-2. Open Claude in your browser, go to **Settings → Skills**, and upload the ZIP (see Anthropic's [Skills launch post](https://www.anthropic.com/news/skills) for feature overview).
-3. Enable the skill inside the conversation where you need it.
+2. For an individual account, open **Settings > Capabilities** and enable **Code execution and file creation**. Team and Enterprise users may need an organization owner to enable Skills.
+3. Open **Customize > Skills**, upload the ZIP, confirm it appears in the list, and enable it if needed (see Anthropic's [current Skills help](https://support.claude.com/en/articles/12512180-use-skills-in-claude)).
 
 ### Use with Claude Code (desktop or CLI)
 1. Clone or download this repository.
-2. Copy the desired skill folder (e.g., `backtest-expert`) into your Claude Code **Skills** directory (open Claude Code → **Settings → Skills → Open Skills Folder**, per the [Claude Code Skills documentation](https://docs.claude.com/en/docs/claude-code/skills)).
-3. Restart or reload Claude Code so the new skill is detected.
+2. Copy the desired skill folder (e.g., `backtest-expert`) to `~/.claude/skills/` for personal use or `.claude/skills/` inside a project (see the [Claude Code setup guide](https://code.claude.com/docs/en/getting-started)).
+3. Claude Code detects changes in an existing skills directory. Restart it only if you created the top-level skills directory after the session started.
 
 > Tip: `.skill` packages are built from the source folders with tests and local build artifacts omitted. Edit a source folder if you want to customize a skill, then run `python3 scripts/package_skills.py --skill <skill-name>` before uploading to the web app.
 
@@ -137,7 +152,7 @@ The detailed catalog below is **auto-generated** from `skills-index.yaml` by `sc
 | **Exposure Coach** (`exposure-coach`) | Generate a one-page Market Posture summary with net exposure ceiling, growth-vs-value bias, participation breadth, and new-entry-allowed vs cash-priority recommendation by integrating signals from breadth, regime, and flow analysis skills. | `local_calculation` — | production |
 | **FTD Detector** (`ftd-detector`) | Detects Follow-Through Day (FTD) signals for market bottom confirmation using William O'Neil's methodology. | `fmp` **required** | production |
 | **IBD Distribution Day Monitor** (`ibd-distribution-day-monitor`) | Detect IBD-style Distribution Days for QQQ/SPY (close down at least 0.2% on higher volume), track 25-session expiration and 5% invalidation, count d5/d15/d25 clusters, classify market risk (NORMAL/CAUTION/HIGH/SEVERE), and emit TQQQ/QQQ... | `fmp` **required** | production |
-| **Macro Regime Detector** (`macro-regime-detector`) | Detect structural macro regime transitions (1-2 year horizon) using cross-asset ratio analysis. | `yfinance_or_csv` _recommended_ | production |
+| **Macro Regime Detector** (`macro-regime-detector`) | Detect structural macro regime transitions (1-2 year horizon) using cross-asset ratio analysis. | `yfinance` **required**, `fmp` optional | production |
 | **Market Breadth Analyzer** (`market-breadth-analyzer`) | Quantifies market breadth health using TraderMonty's public CSV data. | `public_csv` **required** | production |
 | **Market Environment Analysis** (`market-environment-analysis`) | Comprehensive market environment analysis and reporting tool. | `websearch` **required**, `chart_image` optional | production |
 | **Market News Analyst** (`market-news-analyst`) | This skill should be used when analyzing recent market-moving news events and their impact on equity markets and commodities. | `websearch` **required** | production |
@@ -207,6 +222,8 @@ The detailed catalog below is **auto-generated** from `skills-index.yaml` by `sc
 | **Edge Signal Aggregator** (`edge-signal-aggregator`) | Aggregate and rank signals from multiple edge-finding skills (edge-candidate-agent, theme-detector, sector-analyst, institutional-flow-tracker) into a prioritized conviction dashboard with weighted scoring, deduplication, and contradicti... | `local_calculation` — | production |
 | **Edge Strategy Designer** (`edge-strategy-designer`) | Convert abstract edge concepts into strategy draft variants and optional exportable ticket YAMLs for edge-candidate-agent export/validation. | `local_calculation` — | production |
 | **Edge Strategy Reviewer** (`edge-strategy-reviewer`) | Critically review strategy drafts from edge-strategy-designer for edge plausibility, overfitting risk, sample size adequacy, and execution realism. | `local_calculation` — | production |
+| **MT5 Robot Tester** (`mt5-robot-tester`) | Batch-test MetaTrader 5 Expert Advisors through a resumable three-round local pipeline, rank results, and retain deterministic parameter and symbol learnings. | `mt5_local_files` **required**, `local_calculation` — | beta |
+| **Residual Edge Analyzer** (`residual-edge-analyzer`) | Separate strategy return performance into declared baseline exposure and residual edge using HAC regression, rolling stability, baseline sensitivity, and regime diagnostics. | `local_calculation` — | beta |
 | **Scenario Analyzer** (`scenario-analyzer`) | Analyze 18-month scenarios from news headlines via scenario-analyst agent with strategy-reviewer second opinion; outputs primary/secondary/tertiary impact analysis and stock picks. | `websearch` **required** | production |
 | **Stanley Druckenmiller Investment** (`stanley-druckenmiller-investment`) | Druckenmiller Strategy Synthesizer - Integrates 8 upstream skill outputs (Market Breadth, Uptrend Analysis, Market Top, Macro Regime, FTD Detector, VCP Screener, Theme Detector, CANSLIM Screener) into a unified conviction score (0-100),... | `local_calculation` — | production |
 | **Stockbee 20% Study** (`stockbee-20pct-study`) | Build a daily Stockbee-style +20%/-20% mover event study, classify catalysts and setup context, update forward outcomes, and export evidence-backed edge hints without treating movers as buy/sell signals. | `fmp` **required**, `prices_json` optional, `news_events_json` optional, `websearch` optional, `local_calculation` — | beta |
@@ -337,120 +354,11 @@ The main Core + Satellite starting path is described above. The examples below s
   - Used by the weekly skill auto-generation pipeline. Can also be run manually.
   - No API key required.
 
-## Skill Self-Improvement Loop
+## Contributor Automation
 
-This section is contributor-oriented. New users can skip it and start with the Core + Satellite path above.
-
-An automated pipeline that continuously reviews and improves skill quality. A daily `launchd` job picks one skill, scores it with the dual-axis reviewer, and if the score is below 90/100, invokes `claude -p` to apply improvements and open a PR.
-
-### How It Works
-
-1. **Round-robin selection** — cycles through all skills (excluding the reviewer itself), persisted in `logs/.skill_improvement_state.json`.
-2. **Auto scoring** — runs `run_dual_axis_review.py` to get a deterministic score (0-100).
-3. **Improvement gate** — if `auto_review.score < 90`, Claude CLI applies fixes to SKILL.md and references.
-4. **Quality gate** — re-scores after improvement (with tests enabled); rolls back if the score didn't improve.
-5. **PR creation** — commits changes to a feature branch and opens a GitHub PR for human review.
-6. **Daily summary** — writes results to `reports/skill-improvement-log/YYYY-MM-DD_summary.md`.
-
-### Manual Execution
-
-```bash
-# Dry-run: score one skill without applying improvements or creating PRs
-python3 scripts/run_skill_improvement_loop.py --dry-run
-
-# Review all skills in dry-run mode
-python3 scripts/run_skill_improvement_loop.py --dry-run --all
-
-# Full run: score, improve if needed, and open PR
-python3 scripts/run_skill_improvement_loop.py
-```
-
-### launchd Setup (macOS)
-
-The loop runs daily at 05:00 local time via macOS `launchd`:
-
-```bash
-# Install the agent
-cp launchd/com.trade-analysis.skill-improvement.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.trade-analysis.skill-improvement.plist
-
-# Verify
-launchctl list | grep skill-improvement
-
-# Manual trigger
-launchctl start com.trade-analysis.skill-improvement
-```
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `scripts/run_skill_improvement_loop.py` | Orchestration script (selection, scoring, improvement, PR) |
-| `scripts/run_skill_improvement.sh` | Thin shell wrapper for launchd |
-| `launchd/com.trade-analysis.skill-improvement.plist` | macOS launchd agent configuration |
-| `skills/dual-axis-skill-reviewer/` | Reviewer skill (scoring engine) |
-| `logs/.skill_improvement_state.json` | Round-robin state and history |
-| `reports/skill-improvement-log/` | Daily summary reports |
-
-## Skill Auto-Generation Pipeline
-
-This section is contributor-oriented. It describes repository maintenance automation, not a required trading workflow.
-
-An automated pipeline that mines session logs for skill ideas (weekly) and designs, reviews, and creates new skills as PRs (daily). Works alongside the Self-Improvement Loop to continuously expand the skill catalog.
-
-### How It Works
-
-1. **Weekly mining** — scans Claude Code session logs for recurring patterns that could become skills, scores each idea for novelty, feasibility, and trading value.
-2. **Backlog scoring** — ranked ideas are stored in `logs/.skill_generation_backlog.yaml` with status tracking (`pending`, `in_progress`, `completed`, `design_failed`, `review_failed`, `pr_failed`).
-3. **Daily selection** — picks the highest-scoring `pending` idea; retries `design_failed` / `pr_failed` once (but `review_failed` is terminal).
-4. **Design & review** — the Skill Designer builds a complete skill (SKILL.md, references, scripts), then the Dual-Axis Reviewer scores it. If the score is too low, the idea is marked `review_failed`.
-5. **PR creation** — commits the new skill to a feature branch and opens a GitHub PR for human review.
-
-### Manual Execution
-
-```bash
-# Weekly: mine ideas from session logs and score them
-python3 scripts/run_skill_generation_pipeline.py --mode weekly --dry-run
-
-# Daily: design a skill from the highest-scoring backlog idea
-python3 scripts/run_skill_generation_pipeline.py --mode daily --dry-run
-
-# Full daily run (creates branch, designs skill, opens PR)
-python3 scripts/run_skill_generation_pipeline.py --mode daily
-```
-
-### launchd Setup (macOS)
-
-Two `launchd` agents handle the weekly and daily schedules:
-
-```bash
-# Install both agents
-cp launchd/com.trade-analysis.skill-generation-weekly.plist ~/Library/LaunchAgents/
-cp launchd/com.trade-analysis.skill-generation-daily.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.trade-analysis.skill-generation-weekly.plist
-launchctl load ~/Library/LaunchAgents/com.trade-analysis.skill-generation-daily.plist
-
-# Verify
-launchctl list | grep skill-generation
-
-# Manual trigger
-launchctl start com.trade-analysis.skill-generation-weekly
-launchctl start com.trade-analysis.skill-generation-daily
-```
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `scripts/run_skill_generation_pipeline.py` | Orchestration script (mining, selection, design, review, PR) |
-| `scripts/run_skill_generation.sh` | Thin shell wrapper for launchd |
-| `launchd/com.trade-analysis.skill-generation-weekly.plist` | Weekly mining schedule (Saturday 06:00) |
-| `launchd/com.trade-analysis.skill-generation-daily.plist` | Daily generation schedule (07:00) |
-| `skills/skill-idea-miner/` | Mining and scoring skill |
-| `skills/skill-designer/` | Skill design prompt builder |
-| `logs/.skill_generation_backlog.yaml` | Scored idea backlog with status tracking |
-| `logs/.skill_generation_state.json` | Run history and state |
-| `reports/skill-generation-log/` | Daily generation summary reports |
+The self-improvement and skill-generation pipelines are maintainer workflows,
+not beginner trading steps. See the [Skill Automation Quickstart](docs/dev/skill-automation.md)
+([日本語](docs/dev/skill-automation.ja.md)) for behavior, side effects, manual commands, and macOS scheduling.
 
 ## Customization & Contribution
 - Update `SKILL.md` files to tweak trigger descriptions or capability notes; ensure the frontmatter name matches the folder name when zipping.
@@ -484,7 +392,7 @@ Several skills require API keys for data access:
 | **Parabolic Short Trade Planner** | ✅ Required | ❌ Not used | ✅ Phase 3 / 🟡 Phase 2 | FMP for Phase 1 screener; Alpaca required for Phase 3 intraday bars (paper feed OK), optional for Phase 2 borrow checks. No SDK — `requests` direct |
 | **FTD Detector** | ✅ Required | ❌ Not used | ❌ Not used | Index price data for rally/FTD detection |
 | **IBD Distribution Day Monitor** | ✅ Required | ❌ Not used | ❌ Not used | Daily QQQ/SPY OHLCV for Distribution Day detection |
-| **Macro Regime Detector** | ✅ Required | ❌ Not used | ❌ Not used | Cross-asset ETF ratio analysis |
+| **Macro Regime Detector** | 🟡 Optional | ❌ Not used | ❌ Not used | Keyless yfinance ETF history; optional FMP market and Treasury data |
 | **Market Breadth Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Uses free GitHub CSV data |
 | **Uptrend Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Uses free GitHub CSV data |
 | **Sector Analyst** | ❌ Not used | ❌ Not used | ❌ Not used | Uses free GitHub CSV data; optional chart images |

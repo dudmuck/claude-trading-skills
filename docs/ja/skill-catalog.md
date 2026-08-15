@@ -68,7 +68,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **Market Environment Analysis** | グローバルマクロブリーフィング。株式指数、為替、コモディティ、金利、センチメントを網羅 | <span class="badge badge-free">API不要</span> |
 | **[Market Breadth Analyzer]({{ '/ja/skills/market-breadth-analyzer/' | relative_url }})** | TraderMontyの公開CSVデータで6コンポーネントスコアリング（0-100）の市場幅評価 | <span class="badge badge-free">API不要</span> |
 | **Uptrend Analyzer** | 約2,800銘柄・11セクターの上昇トレンド比率を5コンポーネント複合スコアで診断 | <span class="badge badge-free">API不要</span> |
-| **Macro Regime Detector** | クロスアセット比率分析で構造的マクロレジーム転換（1-2年ホライズン）を検出 | <span class="badge badge-api">FMP必須</span> |
+| **Macro Regime Detector** | クロスアセット比率分析で構造的マクロレジーム転換（1-2年ホライズン）を検出 | <span class="badge badge-free">API不要</span> <span class="badge badge-optional">FMP任意</span> |
 | **[US Market Bubble Detector]({{ '/ja/skills/us-market-bubble-detector/' | relative_url }})** | ミンスキー/キンドルバーガーフレームワークの8指標バブルメーター。ステージ別プレイブック付き | <span class="badge badge-free">API不要</span> |
 | **[Dealer Gamma Analyzer]({{ '/ja/skills/dealer-gamma-analyzer/' | relative_url }})** | CBOEの無料15分遅延オプションデータからディーラーのガンマエクスポージャー（GEX）を算出。ガンマウォール・ガンマフリップ・マックスペインを明示的なサポート/レジスタンス価格として提示し、ピン型（正ガンマ）とスクイーズ型（負ガンマ）レジームを判定。`--min-dte`/`--max-dte`で満期レンジを限定可能 | <span class="badge badge-free">API不要</span> |
 | **Market Top Detector** | O'NeilのDistribution Days、MinerviniのLeading Stock劣化、Defensive Rotationで天井確率を検出 | <span class="badge badge-free">API不要</span> |
@@ -87,6 +87,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **Theme Detector** | FINVIZの業種データで上昇・下落テーマを3次元スコアリング（Heat、Lifecycle、Confidence）で検出 | <span class="badge badge-free">API不要</span> <span class="badge badge-optional">FMP任意</span> <span class="badge badge-optional">FINVIZ任意</span> |
 | **[Scenario Analyzer]({{ '/ja/skills/scenario-analyzer/' | relative_url }})** | ニュースヘッドラインから18ヶ月シナリオ分析。1次・2次・3次影響と推奨銘柄を生成 | <span class="badge badge-free">API不要</span> |
 | **[Backtest Expert]({{ '/ja/skills/backtest-expert/' | relative_url }})** | 戦略仮説のパラメータ堅牢性検証、ウォークフォワード検証を含むプロフェッショナルグレード検証フレームワーク | <span class="badge badge-free">API不要</span> |
+| **[MT5 Robot Tester]({{ '/ja/skills/mt5-robot-tester/' | relative_url }})** | ローカルのMetaTrader 5 EAを再開可能な3ラウンドで一括検証し、上書きを防ぐファイル処理、決定論的ゲート、実行間学習を提供。Windows、MT5、EAファイル、ブローカーのtick dataが必要 | <span class="badge badge-free">API不要</span> |
 | **[Stockbee 20% Study]({{ '/ja/skills/stockbee-20pct-study/' | relative_url }})** | +20% / -20% mover のモデルブックを日次で作成し、カタリスト、チャート文脈、将来リターン、コホート傾向を研究用に整理。売買シグナルではなく仮説作成専用 | <span class="badge badge-api">FMP必須</span> <span class="badge badge-optional">ローカルJSON任意</span> |
 | **Options Strategy Advisor** | Black-Scholesモデルで理論価格・グリークス算出。17以上のオプション戦略を教育的に解説 | <span class="badge badge-optional">FMP任意</span> |
 | **Pair Trade Screener** | 共和分検定でペアトレード機会を検出。ヘッジ比率、半減期、z-scoreシグナルを算出 | <span class="badge badge-api">FMP必須</span> |
@@ -140,6 +141,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **Edge Pipeline Orchestrator** | エッジ研究パイプライン全体をエンドツーエンドでオーケストレーション。レビュー→修正フィードバックループ付き | <span class="badge badge-free">API不要</span> |
 | **Edge Signal Aggregator** | edge-candidate-agent、theme-detector、sector-analyst、institutional-flow-trackerの出力を重み付け・重複排除・矛盾処理して確信度順ダッシュボードを生成 | <span class="badge badge-free">API不要</span> |
 | **[Signal Postmortem]({{ '/ja/skills/signal-postmortem/' | relative_url }})** | エッジパイプラインやスクリーナーのシグナル結果を記録・分析。TRUE_POSITIVE/FALSE_POSITIVE/REGIME_MISMATCH分類、edge-signal-aggregatorへのウェイトフィードバック、スキル改善バックログ生成 | <span class="badge badge-optional">FMP任意</span> |
+| **[Residual Edge Analyzer]({{ '/ja/skills/residual-edge-analyzer/' | relative_url }})** | 戦略のリターン系列を、宣言したベースライン・エクスポージャーと残差エッジに分解。HAC推定を用いたOLSアトリビューション、ローリング安定性、代替ベースライン感応度、レジーム別内訳を出力し、市場・モメンタム・セクターへの連動を超えた独自アルファの有無を判定 | <span class="badge badge-free">API不要</span> |
 
 ---
 
@@ -224,7 +226,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | Institutional Flow Tracker | 必須 | - | - |
 | Theme Detector | 任意 | 推奨 | - |
 | Pair Trade Screener | 必須 | - | - |
-| Macro Regime Detector | 必須 | - | - |
+| Macro Regime Detector | 任意 | - | - |
 | Options Strategy Advisor | 任意 | - | - |
 | Portfolio Manager | - | - | 必須 |
 | Trader Memory Core | 任意 | - | - |
@@ -248,6 +250,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | Technical Analyst | 任意 | - | - |
 | Contrarian Setup Gate | - | - | - |
 | Futures Position Sizer | - | - | - |
+| MT5 Robot Tester | - | - | - |
 | その他すべてのスキル | - | - | - |
 
 「-」は不要を意味します。「任意」はあれば機能強化、なくても基本機能は動作します。

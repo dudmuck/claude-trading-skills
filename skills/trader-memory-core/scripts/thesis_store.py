@@ -81,6 +81,7 @@ INDEX_FILE = "_index.json"
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "thesis.schema.json"
 _SCHEMA: dict | None = None
 _VALID_EXIT_REASONS = {"stop_hit", "target_hit", "time_stop", "invalidated", "manual"}
+_UPDATE_OUTCOME_FIELDS = frozenset({"mae_pct", "mfe_pct", "mae_mfe_source", "lessons_learned"})
 
 _FORMAT_CHECKER = FormatChecker()
 
@@ -185,6 +186,26 @@ _MAX_CONTRACTS = 10**12
 # reused as _MAX_CONTRACTS to keep the equity and futures sanity bounds
 # independently tunable even though they start at the same value.
 _MAX_SHARES = 10**12
+
+
+def _valid_finite_number(value: Any) -> float | None:
+    """Return a finite numeric value as float, or ``None`` when invalid.
+
+    Equity ``actual_price`` fields intentionally use a finite-only
+    contract: zero can represent a delisted stock, and negative values
+    are not excluded by the storage contract. Bool is excluded explicitly
+    because it is an ``int`` subclass. A Python integer too large for a
+    float raises ``OverflowError`` from ``math.isfinite()``; treat that as
+    invalid input rather than allowing it to escape from a public API.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        if not math.isfinite(value):
+            return None
+        return float(value)
+    except OverflowError:
+        return None
 
 
 def _valid_finite_positive(value: Any) -> float | None:
@@ -533,6 +554,20 @@ def _validate_equity_position_fields(position: dict) -> None:
             )
 
 
+def _validate_equity_actual_prices(thesis: dict) -> None:
+    """Reject invalid stored equity prices before save or lifecycle math."""
+    for section_name in ("entry", "exit"):
+        section = thesis.get(section_name)
+        if not isinstance(section, dict):
+            continue
+        actual_price = section.get("actual_price")
+        if actual_price is not None and _valid_finite_number(actual_price) is None:
+            raise ValueError(
+                f"equity thesis {section_name}.actual_price is invalid: "
+                f"{actual_price!r} (must be a finite number)"
+            )
+
+
 def _validate_thesis(thesis: dict) -> None:
     """JSON Schema + business invariants. Called by _save_thesis()."""
     schema = _get_schema()
@@ -547,11 +582,17 @@ def _validate_thesis(thesis: dict) -> None:
 
     if _is_futures(thesis):
         _validate_futures_position_fields(position)
-    elif position and position.get("shares") is not None:
-        # Issue #254: the equity analog of the futures branch above — any
-        # thesis with a shares-shaped position gets the same
-        # status-agnostic field validation, regardless of write path.
-        _validate_equity_position_fields(position)
+    else:
+        # Issue #257: JSON Schema's number type accepts NaN/Infinity in
+        # Python. Check both equity price fields at the common save
+        # chokepoint so update() and future load-mutate-save paths cannot
+        # persist a thesis that later becomes uncloseable.
+        _validate_equity_actual_prices(thesis)
+        if position and position.get("shares") is not None:
+            # Issue #254: the equity analog of the futures branch above — any
+            # thesis with a shares-shaped position gets the same
+            # status-agnostic field validation, regardless of write path.
+            _validate_equity_position_fields(position)
 
     if status == "ACTIVE":
         entry = thesis.get("entry", {})
@@ -1093,43 +1134,51 @@ def update(state_dir: Path, thesis_id: str, fields: dict) -> dict:
         The updated thesis dict.
 
     Raises:
-        ValueError: If a protected field is targeted, or `fields["position"]`
-            would touch a futures position (see below).
+        ValueError: If a protected field is targeted, if any direct
+            `position` write is attempted, or if `outcome` contains fields
+            not owned by the review workflow.
     """
     thesis = _load_thesis(state_dir, thesis_id)
     now = _now_iso()
 
-    # P1 addendum (user re-review, money-critical): "position" is in
-    # neither _protected nor _nested_keys below, so without this guard
-    # update() would do a raw, UNVALIDATED replace of thesis["position"] —
-    # bypassing attach_futures_position()'s direction/multiplier/currency/
-    # integer-contracts validation AND the _ATTACH_FUTURES_ALLOWED
-    # ACTIVE-reattach guard entirely. Concretely: open a LONG futures
-    # position, then update(id, {"position": {**pos, "direction": "SHORT"}})
-    # would silently flip every subsequent P&L's sign with zero error
-    # (the P1-1 sign-flip bug, reopened through a different API). Blocked
-    # in BOTH directions: (a) the thesis is ALREADY futures (any position
-    # field write is un-auditable outside the dedicated lifecycle
-    # functions), or (b) the incoming value ITSELF looks futures-shaped
-    # (asset_type="futures"/quantity_unit="contracts") — closes the
-    # "inject a fresh futures position via update() on a non-futures
-    # thesis" path too, which _is_futures(thesis) alone (checked on the
-    # PRE-merge thesis) would miss. Equity position updates are entirely
-    # unaffected (out of scope) — this only fires for futures on either
-    # side of the check.
+    # Issue #255: position is lifecycle-owned for both equities and
+    # futures. Generic replacement bypasses validation and audit history,
+    # including when the incoming payload omits the asset markers used by
+    # _is_futures(). Refuse the key itself so None, empty/metadata-only
+    # dicts, malformed values, and every current or future money field all
+    # fail closed before any in-memory mutation or persistence.
     if "position" in fields:
-        incoming = fields["position"]
-        incoming_is_futures_shaped = isinstance(incoming, dict) and (
-            incoming.get("asset_type") == "futures" or incoming.get("quantity_unit") == "contracts"
+        raise ValueError(
+            "update() cannot modify position — use attach_position() / "
+            "attach_futures_position() / open_position() / trim() / close() / "
+            "terminate() instead; direct position writes bypass lifecycle "
+            "validation and audit history"
         )
-        if _is_futures(thesis) or incoming_is_futures_shaped:
+
+    # Review code legitimately owns excursion metrics and lessons. P&L and
+    # holding duration are lifecycle-owned and must only be computed by the
+    # close/trim/terminate paths. An allowlist also prevents future outcome
+    # fields from becoming silently writable through this generic API.
+    if "outcome" in fields:
+        outcome_fields = fields["outcome"]
+        if not isinstance(outcome_fields, dict):
+            raise ValueError("update() outcome must be a dict of review-owned fields")
+        disallowed_outcome_fields = set(outcome_fields) - _UPDATE_OUTCOME_FIELDS
+        if disallowed_outcome_fields:
+            names = ", ".join(sorted(repr(name) for name in disallowed_outcome_fields))
             raise ValueError(
-                "update() cannot modify position on a futures thesis (or set a "
-                "futures-shaped one) — use attach_futures_position() / "
-                "open_position(contracts=...) / trim() / close() / terminate() "
-                "instead; direct position writes bypass currency/multiplier/"
-                "direction/quantity validation"
+                "update() outcome may only modify review-owned fields "
+                f"{sorted(_UPDATE_OUTCOME_FIELDS)}; disallowed: {names}"
             )
+        for metric_name in ("mae_pct", "mfe_pct"):
+            if metric_name not in outcome_fields:
+                continue
+            metric_value = outcome_fields[metric_name]
+            if metric_value is not None and _valid_finite_number(metric_value) is None:
+                raise ValueError(
+                    f"update() outcome.{metric_name} must be null or a finite "
+                    f"number, got {metric_value!r}"
+                )
 
     # Deep merge nested dicts
     _protected = frozenset(
@@ -1586,10 +1635,9 @@ def _finalize_outcome(
     theses keep their pre-PR-80B code path in the caller and never reach here).
 
     Output-side finiteness (Issue #254, pre-existing money-critical gap —
-    same "guard the OUTPUT, not just the input" principle as
-    `_finalize_futures_outcome()`'s P1 addendum, PLUS an extra layer that
-    one doesn't have — see the futures follow-up noted in this PR's
-    tracked issue): every value computed here (proceeds, realized_pnl,
+    same "guard the OUTPUT, not just the input" principle and the same
+    two-layer arithmetic/finiteness pattern as `_finalize_futures_outcome()`):
+    every value computed here (proceeds, realized_pnl,
     cumulative pnl_dollars via `_sum_realized()`, pnl_pct) is computed
     into a LOCAL variable and validated finite BEFORE any mutation of
     `thesis`/`position`/`status_history`. Validation is TWO layers, both
@@ -1716,10 +1764,10 @@ def _finalize_futures_outcome(
     guard the OUTPUT, not just the input): every value computed here
     (realized_pnl, proceeds, cumulative pnl_dollars, pnl_pct) is computed
     into a LOCAL variable and validated with math.isfinite() BEFORE any
-    mutation of thesis/position/status_history. An all-finite-INPUT
-    computation (e.g. multiplier=1e308) can still OVERFLOW to inf, and
-    inf-inf can further produce nan in the pnl_pct division — neither may
-    ever persist into thesis state.
+    mutation of thesis/position/status_history. The checks are two-layered:
+    arithmetic and math.isfinite() both live inside try/except OverflowError
+    for disk-corrupted huge ints, while the explicit finiteness branch still
+    rejects ordinary float inf/nan results.
     """
     entry_price = thesis["entry"].get("actual_price")
     entry_date = thesis["entry"].get("actual_date")
@@ -1731,9 +1779,17 @@ def _finalize_futures_outcome(
 
     new_entry = None
     if append_entry:
-        leg_proceeds = round(exit_price * multiplier * remaining, 2)
-        leg_realized = round((exit_price - entry_price) * multiplier * remaining * sign, 2)
-        if not (math.isfinite(leg_proceeds) and math.isfinite(leg_realized)):
+        try:
+            leg_proceeds = round(exit_price * multiplier * remaining, 2)
+            leg_realized = round((exit_price - entry_price) * multiplier * remaining * sign, 2)
+            leg_finite = math.isfinite(leg_proceeds) and math.isfinite(leg_realized)
+        except OverflowError as exc:
+            raise ValueError(
+                "computed proceeds/realized_pnl overflowed (exit_price="
+                f"{exit_price}, multiplier={multiplier}, quantity={remaining}) — "
+                "operands too large"
+            ) from exc
+        if not leg_finite:
             raise ValueError(
                 "computed proceeds/realized_pnl is not finite (exit_price="
                 f"{exit_price}, multiplier={multiplier}, quantity={remaining}) — "
@@ -1754,8 +1810,15 @@ def _finalize_futures_outcome(
     # not-yet-appended new_entry, so a non-finite cumulative result still
     # rejects cleanly before any state changes.
     history_for_sum = thesis["status_history"] + ([new_entry] if new_entry else [])
-    pnl_dollars = round(_sum_realized(history_for_sum), 2)
-    if not math.isfinite(pnl_dollars):
+    try:
+        pnl_dollars = round(_sum_realized(history_for_sum), 2)
+        pnl_dollars_finite = math.isfinite(pnl_dollars)
+    except OverflowError as exc:
+        raise ValueError(
+            "computed cumulative pnl_dollars overflowed — the position's "
+            "realized P&L ledger contains an operand too large"
+        ) from exc
+    if not pnl_dollars_finite:
         raise ValueError(
             f"computed cumulative pnl_dollars is not finite ({pnl_dollars}) — "
             "the position's realized P&L ledger overflowed"
@@ -1767,8 +1830,15 @@ def _finalize_futures_outcome(
         # the direct futures analog of equity's entry*shares denominator —
         # a descriptive metric only; pnl_dollars above is the money-critical
         # exact figure and is never derived from this percentage.
-        pnl_pct = round(pnl_dollars / (entry_price * multiplier * original) * 100, 2)
-        if not math.isfinite(pnl_pct):
+        try:
+            pnl_pct = round(pnl_dollars / (entry_price * multiplier * original) * 100, 2)
+            pnl_pct_finite = math.isfinite(pnl_pct)
+        except OverflowError as exc:
+            raise ValueError(
+                "computed pnl_pct overflowed — the notional denominator "
+                "(entry * multiplier * quantity) contains an operand too large"
+            ) from exc
+        if not pnl_pct_finite:
             raise ValueError(
                 f"computed pnl_pct is not finite ({pnl_pct}) — the notional "
                 "denominator (entry * multiplier * quantity) overflowed"
@@ -1830,6 +1900,15 @@ def close(
     if thesis["status"] not in ("ACTIVE", "PARTIALLY_CLOSED"):
         raise ValueError(
             f"Can only close ACTIVE or PARTIALLY_CLOSED thesis, current status: {thesis['status']}"
+        )
+
+    # Issue #257: this runs after futures dispatch but before any equity
+    # arithmetic or mutation. The stored-price check also covers hand-edited
+    # or legacy YAML that bypassed the save-time validation above.
+    _validate_equity_actual_prices(thesis)
+    if _valid_finite_number(actual_price) is None:
+        raise ValueError(
+            f"close() requires a finite actual_price for an equity thesis, got {actual_price!r}"
         )
 
     entry_price = thesis["entry"].get("actual_price")
@@ -2013,6 +2092,12 @@ def trim(
             f"Can only trim ACTIVE or PARTIALLY_CLOSED thesis, current status: {status}"
         )
 
+    # Issue #257: keep the finite-only equity contract separate from the
+    # finite-positive futures branch dispatched above.
+    _validate_equity_actual_prices(thesis)
+    if _valid_finite_number(price) is None:
+        raise ValueError(f"trim() requires a finite price for an equity thesis, got {price!r}")
+
     entry_price = thesis["entry"].get("actual_price")
     if entry_price is None:
         raise ValueError("Cannot trim thesis: entry.actual_price is not set")
@@ -2172,13 +2257,22 @@ def _trim_futures(
 
     multiplier = position["multiplier"]
     sign = _sign(position["direction"])
-    realized = round((price - entry_price) * multiplier * valid_contracts_sold * sign, 2)
-    proceeds = round(price * multiplier * valid_contracts_sold, 2)
     # P1 addendum-1 (user re-review, teaching 10b — guard the OUTPUT, not
     # just the input): individually-finite operands (e.g. multiplier=1e308)
-    # can still overflow their PRODUCT to inf. Validated before any
-    # mutation below.
-    if not (math.isfinite(realized) and math.isfinite(proceeds)):
+    # can still overflow their PRODUCT to inf, while a disk-corrupted huge
+    # int can raise OverflowError before math.isfinite() is reached. Both
+    # cases are validated before any mutation below.
+    try:
+        realized = round((price - entry_price) * multiplier * valid_contracts_sold * sign, 2)
+        proceeds = round(price * multiplier * valid_contracts_sold, 2)
+        trim_finite = math.isfinite(realized) and math.isfinite(proceeds)
+    except OverflowError as exc:
+        raise ValueError(
+            "computed realized_pnl/proceeds overflowed (price="
+            f"{price}, multiplier={multiplier}, contracts_sold={valid_contracts_sold}) — "
+            "operands too large"
+        ) from exc
+    if not trim_finite:
         raise ValueError(
             "computed realized_pnl/proceeds is not finite (price="
             f"{price}, multiplier={multiplier}, contracts_sold={valid_contracts_sold}) — "
@@ -2347,6 +2441,16 @@ def open_position(
 
     if thesis["status"] != "ENTRY_READY":
         raise ValueError(f"open_position() requires ENTRY_READY status, got {thesis['status']}")
+
+    # Issue #257: reject malformed equity entry prices before the thesis
+    # can reach ACTIVE. Futures dispatch above retains its stricter
+    # finite-positive contract and error messages.
+    _validate_equity_actual_prices(thesis)
+    if _valid_finite_number(actual_price) is None:
+        raise ValueError(
+            "open_position() requires a finite actual_price for an equity thesis, "
+            f"got {actual_price!r}"
+        )
 
     now = _now_iso()
     thesis["entry"]["actual_price"] = actual_price
@@ -2556,6 +2660,16 @@ def terminate(
 
     if thesis["status"] in _TERMINAL_STATUSES:
         raise ValueError(f"Cannot terminate: already in terminal status {thesis['status']}")
+
+    # INVALIDATED permits an omitted price, but a provided equity price
+    # and any stored prices must be finite before outcome calculation or
+    # exit/status mutation. Futures were dispatched above.
+    _validate_equity_actual_prices(thesis)
+    if actual_price is not None and _valid_finite_number(actual_price) is None:
+        raise ValueError(
+            "terminate() requires a finite actual_price for an equity thesis "
+            f"when provided, got {actual_price!r}"
+        )
 
     now = _now_iso()
 

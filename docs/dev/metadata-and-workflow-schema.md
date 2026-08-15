@@ -35,6 +35,16 @@ skills:
     display_name: <Human Title>
     category: <one of categories>
     status: production | beta | experimental | deprecated
+    knowledge_only: true  # required only for script-free production skills
+    verification:
+      instruction_contract: passed | not_verified | not_applicable
+      unit_tests: passed | not_verified | not_applicable
+      workflow_contract: passed | not_verified | not_applicable
+      end_to_end_replay: passed | not_verified | not_applicable
+      data_provenance: passed | not_verified | not_applicable
+      financial_logic_review: passed | not_verified | not_applicable
+      empirical_validation: passed | not_verified | not_applicable
+      security_review: passed | not_verified | not_applicable
     summary: >-
       One-sentence description.
 
@@ -64,20 +74,39 @@ skills:
 | `status` | One of `production` / `beta` / `experimental` / `deprecated`. | `IDX006` |
 | `summary` | Non-empty string. | `IDX009` |
 
+`knowledge_only: true` is the explicit CI exemption marker for a production
+skill that has no executable Python files at any depth under `scripts/`. The field
+must be boolean, may only be true on a production skill, and conflicts with any
+`scripts/**/*.py` file outside `tests/`, other than `__init__.py` (`IDX014`).
+Executable skills must ship canonical tests and cannot use this marker to
+bypass the test gate.
+
 **Best-effort** (warn-only by default; required under `--strict-metadata`):
 
 | Field | Rule |
 |---|---|
 | `timeframe` | One of the enum values. `unknown` allowed under `default` / `--strict-workflows` (warn); rejected under `--strict-metadata`. |
 | `difficulty` | One of the enum values. `unknown` allowed under `default` / `--strict-workflows` (warn); rejected under `--strict-metadata`. |
-| `integrations` | List form (see §1.3). May be empty for skills with no dependencies, but prefer `[{id: local_calculation, type: calculation, requirement: not_required}]`. |
+| `integrations` | List form (see §1.4). May be empty for skills with no dependencies, but prefer `[{id: local_calculation, type: calculation, requirement: not_required}]`. |
 | `inputs` | List of strings. Empty list (`[]`) allowed under `default` / `--strict-workflows` (warn); `--strict-metadata` requires at least one entry. |
 | `outputs` | List of strings. Empty list (`[]`) allowed under `default` / `--strict-workflows` (warn); `--strict-metadata` requires at least one entry. |
 | `workflows` | List of workflow IDs. Default mode warns on missing files; `--strict-workflows` errors. |
 
 As of 2026-05-12 the canonical `skills-index.yaml` populates `timeframe`, `difficulty`, `inputs`, and `outputs` for all 54 skills, and `--strict-metadata` is enforced in CI + the pre-push hook. New skill entries must satisfy `--strict-metadata` to merge.
 
-### 1.3 `integrations` schema
+### 1.3 `verification` schema
+
+The block has exactly eight axes. Values are `passed`, `not_verified`, or `not_applicable`.
+Production entries must include the complete block. A missing production block is a warning in
+default and `--strict-workflows` modes and an error under `--strict-metadata`. If any entry includes
+the block, its type, exact keys, and enum values are hard-validated in every mode (`IDX013`).
+Non-production entries may omit it, but partial declarations are not allowed.
+
+The extension is additive and keeps `schema_version: 1`; existing fields are not repurposed. See
+[`production-verification.md`](production-verification.md) for the evidence rules, axis criteria,
+baseline, and live issue gate.
+
+### 1.4 `integrations` schema
 
 ```yaml
 integrations:
@@ -119,7 +148,7 @@ integrations:
 - `type: calculation` — skill performs deterministic local computation. Pair with `id: local_calculation` and `requirement: not_required`. Use this for `position-sizer` and similar pure-compute skills.
 - `type: none` — explicit "no integration record applies". Reserved for edge cases. Prefer `calculation` whenever the skill does any computation.
 
-### 1.4 `workflows` field semantics
+### 1.5 `workflows` field semantics
 
 Each entry is a `workflow id` (= filename in `workflows/` minus `.yaml`).
 
@@ -128,7 +157,7 @@ Each entry is a `workflow id` (= filename in `workflows/` minus `.yaml`).
 
 This field is the back-reference. The forward reference (workflow → skill) is in each `workflows/<id>.yaml`'s `required_skills` / `optional_skills` / `steps`.
 
-### 1.5 Governance rules
+### 1.6 Governance rules
 
 1. **`display_name` is index-owned.** Validator does NOT cross-check it against `SKILL.md` frontmatter. Only `id` ↔ frontmatter `name` parity is enforced.
 2. **Deprecated skills stay in the index.** `status: deprecated` entries remain. They are excluded from `.skill` bundles and from any workflow's `required_skills`, but they remain queryable. Skills physically removed from `skills/` are also removed from the index.
@@ -145,6 +174,7 @@ This field is the back-reference. The forward reference (workflow → skill) is 
 schema_version: 1
 id: <workflow-id>                 # must equal filename (sans .yaml)
 display_name: <Human Title>
+display_name_ja: <Japanese Human Title>
 cadence: daily | weekly | monthly | ad-hoc
 estimated_minutes: <int>
 target_users: [<user-persona>, ...]
@@ -153,8 +183,12 @@ api_profile: no-api-basic | fmp-required | alpaca-required | mixed
 
 when_to_run: >-
   <prose>
+when_to_run_ja: >-
+  <Japanese prose>
 when_not_to_run: >-
   <prose>
+when_not_to_run_ja: >-
+  <Japanese prose>
 
 required_skills: [<skill-id>, ...]
 optional_skills: [<skill-id>, ...]
@@ -163,6 +197,7 @@ prerequisite_workflows:           # informational only, NOT validated
   - id: <workflow-id>
     artifact: <artifact-id>       # which upstream artifact this workflow expects
     rationale: <why>
+    rationale_ja: <Japanese why>
 
 manual_inputs:                    # optional external/manual JSON contracts
   - id: <input-id>
@@ -170,6 +205,7 @@ manual_inputs:                    # optional external/manual JSON contracts
     used_by_steps: [<step-number>, ...]
     schema_ref: <repo-relative-path>
     description: <what supplies this input and how it degrades>
+    description_ja: <Japanese description>
 
 artifacts:
   - id: <artifact-id>
@@ -180,6 +216,7 @@ artifacts:
 steps:
   - step: <int>
     name: <step-title>
+    name_ja: <Japanese step-title>
     skill: <skill-id>
     optional: true | false       # default false
     consumes: [<artifact-id>, ...]
@@ -187,17 +224,35 @@ steps:
     decision_gate: true | false
     decision_question: >-
       <question, required when decision_gate is true>
+    decision_question_ja: >-
+      <Japanese question, required when decision_gate is true>
     depends_on: [<step-number>, ...]   # only earlier steps
 
 manual_review:
   - <prose, one item per line>
+manual_review_ja:                 # same length and order as manual_review
+  - <Japanese prose, one item per line>
 
 journal_destination: <skill-id>
 
 # Only on monthly-performance-review:
 final_outputs:
   - id: <output-id>
+    description: <human-facing description>
+    description_ja: <Japanese human-facing description>
 ```
+
+Japanese workflow documentation is fail-closed: every human-facing field shown
+above must have a non-empty Japanese counterpart. `manual_review_ja` must match
+`manual_review` item-for-item. `generate_workflow_docs.py --lang ja` never falls
+back to English. Machine-readable workflow, skill, artifact, status, enum, CLI,
+file, and API-profile identifiers remain unchanged and are rendered as code.
+
+Japanese prose may be written as a multi-line folded scalar (`>-`) for
+readability. YAML joins those wrapped lines with a space, so the generator drops
+any space whose neighbours are both CJK/full-width characters. A space bordering
+ASCII — an inline `` `code` `` span, a latin word — is intentional and preserved,
+and English prose is unaffected.
 
 ### 2.2 Internal-consistency rules
 
@@ -216,6 +271,7 @@ These are validated under `--strict-workflows`:
 | Every non-optional `step.skill` appears in `required_skills` | `WF010` |
 | Workflow file referenced by an index entry's `workflows:` exists | `WF001` |
 | Required artifact produced before the final step is not consumed by any later step | `WF013` |
+| Human-facing Japanese workflow prose is missing, empty, wrongly typed, or list-misaligned | `WF014` |
 
 ### 2.3 `consumes:` semantics — "use if available", not "required input"
 
@@ -395,6 +451,8 @@ python3 scripts/validate_skills_index.py --strict-metadata
 | Code | Meaning |
 |---|---|
 | `IDX012` | Integration uses an `unknown` marker (`id` / `type` / `requirement`); flagged for owner review. Warning by default; error under `--strict-metadata`. |
+| `IDX013` | Missing production `verification` block, or a present block has the wrong type, missing/unknown axes, or invalid enum values. Missing block warns by default and errors under `--strict-metadata`; malformed present blocks always error. |
+| `IDX014` | Invalid `knowledge_only` type, non-production use, or conflict with executable Python scripts. |
 
 ### Workflow-level (strict-workflows)
 
@@ -413,6 +471,7 @@ python3 scripts/validate_skills_index.py --strict-metadata
 | `WF011` | `required_skills` / `optional_skills` entry not in `skills-index.yaml` |
 | `WF012` | `artifacts[].produced_by_step` does not match the corresponding step's `produces` (either direction) |
 | `WF013` | Required artifact produced before the final step is not consumed by any later step |
+| `WF014` | Required Japanese workflow prose is missing, empty, wrongly typed, or `manual_review_ja` is not aligned |
 
 ### Skillset-level (`scripts/validate_skillsets.py`, always strict)
 

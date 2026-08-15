@@ -42,6 +42,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
+      - name: Install policy dependency
+        run: pip install "packaging>=24.0" "pyyaml>=6.0"
       - name: Discover and validate test coverage
         id: discover
         run: echo "matrix=$(python3 scripts/ci_test_matrix.py matrix)" >> "$GITHUB_OUTPUT"
@@ -74,7 +76,7 @@ jobs:
         with:
           name: coverage-${{ matrix.id }}
           path: coverage-data/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 1
 
   coverage:
@@ -100,6 +102,14 @@ jobs:
           python scripts/ci_test_matrix.py aggregate
           --artifacts coverage-artifacts
           --output combined-coverage
+      - name: Upload executable-code coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: executable-code-coverage-report
+          path: combined-coverage/
+          if-no-files-found: error
+          retention-days: 14
 
   metadata:
     name: Metadata + Workflow checks
@@ -185,6 +195,34 @@ jobs:
 
       # Note: the validator + generator unit tests already run under the
       # 'Test repo-level scripts' step in the test job above.
+
+  workflow-replay:
+    name: Workflow replay (Coverage 3/11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install replay dependencies
+        run: pip install "jsonschema>=4.25.1" "pyyaml>=6.0"
+
+      - name: Replay covered workflows and check generated examples
+        run: >
+          python3 scripts/workflow_replay.py check
+          --report workflow-replay-report.json
+
+      - name: Upload workflow replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-replay-report
+          path: workflow-replay-report.json
+          if-no-files-found: warn
+          retention-days: 7
 
   security:
     name: Security

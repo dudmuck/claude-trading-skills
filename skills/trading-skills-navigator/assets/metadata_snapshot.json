@@ -2,6 +2,22 @@
   "schema_version": 1,
   "skills": [
     {
+      "category": "trade-planning",
+      "difficulty": "intermediate",
+      "display_name": "Adversarial Trade Debate",
+      "id": "adversarial-trade-debate",
+      "integrations": [
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Force a candidate through two staged adversarial debates — bull vs bear judged into a 5-tier conviction rating, then aggressive vs conservative risk judged by a Portfolio Manager into a final action/entry/stop/size decision. Red-teams a thesis before capital commits.",
+      "timeframe": "event-driven"
+    },
+    {
       "category": "strategy-research",
       "difficulty": "advanced",
       "display_name": "Backtest Expert",
@@ -140,6 +156,22 @@
       "timeframe": "event-driven"
     },
     {
+      "category": "market-regime",
+      "difficulty": "intermediate",
+      "display_name": "Dealer Gamma Analyzer",
+      "id": "dealer-gamma-analyzer",
+      "integrations": [
+        {
+          "id": "cboe_delayed_options",
+          "requirement": "not_required",
+          "type": "market_data"
+        }
+      ],
+      "status": "production",
+      "summary": "Quantify dealer options gamma (GEX) for an equity or index from FREE CBOE delayed options data. Renders gamma walls, the gamma flip, and max pain as explicit support/resistance price levels, and classifies the positive- (pin) vs negative-gamma (squeeze-prone) regime.",
+      "timeframe": "daily"
+    },
+    {
       "category": "core-portfolio",
       "difficulty": "intermediate",
       "display_name": "Dividend Growth Pullback Screener",
@@ -238,6 +270,22 @@
       ],
       "status": "production",
       "summary": "Analyze recent post-earnings stocks using a 5-factor scoring system (Gap Size, Pre-Earnings Trend, Volume Trend, MA200 Position, MA50 Position).",
+      "timeframe": "event-driven"
+    },
+    {
+      "category": "market-regime",
+      "difficulty": "beginner",
+      "display_name": "Econ Indicator Explainer",
+      "id": "econ-indicator-explainer",
+      "integrations": [
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "production",
+      "summary": "Look up the \"why it matters\" context for a US economic indicator — what it measures, why markets care, and the typical 60-minute SPY/TLT/DXY/VIX reaction. Pairs with economic-calendar-fetcher, which supplies the schedule and consensus.",
       "timeframe": "event-driven"
     },
     {
@@ -535,8 +583,13 @@
       "id": "macro-regime-detector",
       "integrations": [
         {
-          "id": "yfinance_or_csv",
-          "requirement": "recommended",
+          "id": "yfinance",
+          "requirement": "required",
+          "type": "market_data"
+        },
+        {
+          "id": "fmp",
+          "requirement": "optional",
           "type": "market_data"
         }
       ],
@@ -612,6 +665,27 @@
       "status": "production",
       "summary": "Detects market top probability using O'Neil Distribution Days, Minervini Leading Stock Deterioration, and Monty Defensive Sector Rotation.",
       "timeframe": "daily"
+    },
+    {
+      "category": "strategy-research",
+      "difficulty": "advanced",
+      "display_name": "MT5 Robot Tester",
+      "id": "mt5-robot-tester",
+      "integrations": [
+        {
+          "id": "mt5_local_files",
+          "requirement": "required",
+          "type": "local_file"
+        },
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Batch-test MetaTrader 5 Expert Advisors through a resumable three-round local pipeline, rank results, and retain deterministic parameter and symbol learnings.",
+      "timeframe": "research"
     },
     {
       "category": "market-regime",
@@ -754,6 +828,22 @@
     {
       "category": "strategy-research",
       "difficulty": "advanced",
+      "display_name": "Residual Edge Analyzer",
+      "id": "residual-edge-analyzer",
+      "integrations": [
+        {
+          "id": "local_calculation",
+          "requirement": "not_required",
+          "type": "calculation"
+        }
+      ],
+      "status": "beta",
+      "summary": "Separate strategy return performance into declared baseline exposure and residual edge using HAC regression, rolling stability, baseline sensitivity, and regime diagnostics.",
+      "timeframe": "research"
+    },
+    {
+      "category": "strategy-research",
+      "difficulty": "advanced",
       "display_name": "Scenario Analyzer",
       "id": "scenario-analyzer",
       "integrations": [
@@ -782,6 +872,22 @@
       "status": "production",
       "summary": "This skill should be used when analyzing sector rotation patterns and market cycle positioning.",
       "timeframe": "weekly"
+    },
+    {
+      "category": "swing-opportunity",
+      "difficulty": "intermediate",
+      "display_name": "Short-Squeeze Radar",
+      "id": "short-squeeze-radar",
+      "integrations": [
+        {
+          "id": "finra_reg_sho",
+          "requirement": "not_required",
+          "type": "market_data"
+        }
+      ],
+      "status": "production",
+      "summary": "Rank US equities by short-squeeze potential using FREE FINRA data (no API key). Reads Reg SHO daily short-volume files for rising short-volume inflections and optional bi-monthly short interest, flagging crowded-short versus low-pressure names.",
+      "timeframe": "daily"
     },
     {
       "category": "trade-memory",
