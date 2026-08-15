@@ -9,6 +9,10 @@ holding SPY wouldn't have? `skills/residual-edge-analyzer` answers that, but it
 deliberately fetches no data -- it takes one aligned return CSV and one JSON
 spec. This script produces both from the live Alpaca account.
 
+Cadence: QUARTERLY, not weekly. This measures something that only accumulates
+signal over months; re-running it every Sunday re-reads noise on a sample that
+has barely changed, and invites treating an unchanged verdict as new evidence.
+
     strategy_return      daily % change in account equity (Alpaca portfolio history)
     market_return        SPY, dividend-adjusted
     equal_weight_return  RSP, dividend-adjusted
