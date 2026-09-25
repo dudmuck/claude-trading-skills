@@ -72,13 +72,11 @@ API key will be requested during skill execution (stored only for current sessio
 ## 3. Quick Start
 
 ```bash
-# Default: next 7 days, market cap > $2B
-python3 earnings-calendar/scripts/fetch_earnings_fmp.py --api-key YOUR_KEY
+# The key comes from the environment only — argv is visible in `ps`.
+export FMP_API_KEY="your-key"
 
-# Custom date range
-python3 earnings-calendar/scripts/fetch_earnings_fmp.py \
-  --from 2025-11-01 --to 2025-11-07 \
-  --api-key YOUR_KEY
+# Date range is two positional arguments; market cap > $2B
+python3 earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-01 2025-11-07
 ```
 
 ---
@@ -211,20 +209,20 @@ scripts/fetch_earnings_fmp.py
 
 **Execution**:
 
-**Option A: With Environment Variable (CLI)**:
+**With the environment variable (CLI)**:
 ```bash
 python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09
 ```
 
-**Option B: With Session API Key (Desktop/Web)**:
+**On Desktop/Web**, export the session key into the environment first:
 ```bash
-python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09 "${API_KEY}"
+FMP_API_KEY="${API_KEY}" python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09
 ```
 
 **Script Workflow** (automatic):
 1. Validates API key and date parameters
 2. Calls FMP Earnings Calendar API for date range
-3. Fetches company profiles (market cap, sector, industry)
+3. Fetches company data (market cap, sector, industry) in ONE screener request
 4. Filters companies with market cap >$2B
 5. Normalizes timing (BMO/AMC/TAS)
 6. Sorts by date → timing → market cap (descending)
@@ -253,12 +251,12 @@ python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09 "${API_KEY}"
 
 **Save to file** (recommended for use with report generator):
 ```bash
-python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09 "${API_KEY}" > earnings_data.json
+python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09 > earnings_data.json
 ```
 
 Or capture to variable:
 ```bash
-earnings_data=$(python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09 "${API_KEY}")
+earnings_data=$(python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09)
 ```
 
 **Error Handling**:

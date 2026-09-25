@@ -398,7 +398,7 @@ python3 economic-calendar-fetcher/scripts/get_economic_calendar.py \
 **Earnings Calendar:** ⚠️ Requires FMP API key
 ```bash
 # Default: next 7 days, market cap > $2B
-python3 earnings-calendar/scripts/fetch_earnings_fmp.py --api-key YOUR_KEY
+FMP_API_KEY=your-key python3 earnings-calendar/scripts/fetch_earnings_fmp.py START END
 
 # Custom date range
 python3 earnings-calendar/scripts/fetch_earnings_fmp.py \

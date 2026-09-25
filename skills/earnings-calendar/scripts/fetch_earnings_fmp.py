@@ -10,9 +10,6 @@ Usage:
     export FMP_API_KEY="your-key"
     python fetch_earnings_fmp.py 2025-11-03 2025-11-09
 
-    # With API key as argument
-    python fetch_earnings_fmp.py 2025-11-03 2025-11-09 YOUR_API_KEY
-
     # Help
     python fetch_earnings_fmp.py --help
 """
@@ -31,6 +28,7 @@ class FMPEarningsCalendar:
 
     BASE_URL = "https://financialmodelingprep.com/stable"
     MIN_MARKET_CAP = 2_000_000_000  # $2B
+    SCREENER_ROW_LIMIT = 10000  # company-screener max rows per response
     US_EXCHANGES = ["NYSE", "NASDAQ", "AMEX", "NYSEArca", "BATS", "NMS", "NGM", "NCM"]
 
     def __init__(self, api_key: str, us_only: bool = True):
@@ -105,9 +103,99 @@ class FMPEarningsCalendar:
             print(f"❌ ERROR: Unexpected error: {str(e)}", file=sys.stderr)
             return None
 
-    def fetch_company_profiles(self, symbols: list[str]) -> dict[str, dict]:
+    def _fetch_profiles_bulk(self, symbols: list[str]) -> dict[str, dict]:
+        """Market caps + company data for every US name above the cap, in ONE request.
+
+        ``/stable/profile`` takes one HTTP request PER SYMBOL, which is what made
+        this script the pipeline's long pole (a peak week is ~2,300 symbols and
+        ~15 minutes). ``/stable/company-screener`` returns the same fields for
+        every listed company above a market-cap threshold in a single response —
+        measured 2026-09-25: 2,552 US names, 1.2 MB, 1.3 seconds.
+
+        Returns a profile-shaped dict so the caller and ``filter_by_market_cap``
+        are unchanged. Returns ``{}`` on any doubt (error, empty body, a response
+        at the row cap) so the caller can fall back to the per-symbol loop rather
+        than silently dropping names.
         """
-        Fetch company profiles for multiple symbols (batch)
+        wanted = set(symbols)
+        url = f"{self.BASE_URL}/company-screener"
+        params = {
+            "marketCapMoreThan": int(self.MIN_MARKET_CAP),
+            "isEtf": "false",
+            "isFund": "false",
+            "limit": self.SCREENER_ROW_LIMIT,
+            "apikey": self.api_key,
+        }
+
+        try:
+            response = requests.get(url, params=params, timeout=60)
+            response.raise_for_status()
+            data = response.json()
+        except Exception as e:
+            print(f"  ⚠️  Screener request failed: {str(e)}", file=sys.stderr)
+            return {}
+
+        if not isinstance(data, list) or not data:
+            return {}
+
+        # A response sitting on the row cap may be truncated, and a truncated
+        # screener drops real names without saying so. Fall back instead.
+        if len(data) >= self.SCREENER_ROW_LIMIT:
+            print(
+                f"  ⚠️  Screener returned {len(data)} rows (at the limit) — "
+                "may be truncated",
+                file=sys.stderr,
+            )
+            return {}
+
+        profiles = {}
+        for row in data:
+            if not isinstance(row, dict):
+                continue
+            symbol = row.get("symbol")
+            if symbol not in wanted:
+                continue
+            market_cap = row.get("marketCap")
+            if not isinstance(market_cap, (int, float)):
+                continue
+            profiles[symbol] = {
+                "symbol": symbol,
+                "marketCap": market_cap,
+                "companyName": row.get("companyName") or symbol,
+                "sector": row.get("sector") or "N/A",
+                "industry": row.get("industry") or "N/A",
+                # /profile returns the SHORT exchange code, which is what
+                # US_EXCHANGES matches. The screener puts that in
+                # exchangeShortName and a long venue name in `exchange`.
+                "exchange": row.get("exchangeShortName") or row.get("exchange") or "N/A",
+            }
+
+        print(
+            f"✓ Screener: {len(data)} US companies >${self.MIN_MARKET_CAP / 1e9:.0f}B "
+            f"in 1 request; {len(profiles)}/{len(symbols)} earnings symbols matched",
+            file=sys.stderr,
+        )
+        return profiles
+
+    def fetch_company_profiles(self, symbols: list[str]) -> dict[str, dict]:
+        """Company profiles for the given symbols, keyed by symbol.
+
+        Uses the bulk screener (one request) and falls back to the
+        per-symbol profile loop if that is unusable.
+        """
+        profiles = self._fetch_profiles_bulk(symbols)
+        if profiles:
+            return profiles
+
+        print(
+            "  ⚠️  Screener unusable — falling back to per-symbol profiles",
+            file=sys.stderr,
+        )
+        return self._fetch_profiles_per_symbol(symbols)
+
+    def _fetch_profiles_per_symbol(self, symbols: list[str]) -> dict[str, dict]:
+        """
+        Fetch company profiles one request per symbol (screener fallback)
 
         Args:
             symbols: List of ticker symbols
@@ -303,18 +391,15 @@ class FMPEarningsCalendar:
 
 def get_api_key() -> Optional[str]:
     """
-    Get API key from environment or command line
+    Get API key from the FMP_API_KEY environment variable
+
+    The key is deliberately NOT accepted as a positional argument: argv is
+    world-readable through `ps` for the lifetime of the process, and this
+    script runs for minutes at a time. It also lands in shell history.
 
     Returns:
         API key or None
     """
-    # Method 1: Command line argument (position 3)
-    if len(sys.argv) >= 4:
-        api_key = sys.argv[3]
-        print("✓ API key provided via command line argument", file=sys.stderr)
-        return api_key
-
-    # Method 2: Environment variable
     api_key = os.environ.get("FMP_API_KEY")
     if api_key:
         print("✓ API key loaded from FMP_API_KEY environment variable", file=sys.stderr)
@@ -325,9 +410,8 @@ def get_api_key() -> Optional[str]:
     print("", file=sys.stderr)
     print("Options:", file=sys.stderr)
     print("1. Set environment variable: export FMP_API_KEY='your-key'", file=sys.stderr)
-    print("2. Pass as argument: python fetch_earnings_fmp.py START END YOUR_KEY", file=sys.stderr)
     print(
-        "3. Get free API key: https://site.financialmodelingprep.com/developer/docs",
+        "2. Get free API key: https://site.financialmodelingprep.com/developer/docs",
         file=sys.stderr,
     )
     return None
@@ -353,18 +437,18 @@ def validate_date(date_str: str) -> bool:
 def print_usage():
     """Print usage instructions"""
     print("Usage:", file=sys.stderr)
-    print("  python fetch_earnings_fmp.py START_DATE END_DATE [API_KEY]", file=sys.stderr)
+    print("  python fetch_earnings_fmp.py START_DATE END_DATE", file=sys.stderr)
     print("", file=sys.stderr)
     print("Arguments:", file=sys.stderr)
     print("  START_DATE  Start date in YYYY-MM-DD format", file=sys.stderr)
     print("  END_DATE    End date in YYYY-MM-DD format", file=sys.stderr)
-    print("  API_KEY     (Optional) FMP API key (or use FMP_API_KEY env var)", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("API key: set the FMP_API_KEY environment variable.", file=sys.stderr)
+    print("  It is not accepted as an argument — argv is visible in `ps`.", file=sys.stderr)
     print("", file=sys.stderr)
     print("Examples:", file=sys.stderr)
     print("  export FMP_API_KEY='your-key'", file=sys.stderr)
     print("  python fetch_earnings_fmp.py 2025-11-03 2025-11-09", file=sys.stderr)
-    print("", file=sys.stderr)
-    print("  python fetch_earnings_fmp.py 2025-11-03 2025-11-09 your-key", file=sys.stderr)
     print("", file=sys.stderr)
     print("Output:", file=sys.stderr)
     print("  JSON data is written to stdout", file=sys.stderr)

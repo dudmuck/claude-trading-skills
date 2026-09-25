@@ -17,7 +17,10 @@ import os
 import re
 import sys
 import tempfile
+from functools import lru_cache
 from pathlib import Path
+
+import yaml
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -1046,6 +1049,48 @@ def _replace_table_rows(index_path: Path, rows: list[str]) -> None:
 _SLUG_RE = re.compile(r"/(?:en|ja)/skills/([\w-]+)/")
 
 
+@lru_cache(maxsize=1)
+def _index_display_names() -> dict[str, str]:
+    """{slug: display_name} from skills-index.yaml, the catalog's source of truth.
+
+    _title_case() derives a name from the slug, which disagrees with the index
+    wherever the display name contains a character the slug drops: e.g.
+    "Stockbee 20% Study" slugs to stockbee-20pct-study and titles back as
+    "Stockbee 20pct Study". The catalog checker then rejects the row, and
+    because the two spellings never match, every regeneration appended the bad
+    row again.
+    """
+    index_path = Path(__file__).resolve().parent.parent / "skills-index.yaml"
+    try:
+        data = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    names = {}
+    for entry in (data or {}).get("skills", []):
+        if isinstance(entry, dict) and entry.get("id") and entry.get("display_name"):
+            names[entry["id"]] = entry["display_name"]
+    return names
+
+
+def _catalog_display_name(slug: str) -> str:
+    """Canonical catalog name for a slug: the index's, else derived from the slug."""
+    return _index_display_names().get(slug) or _title_case(slug)
+
+
+def _slugs_for_display_name(name: str) -> set[str]:
+    """Every slug a catalog row spelled `name` could refer to.
+
+    _slugify() alone is not enough: "Stockbee 20% Study" slugifies to
+    stockbee-20-study, while the skill's actual slug is stockbee-20pct-study.
+    Without the index lookup the row is never recognised as present.
+    """
+    found = {_slugify(name)}
+    for slug, display in _index_display_names().items():
+        if display == name:
+            found.add(slug)
+    return {s for s in found if s}
+
+
 def _extract_catalog_slugs(text: str) -> set[str]:
     """Extract all skill slugs from catalog links and bold names."""
     slugs: set[str] = set()
@@ -1057,6 +1102,7 @@ def _extract_catalog_slugs(text: str) -> set[str]:
     # From bold names in table rows: | **Name** | ... |
     for match in re.finditer(r"\|\s*\*\*([^*]+)\*\*", text):
         slugs.add(_slugify(match.group(1)))
+        slugs.update(_slugs_for_display_name(match.group(1)))
 
     # From non-linked, non-bold names in table data rows (e.g., "| Name | ...")
     # Skip header rows that contain "Skill" or "スキル"
@@ -1075,9 +1121,7 @@ def _extract_catalog_slugs(text: str) -> set[str]:
         # Already covered by bold or link patterns
         if "**" in name_col or "[" in name_col:
             continue
-        slug = _slugify(name_col)
-        if slug:
-            slugs.add(slug)
+        slugs.update(_slugs_for_display_name(name_col))
 
     return slugs
 
@@ -1174,7 +1218,7 @@ def update_catalog_api_matrix(
             if slug in existing_slugs:
                 continue
 
-            title = _title_case(skill_name)
+            title = _catalog_display_name(slug)
 
             if lang == "en":
                 fmp, finviz, alpaca = _api_status_en(api_info)
