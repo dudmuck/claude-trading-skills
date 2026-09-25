@@ -27,21 +27,23 @@ Step 1 report rather than silently omitting the cross-check.
 fetch fails. Note the same gap hides user-installed binaries — `ruff` and other
 `~/.local/bin` tools may need their full path in a non-interactive shell.
 
-0. **Step 0 — preflight (charts + directories) — and LAUNCH THE EARNINGS FETCH FIRST.**
+0. **Step 0 — preflight (earnings fetch + charts + directories).**
 
-   **Step 0a — start the slow FMP earnings fetch in the background before anything else.** It is the pipeline's long pole and it has **no prerequisites whatsoever**: `fetch_earnings_fmp.py` takes only a start date and an end date, reads no files, and depends on no earlier step. Its only input is `{DATE}`, which you computed in the first line of this command. Starting it in Step 2b (where it used to live) blocks the pipeline for its full runtime with nothing else running.
+   **Step 0a — fetch the FMP earnings calendar. In the FOREGROUND.** It has **no prerequisites whatsoever**: `fetch_earnings_fmp.py` takes only a start date and an end date, reads no files, and depends on no earlier step. Its only input is `{DATE}`, which you computed in the first line of this command. It stays at Step 0a for that reason — but it is no longer slow, so do not background it.
 
    ```bash
    cd ~/src/claude-trading-skills
    WKDIR=/tmp/wk$(date -d "{DATE}" +%m%d); mkdir -p "$WKDIR"
    python3 examples/weekly-trade-strategy/skills/earnings-calendar/scripts/fetch_earnings_fmp.py \
-     {DATE} "$(date -d "{DATE} +7 days" +%Y-%m-%d)" > "$WKDIR/earnings.json" 2> "$WKDIR/earnings.err" &
-   echo "earnings fetch launched in background -> $WKDIR/earnings.json"
+     {DATE} "$(date -d "{DATE} +7 days" +%Y-%m-%d)" > "$WKDIR/earnings.json" 2> "$WKDIR/earnings.err"
+   tail -3 "$WKDIR/earnings.err"; ls -l "$WKDIR/earnings.json"
    ```
 
-   Use `run_in_background: true`. **Do not wait on it here.** Steps 0/0b/0c/1/2/2b all proceed while it runs; the first consumer is Step 3.
+   **Runtime is ~1-2 seconds and no longer scales with the size of the calendar** *(changed 2026-09-25)*. The script used to call `/stable/profile` once per symbol, which is what made it the pipeline's long pole: 318 symbols took **1m 59.6s**, and peak season (2,311 profiles, 2026-07-27) took ~15 min. It now pulls the whole US universe above the $2B floor from `/stable/company-screener` in **one request** — measured **1.1s** for the same window, same company set.
 
-   **Runtime scales with the earnings calendar, not with a fixed constant.** Measured 2026-07-27 (peak season): **2,311 profiles, ~15 min**. A quiet week is ~600-800 profiles / ~7-9 min. Step 1 alone typically runs ~18 min, so launching at Step 0 covers even a peak week with room to spare — on 2026-07-27 it would have finished ~12 minutes *before* Step 3 needed it, versus the ~15 minutes of dead waiting that actually occurred.
+   **Do not use `run_in_background: true`, and do not arrange other steps around it.** The old choreography (launch first, run Steps 0/0b/0c/1/2/2b over the top, collect at 2c) is retired — it finishes before Step 0b starts.
+
+   **If stderr shows `⚠️  Screener unusable — falling back to per-symbol profiles`,** the script has reverted to the old one-request-per-symbol path. Expect minutes rather than seconds for that week, and report it — it means something changed at FMP.
 
    **Step 0b — charts + directories:**
    ```bash
@@ -141,8 +143,8 @@ fetch fails. Note the same gap hides user-installed binaries — `ruff` and othe
    python3 examples/weekly-trade-strategy/skills/economic-calendar-fetcher/scripts/get_economic_calendar.py \
      --from "$FROM" --to "$TO" --format json > "$WKDIR/econ.json" 2> "$WKDIR/econ.err"
 
-   # NOTE: the earnings calendar is NOT fetched here — it was launched in Step 0a
-   # and has been running in the background throughout. Do not start a second copy.
+   # NOTE: the earnings calendar is NOT fetched here — Step 0a already has it.
+   # Do not fetch a second copy.
 
    # Indicator-card enrichment in pure Python (handles dedup-on-resolved-title):
    ~/.venv/bin/python <<PYEOF
@@ -187,11 +189,9 @@ fetch fails. Note the same gap hides user-installed binaries — `ruff` and othe
 
    Report the line count of `indicator_cards.md` to me. Coverage tends to be 3-5 cards for a typical week (CPI, NFP, FOMC, FOMC Minutes, ISM, Retail Sales, Claims, etc.). Foreign events (ECB, BOJ) and 2nd-tier US events won't have cards — that's expected, not an error.
 
-2c. **Collect the earnings fetch (gate before Step 3).** The Step 0a background job is the only thing Step 3 blocks on. Confirm it landed before launching the subagent:
+2c. **Sanity-check the earnings calendar (gate before Step 3).** Nothing is running any more — this is a read of the file Step 0a already wrote, not a wait. Confirm it is non-empty and plausible before launching the subagent:
 
    ```bash
-   pgrep -f fetch_earnings_fmp >/dev/null && echo "STILL RUNNING" || echo "done"
-   tail -2 /tmp/wk{MMDD}/earnings.err; ls -l /tmp/wk{MMDD}/earnings.json
    ~/.venv/bin/python -c "
    import json; d=json.load(open('/tmp/wk{MMDD}/earnings.json'))
    rows = d if isinstance(d,list) else (d.get('earnings') or list(d.values())[0])
@@ -201,9 +201,9 @@ fetch fails. Note the same gap hides user-installed binaries — `ruff` and othe
        print(' ', r.get('date'), r.get('symbol'), str(round((r.get('marketCap') or 0)/1e9))+'B')"
    ```
 
-   A **zero-byte `earnings.json` while the process is still running is normal** — the script buffers and writes only at the end. Judge progress from `earnings.err` (`✓ Fetched N/M profiles`), never from the file size. If it is still running, wait for it here rather than launching Step 3 without it; if it failed, surface the error — Step 3 must not silently proceed on a missing or truncated calendar, since FMP is the ground truth for every earnings date it will cite.
+   A zero-byte or missing `earnings.json` now means the fetch **failed** — there is no buffering window to wait out. Read `/tmp/wk{MMDD}/earnings.err` and surface the error. Step 3 must not silently proceed on a missing or truncated calendar, since FMP is the ground truth for every earnings date it will cite.
 
-3. **Step 3 — market-news-analyzer** using WebSearch + the FMP earnings/economic calendar files (earnings launched in Step 0a, econ fetched in Step 2b). **Pass the indicator-cards path** (`/tmp/wk{MMDD}/indicator_cards.md`) as authoritative reference for "why this event matters" — the subagent should treat those cards as ground-truth and use them in scenario reaction-history reasoning (avoid WebSearching for context the cards already provide).
+3. **Step 3 — market-news-analyzer** using WebSearch + the FMP earnings/economic calendar files (earnings fetched in Step 0a, econ in Step 2b). **Pass the indicator-cards path** (`/tmp/wk{MMDD}/indicator_cards.md`) as authoritative reference for "why this event matters" — the subagent should treat those cards as ground-truth and use them in scenario reaction-history reasoning (avoid WebSearching for context the cards already provide).
    → `examples/weekly-trade-strategy/reports/{DATE}/market-news-analysis.md`
 
 4. **Step 4 — weekly-trade-blog-writer** synthesizing all three. Emit a YAML `target_allocation` block at the end. Reference last week's blog for continuity (±10-15pp rule). 200-300 line cap.
