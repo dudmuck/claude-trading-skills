@@ -17,16 +17,31 @@ Features:
 """
 
 import os
+import re
 import sys
 import time
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 try:
     import requests
 except ImportError:
     print("ERROR: requests library not found. Install with: pip install requests", file=sys.stderr)
     sys.exit(1)
+
+# Mirror of scripts/provider_contracts.py::redact_url (clients are standalone).
+# Requires a `?`/`&` prefix, so this masks apikey=/api_key= in URL query
+# strings, not a rendered params dict (unreachable today: only
+# RequestException text -- which can embed the full request URL -- is
+# ever printed here, never a bare params repr()).
+_APIKEY_RE = re.compile(r"([?&](?:apikey|api_key)=)[^&\s]+", re.IGNORECASE)
+
+
+def _redact_key(text: str) -> str:
+    """Mask apikey=/api_key= query values so stderr never carries the key."""
+    return _APIKEY_RE.sub(r"\1REDACTED", str(text))
+
 
 try:
     from _fmp_compat import v3_to_stable
@@ -37,6 +52,26 @@ except ModuleNotFoundError:  # loaded by file path (e.g. repo-level contract tes
 # --- FMP endpoint fallback: stable (new users) -> v3 (legacy users) ---
 
 
+def _et_today(now=None):
+    """America/New_York calendar date for provider query windows (issue #427).
+
+    An explicit aware ``now`` wins (deterministic runs/tests); otherwise the
+    current instant is converted to America/New_York. ``now`` must be
+    timezone-aware when supplied. Fail-closed: missing TZ data raises
+    RuntimeError naming the tzdata requirement instead of silently falling
+    back to the runner's local clock.
+    """
+    try:
+        tz = ZoneInfo("America/New_York")
+    except ZoneInfoNotFoundError as exc:
+        raise RuntimeError("America/New_York timezone data is missing; pip install tzdata") from exc
+    if now is not None:
+        if now.tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+        return now.astimezone(tz).date()
+    return datetime.now(tz).date()
+
+
 def _stable_hist_url(base, symbols_str, params):
     """stable/historical-price-eod/full?symbol=^GSPC&from=...&to=..."""
     params["symbol"] = symbols_str
@@ -45,7 +80,7 @@ def _stable_hist_url(base, symbols_str, params):
     # (trading-day/calendar-day ratio ~252/365 ~0.69, so *2 leaves headroom).
     days = params.pop("timeseries", None)
     if days is not None:
-        today = date.today()
+        today = _et_today()
         params["from"] = (today - timedelta(days=int(days) * 2)).isoformat()
         params["to"] = today.isoformat()
     return base, params
@@ -197,7 +232,7 @@ class FMPClient:
                     self.rate_limit_reached = True
                     return None
             else:
-                msg = f"HTTP {response.status_code} - {response.text[:200]}"
+                msg = _redact_key(f"HTTP {response.status_code} - {response.text[:200]}")
                 self._last_error = msg
                 if not quiet:
                     print(
@@ -206,8 +241,9 @@ class FMPClient:
                     )
                 return None
         except requests.exceptions.RequestException as e:
-            self._last_error = f"request exception: {e}"
-            print(f"ERROR: Request exception: {e}", file=sys.stderr)
+            redacted = _redact_key(str(e))
+            self._last_error = f"request exception: {redacted}"
+            print(f"ERROR: Request exception: {redacted}", file=sys.stderr)
             return None
 
     def _request_with_fallback(self, endpoint_key, symbols_str, extra_params=None):
@@ -322,15 +358,21 @@ class FMPClient:
         Returns:
             List of earnings event dicts or None on failure.
             Each dict contains: date, symbol, eps, epsEstimated, revenue,
-            revenueEstimated, time (bmo/amc)
+            revenueEstimated, time. ``time`` is ``bmo``, ``amc``, or ``None``
+            when the provider has not confirmed a session (#352); requesting
+            it requires ``includeReportTimes=true`` below, or the key is
+            omitted from the response entirely.
         """
         cache_key = f"earnings_{from_date}_{to_date}"
         if cache_key in self.cache:
             return self.cache[cache_key]
 
         # Hardcoded v3 URL bypasses the stable→v3 fallback list; rewrite here.
+        # includeReportTimes must be the string "true"/"false" -- any other
+        # value (including a JSON boolean sent as Python True) is HTTP 400.
         url, params = v3_to_stable(
-            f"{self.BASE_URL}/earning_calendar", {"from": from_date, "to": to_date}
+            f"{self.BASE_URL}/earning_calendar",
+            {"from": from_date, "to": to_date, "includeReportTimes": "true"},
         )
         data = self._rate_limited_get(url, params)
         if data:

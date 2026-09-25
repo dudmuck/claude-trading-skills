@@ -1,0 +1,70 @@
+name: FMP contract canary
+
+# Weekly live probe for issue #332 (report-only until a promotion issue
+# makes it fail-closed — mirrors the packaged-deps-nightly / #349 pattern):
+# probes the four FMP endpoints covered by config/provider-contracts/fmp/
+# and scores the live response against the recorded contract, catching the
+# #328 failure class (HTTP 200, field renamed/removed) before a consumer
+# skill goes silently empty. PRs run the offline `check` subcommand instead
+# (see ci.yml's "Provider contract check" step); this workflow is the only
+# place that calls the live FMP API for this gate.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1" # weekly, Monday 12:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: Live FMP contract probe (report-only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Check FMP_API_KEY secret is present
+        id: key_check
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: |
+          if [ -z "$FMP_API_KEY" ]; then
+            echo "SKIPPED: FMP_API_KEY secret not set"
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.10"
+      - name: Sync locked project environment
+        if: steps.key_check.outputs.has_key == 'true'
+        run: |
+          uv sync --locked --no-install-project --extra dev --extra ci
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Run canary
+        if: steps.key_check.outputs.has_key == 'true'
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: |
+          python3 scripts/check_provider_contracts.py canary \
+            --report reports/fmp-canary-report.json
+
+      - name: Upload canary report
+        if: always() && steps.key_check.outputs.has_key == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fmp-canary-report
+          path: reports/fmp-canary-report.json
+          if-no-files-found: warn
+          retention-days: 30

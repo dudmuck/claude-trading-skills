@@ -598,12 +598,20 @@ def test_json_schema_keys_present(repo_metadata: dict[str, Any]) -> None:
         "skillset",
         "setup_bundle",
         "suggested_skills",
+        "operational_roles",
         "no_api",
         "no_api_path",
         "honest_gap",
         "note",
         "rationale",
+        "routing_diagnostics",
         "setup_path_ref",
+    }
+    assert set(r["routing_diagnostics"]) == {
+        "status",
+        "selected_persona",
+        "candidate_personas",
+        "explanation",
     }
     pw = r["primary_workflow"]
     assert set(pw) >= {
@@ -634,9 +642,77 @@ def test_json_schema_keys_present(repo_metadata: dict[str, Any]) -> None:
     assert r["setup_path_ref"] == "references/setup_paths.md"
 
 
+def test_operational_roles_cover_normal_setup_bundle(repo_metadata: dict[str, Any]) -> None:
+    r = recommend("I want to do swing trading", repo_metadata)
+    bundle_ids = set(r["setup_bundle"]["required"])
+    bundle_ids.update(r["setup_bundle"]["recommended"])
+    bundle_ids.update(r["setup_bundle"]["optional"])
+
+    assert set(r["operational_roles"]) == bundle_ids
+    assert all(
+        role["type"]
+        in {
+            "standalone",
+            "workflow_step",
+            "internal_component",
+            "research_only",
+        }
+        for role in r["operational_roles"].values()
+    )
+    rendered = render_text(r)
+    assert "Operational roles:" in rendered
+    assert all(f"  - {skill_id}:" in rendered for skill_id in bundle_ids)
+
+
+def test_operational_roles_cover_honest_gap_and_text(repo_metadata: dict[str, Any]) -> None:
+    r = recommend("I want to use short strategies", repo_metadata)
+    suggested_ids = {skill["id"] for skill in r["suggested_skills"]}
+
+    assert set(r["operational_roles"]) == suggested_ids
+    rendered = render_text(r)
+    assert "Operational roles:" in rendered
+    assert all(f"  - {skill_id}:" in rendered for skill_id in suggested_ids)
+
+
 def test_json_output_is_idempotent(repo_metadata: dict[str, Any]) -> None:
     q = "I want to invest long term but swing trade only when the market is favorable"
     assert dumps(recommend(q, repo_metadata)) == dumps(recommend(q, repo_metadata))
+
+
+def test_ambiguous_route_explains_all_candidates_without_changing_winner(
+    repo_metadata: dict[str, Any],
+) -> None:
+    result = recommend(
+        "I want to invest long term but swing trade only when the market is favorable",
+        repo_metadata,
+    )
+    diagnostics = result["routing_diagnostics"]
+    assert diagnostics == {
+        "status": "ambiguous",
+        "selected_persona": "part-time-swing-trader-regime-gated",
+        "candidate_personas": [
+            "part-time-swing-trader-regime-gated",
+            "swing-trader",
+        ],
+        "explanation": (
+            "Multiple personas matched; selected the first ordered persona "
+            "'part-time-swing-trader-regime-gated'."
+        ),
+    }
+    assert result["primary_workflow"]["id"] == "market-regime-daily"
+    assert "Routing: ambiguous" in render_text(result)
+
+
+def test_fallback_route_is_explicit_in_json_and_text(repo_metadata: dict[str, Any]) -> None:
+    result = recommend("asdf qwer zxcv", repo_metadata)
+    assert result["routing_diagnostics"] == {
+        "status": "fallback",
+        "selected_persona": None,
+        "candidate_personas": [],
+        "explanation": "No persona matched; used the universal beginner fallback.",
+    }
+    assert result["primary_workflow"]["id"] == "market-regime-daily"
+    assert "Routing: fallback" in render_text(result)
 
 
 # ---------------------------------------------------------------------------

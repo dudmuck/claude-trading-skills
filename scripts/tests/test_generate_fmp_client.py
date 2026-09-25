@@ -11,6 +11,10 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.provider_contracts import _APIKEY_RE
+
 GENERATED_SKILLS = {
     "pead-screener",
     "earnings-trade-analyzer",
@@ -21,12 +25,14 @@ GENERATED_SKILLS = {
     "canslim-screener",
     "macro-regime-detector",
     "market-top-detector",
+    "us-undervalued-growth-screener",
 }
 NO_COMPAT_SKILLS = {
     "ftd-detector",
     "canslim-screener",
     "macro-regime-detector",
     "market-top-detector",
+    "us-undervalued-growth-screener",
 }
 
 
@@ -248,7 +254,12 @@ def test_migration_knobs_default_off(gen):
         "batch_quote_url": {"vcp-screener", "ftd-detector"},
         "hist_normalize_list": {"vcp-screener", "ftd-detector"},
         "sp500_wikipedia": {"vcp-screener"},
-        "query_auth": {"vcp-screener", "ftd-detector", "earnings-trade-analyzer"},
+        "query_auth": {
+            "vcp-screener",
+            "ftd-detector",
+            "earnings-trade-analyzer",
+            "us-undervalued-growth-screener",
+        },
     }
     skills = _skills(gen)
     for flag, owners in expected.items():
@@ -331,3 +342,17 @@ def test_rate_limit_delay_is_per_skill_and_matches_the_docstring(gen):
         assert f"RATE_LIMIT_DELAY = {cfg.rate_limit_delay}  # {cfg.rate_limit_note}" in out
         assert f"- Rate limiting ({cfg.rate_limit_delay}s between requests)" in out
     assert _skills(gen)["vcp-screener"].rate_limit_delay == 0.1
+
+
+def test_generated_output_redacts_apikey_in_stderr(gen):
+    """Every rendered client masks apikey=/api_key= before printing (Issue #357).
+
+    The regex is duplicated verbatim (generated clients are standalone and cannot
+    import scripts/provider_contracts.py); this guards against the copies drifting
+    from the source of truth.
+    """
+    expected_pattern_literal = f'r"{_APIKEY_RE.pattern}"'
+    for cfg in _skills(gen).values():
+        out = gen.render_fmp_client(cfg)
+        assert "_redact_key(" in out, cfg.skill
+        assert expected_pattern_literal in out, cfg.skill

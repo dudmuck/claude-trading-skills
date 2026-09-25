@@ -3,7 +3,7 @@ layout: default
 title: "Stockbee Momentum Burst Screener"
 grand_parent: English
 parent: Skill Guides
-nav_order: 66
+nav_order: 67
 lang_peer: /ja/skills/stockbee-momentum-burst-screener/
 permalink: /en/skills/stockbee-momentum-burst-screener/
 generated: true

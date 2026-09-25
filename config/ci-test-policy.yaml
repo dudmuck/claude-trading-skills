@@ -46,12 +46,6 @@ coverage:
       expires_on: "2026-10-31"
       issue: 293
       reason: Ratchet from the 2026-08-10 executable-code baseline.
-    earnings-calendar:
-      floor: 48
-      target: 70
-      expires_on: "2026-10-31"
-      issue: 293
-      reason: Ratchet from the 2026-08-10 executable-code baseline.
     earnings-trade-analyzer:
       floor: 67
       target: 70
@@ -70,12 +64,6 @@ coverage:
       expires_on: "2026-10-31"
       issue: 293
       reason: Ratchet from the 2026-08-10 executable-code baseline.
-    ftd-detector:
-      floor: 65
-      target: 70
-      expires_on: "2026-10-31"
-      issue: 293
-      reason: Ratchet from the 2026-08-10 executable-code baseline.
     ibd-distribution-day-monitor:
       floor: 38
       target: 70
@@ -88,24 +76,12 @@ coverage:
       expires_on: "2026-10-31"
       issue: 293
       reason: Ratchet from the 2026-08-10 executable-code baseline.
-    market-breadth-analyzer:
-      floor: 69
-      target: 70
-      expires_on: "2026-10-31"
-      issue: 293
-      reason: Ratchet from the 2026-08-10 executable-code baseline.
     pair-trade-screener:
       floor: 56
       target: 70
       expires_on: "2026-10-31"
       issue: 293
       reason: Ratchet from the 2026-08-10 executable-code baseline.
-    position-sizer:
-      floor: 71
-      target: 85
-      expires_on: "2026-10-31"
-      issue: 293
-      reason: Ratchet core financial-math coverage toward the 85% target.
     signal-postmortem:
       floor: 40
       target: 70
@@ -172,6 +148,34 @@ coverage:
 allowed_failures: {}
 
 matrix:
+  breakout-trade-planner:
+    requirements:
+    - pandas-market-calendars==5.2.2
+    reason: Exercise the pinned shared cash-equity calendar contract.
+  drawdown-circuit-breaker:
+    requirements:
+    - pandas-market-calendars==5.2.2
+    reason: Exercise the pinned shared cash-equity calendar contract.
+  earnings-trade-analyzer:
+    requirements:
+    - pandas-market-calendars==5.2.2
+    reason: Exercise session-aware earnings-calendar empty-response classification.
+  market-environment-analysis:
+    requirements:
+    - pandas-market-calendars==5.2.2
+    reason: Exercise the pinned shared cash-equity calendar contract.
+  market-top-detector:
+    requirements:
+    - pandas-market-calendars==5.2.2
+    reason: Exercise the pinned shared cash-equity calendar contract.
+  parabolic-short-trade-planner:
+    requirements:
+    - pandas-market-calendars==5.2.2
+    reason: Exercise the pinned shared cash-equity calendar contract.
+  theme-detector:
+    requirements:
+    - pandas-market-calendars==5.2.2
+    reason: Exercise the pinned shared cash-equity calendar contract.
   canslim-screener:
     test_paths:
     - skills/canslim-screener/scripts/tests/test_fmp_fallback.py

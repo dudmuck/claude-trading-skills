@@ -10,7 +10,7 @@ permalink: /ja/skill-catalog/
 # スキル一覧
 {: .no_toc }
 
-Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各スキルのAPI要件バッジで、利用に必要な外部サービスをすぐに確認できます。
+全78個のClaude Trading Skillsをカテゴリ別に紹介します。各スキルのAPI要件バッジで、利用に必要な外部サービスをすぐに確認できます。
 {: .fs-6 .fw-300 }
 
 > 検索は英語スキル名（"CANSLIM", "VCP", "FinViz"等）での検索を推奨します。日本語の部分一致検索は制限があります。
@@ -38,6 +38,95 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 
 ---
 
+## 運用ロールマトリクス
+
+<!-- skills-index:start name="operational-roles-ja" -->
+<!-- このマトリクスは skills-index.yaml から scripts/generate_catalog_from_index.py で自動生成されます。手動編集しないでください。 -->
+
+| スキル | 運用ロール | standalone の理由 |
+|---|---|---|
+| `adversarial-trade-debate` | `standalone` | Red-teams a single candidate on demand; no workflow supplies its input. |
+| `backtest-expert` | `workflow_step` | — |
+| `breadth-chart-analyst` | `standalone` | Directly analyzes user-supplied breadth charts without a workflow handoff. |
+| `breakout-trade-planner` | `workflow_step` | — |
+| `canslim-screener` | `workflow_step` | — |
+| `contrarian-setup-gate` | `workflow_step` | — |
+| `cot-contrarian-detector` | `workflow_step` | — |
+| `crypto-regime-analyzer` | `standalone` | Provides an independent crypto regime assessment on demand. |
+| `data-quality-checker` | `standalone` | Runs directly against a document before publication or review. |
+| `dealer-gamma-analyzer` | `standalone` | Maps dealer gamma for one symbol on demand from a keyless public feed. |
+| `dividend-growth-pullback-screener` | `workflow_step` | — |
+| `downtrend-duration-analyzer` | `research_only` | — |
+| `drawdown-circuit-breaker` | `workflow_step` | — |
+| `dual-axis-skill-reviewer` | `workflow_step` | — |
+| `earnings-calendar` | `standalone` | Fetches an earnings calendar as an independent event-planning utility. |
+| `earnings-trade-analyzer` | `workflow_step` | — |
+| `econ-indicator-explainer` | `standalone` | Static lookup answered directly for the user; no workflow handoff. |
+| `economic-calendar-fetcher` | `standalone` | Fetches economic events as an independent planning utility. |
+| `edge-candidate-agent` | `workflow_step` | — |
+| `edge-concept-synthesizer` | `internal_component` | — |
+| `edge-hint-extractor` | `workflow_step` | — |
+| `edge-pipeline-orchestrator` | `research_only` | — |
+| `edge-signal-aggregator` | `standalone` | Directly consolidates selected local research outputs into a ranked dashboard. |
+| `edge-strategy-designer` | `internal_component` | — |
+| `edge-strategy-reviewer` | `internal_component` | — |
+| `exposure-coach` | `workflow_step` | — |
+| `finviz-screener` | `standalone` | Builds a screener URL directly from a user's standalone screening request. |
+| `ftd-detector` | `standalone` | Runs an independent follow-through-day assessment when requested. |
+| `futures-position-sizer` | `workflow_step` | — |
+| `fxmacrodata-calendar` | `standalone` | Fetches official macro calendar data directly for event-risk planning. |
+| `ibd-distribution-day-monitor` | `standalone` | Runs an independent distribution-day risk assessment for QQQ or SPY. |
+| `institutional-flow-tracker` | `standalone` | Produces an independent institutional ownership and flow assessment on demand. |
+| `kanchi-dividend-review-monitor` | `workflow_step` | — |
+| `kanchi-dividend-sop` | `workflow_step` | — |
+| `kanchi-dividend-us-tax-accounting` | `workflow_step` | — |
+| `macro-regime-detector` | `workflow_step` | — |
+| `manifoldbt-backtester` | `research_only` | — |
+| `market-breadth-analyzer` | `workflow_step` | — |
+| `market-environment-analysis` | `workflow_step` | — |
+| `market-news-analyst` | `workflow_step` | — |
+| `market-top-detector` | `workflow_step` | — |
+| `mt5-robot-tester` | `research_only` | — |
+| `news-reaction-failure-analyzer` | `workflow_step` | — |
+| `options-strategy-advisor` | `standalone` | Provides self-contained options education, pricing, and scenario analysis. |
+| `pair-trade-screener` | `standalone` | Screens and analyzes pair-trade candidates as a self-contained tool. |
+| `parabolic-short-trade-planner` | `standalone` | Runs its own screening and conditional short-planning lifecycle. |
+| `pead-screener` | `workflow_step` | — |
+| `portfolio-manager` | `workflow_step` | — |
+| `position-sizer` | `workflow_step` | — |
+| `pre-trade-discipline-gate` | `workflow_step` | — |
+| `residual-edge-analyzer` | `research_only` | — |
+| `scenario-analyzer` | `workflow_step` | — |
+| `sector-analyst` | `workflow_step` | — |
+| `short-squeeze-radar` | `standalone` | Ranks a user-supplied ticker list on demand from free FINRA files. |
+| `signal-postmortem` | `workflow_step` | — |
+| `skill-designer` | `internal_component` | — |
+| `skill-idea-miner` | `internal_component` | — |
+| `skill-integration-tester` | `standalone` | Validates selected skill handoffs directly as a repository maintenance tool. |
+| `stanley-druckenmiller-investment` | `workflow_step` | — |
+| `stockbee-20pct-study` | `workflow_step` | — |
+| `stockbee-episodic-pivot-analyzer` | `workflow_step` | — |
+| `stockbee-exhaustion-hammer-screener` | `workflow_step` | — |
+| `stockbee-momentum-burst-screener` | `workflow_step` | — |
+| `stockbee-setup-fluency-trainer` | `workflow_step` | — |
+| `strategy-pivot-designer` | `research_only` | — |
+| `technical-analyst` | `workflow_step` | — |
+| `theme-detector` | `workflow_step` | — |
+| `trade-hypothesis-ideator` | `workflow_step` | — |
+| `trade-performance-coach` | `workflow_step` | — |
+| `trader-memory-core` | `workflow_step` | — |
+| `trading-skills-navigator` | `standalone` | Acts as the direct user on-ramp that recommends, but does not join, workflows. |
+| `uptrend-analyzer` | `workflow_step` | — |
+| `us-market-bubble-detector` | `standalone` | Produces an independent market bubble-risk assessment on demand. |
+| `us-stock-analysis` | `standalone` | Produces a self-contained research report for a requested US equity. |
+| `us-undervalued-growth-screener` | `standalone` | Executes an end-to-end US GARP screen from a minimal request. In Claude Code it runs a local direct-FMP pipeline that keeps bulk payloads out of model context, then completes selected SEC/IR underwriting and publishes only a scope-correct audited result. |
+| `value-dividend-screener` | `workflow_step` | — |
+| `vcp-screener` | `workflow_step` | — |
+| `weekly-performance-digest` | `standalone` | Generates a standalone weekly digest from supplied closed-trade records. |
+<!-- skills-index:end name="operational-roles-ja" -->
+
+---
+
 ## 1. 銘柄スクリーニング
 
 | スキル | 説明 | API要件 |
@@ -46,14 +135,15 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **VCP Screener** | Mark MinerviniのVolatility Contraction Pattern を検出。Stage 2上昇トレンド銘柄のボラティリティ収縮とブレイクアウトポイントを識別 | <span class="badge badge-api">FMP必須</span> |
 | **Stockbee Momentum Burst Screener** | Stockbee型の短期モメンタムバースト候補をスクリーニング。4%ブレイクアウト、ドルブレイクアウト、レンジ拡大トリガーをセットアップ品質・リスク幅で0-100点（A/B/Watch）評価。候補生成専用で technical-analyst / position-sizer に接続 | <span class="badge badge-api">FMP必須</span> <span class="badge badge-optional">ローカルJSON任意</span> |
 | **[Stockbee Exhaustion Hammer Screener]({{ '/ja/skills/stockbee-exhaustion-hammer-screener/' | relative_url }})** | Stockbee型の売り枯れハンマー候補をスクリーニング。流動性、直前モメンタム、押し目の深さ、undercut/reclaim、長い下ヒゲ、終値位置、ストップまでのリスクを評価する候補生成専用スキル | <span class="badge badge-api">FMP必須</span> <span class="badge badge-optional">ローカルJSON任意</span> |
-| **FinViz Screener** | 自然言語（日本語/英語）でFinVizスクリーニング条件を構築。500以上のフィルターコードに対応し、Chromeで結果を表示。**テーマクロス検索**（30以上のテーマ × 268サブテーマ）で「AI × 物流」「データセンター × 電力」等のナラティブベース検索が可能 | <span class="badge badge-free">API不要</span> <span class="badge badge-optional">FINVIZ任意</span> |
+| **Finviz Screener** | 自然言語（日本語/英語）でFinVizスクリーニング条件を構築。500以上のフィルターコードに対応し、Chromeで結果を表示。**テーマクロス検索**（30以上のテーマ × 268サブテーマ）で「AI × 物流」「データセンター × 電力」等のナラティブベース検索が可能 | <span class="badge badge-free">API不要</span> <span class="badge badge-optional">FINVIZ任意</span> |
 | **Value Dividend Screener** | 高配当バリュー株をスクリーニング。P/E、P/B、配当利回り、3年成長トレンドで多段階フィルタリング | <span class="badge badge-api">FMP必須</span> <span class="badge badge-optional">FINVIZ任意</span> |
+| **[US Undervalued Growth Screener]({{ '/ja/skills/us-undervalued-growth-screener/' | relative_url }})** | Claude Code向け米国中小型GARPスクリーナー。FMP直接取得パイプラインとローカルキャッシュ、FY1予想正規化、流動性検証、フォワード同一基準バリュエーション、SBC調整FCF、公開前監査、自己完結型エビデンスバンドル | <span class="badge badge-optional">FMP推奨</span> |
 | **Dividend Growth Pullback Screener** | 年間配当成長12%以上の高品質配当成長株で、RSI 40以下のプルバック中の銘柄を検出 | <span class="badge badge-api">FMP必須</span> <span class="badge badge-optional">FINVIZ任意</span> |
 | **Earnings Trade Analyzer** | 直近決算銘柄を5要素加重スコアリング（ギャップ、トレンド、出来高、MA200、MA50）でA-Dグレード評価 | <span class="badge badge-api">FMP必須</span> |
 | **PEAD Screener** | 決算ギャップアップ銘柄のPost-Earnings Announcement Drift パターンを週足分析。MONITORING→SIGNAL_READY→BREAKOUTのステージ管理 | <span class="badge badge-api">FMP必須</span> |
-| **[Short-Squeeze Radar]({{ '/ja/skills/short-squeeze-radar/' | relative_url }})** | FINRAのReg SHO日次空売り出来高ファイル（無料・認証不要）で米国株のショートスクイーズ余地をランク付け。空売り比率の上昇変曲点を検出し、混雑ショート銘柄を抽出 | <span class="badge badge-free">API不要</span> |
 | **FTD Detector** | William O'Neilの手法でFollow-Through Day シグナルを検出。市場底打ち確認のためのデュアルインデックス追跡 | <span class="badge badge-api">FMP必須</span> |
 | **Institutional Flow Tracker** | 13F SEC提出書類で機関投資家の蓄積・分配パターンを追跡。スーパーインベスター重み付き品質フレームワーク | <span class="badge badge-api">FMP必須</span> |
+| **[Short-Squeeze Radar]({{ '/ja/skills/short-squeeze-radar/' | relative_url }})** | FINRA Reg SHOの無料日次空売り出来高データから米国株のショートスクイーズ可能性をランク付け。空売り比率の変曲点と過密ショート銘柄を検出 | <span class="badge badge-free">API不要</span> |
 
 ---
 
@@ -70,13 +160,15 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **Uptrend Analyzer** | 約2,800銘柄・11セクターの上昇トレンド比率を5コンポーネント複合スコアで診断 | <span class="badge badge-free">API不要</span> |
 | **Macro Regime Detector** | クロスアセット比率分析で構造的マクロレジーム転換（1-2年ホライズン）を検出 | <span class="badge badge-free">API不要</span> <span class="badge badge-optional">FMP任意</span> |
 | **[US Market Bubble Detector]({{ '/ja/skills/us-market-bubble-detector/' | relative_url }})** | ミンスキー/キンドルバーガーフレームワークの8指標バブルメーター。ステージ別プレイブック付き | <span class="badge badge-free">API不要</span> |
-| **[Dealer Gamma Analyzer]({{ '/ja/skills/dealer-gamma-analyzer/' | relative_url }})** | CBOEの無料15分遅延オプションデータからディーラーのガンマエクスポージャー（GEX）を算出。ガンマウォール・ガンマフリップ・マックスペインを明示的なサポート/レジスタンス価格として提示し、ピン型（正ガンマ）とスクイーズ型（負ガンマ）レジームを判定。`--min-dte`/`--max-dte`で満期レンジを限定可能 | <span class="badge badge-free">API不要</span> |
 | **Market Top Detector** | O'NeilのDistribution Days、MinerviniのLeading Stock劣化、Defensive Rotationで天井確率を検出 | <span class="badge badge-free">API不要</span> |
 | **[IBD Distribution Day Monitor]({{ '/ja/skills/ibd-distribution-day-monitor/' | relative_url }})** | QQQ/SPYのIBD式Distribution Dayを日次検出。25セッション失効・5%上昇無効化を追跡し、d5/d15/d25クラスタからNORMAL/CAUTION/HIGH/SEVERE判定とTQQQ/QQQエクスポージャ推奨を生成 | <span class="badge badge-api">FMP必須</span> |
 | **[Downtrend Duration Analyzer]({{ '/ja/skills/downtrend-duration-analyzer/' | relative_url }})** | 過去の下落トレンド期間（ピーク→トラフ）を分析し、セクター・時価総額別のインタラクティブヒストグラムを生成 | <span class="badge badge-api">FMP必須</span> |
 | **[COT Contrarian Detector]({{ '/ja/skills/cot-contrarian-detector/' | relative_url }})** | COT Indexにより65のCFTC先物市場における大口投機筋の偏ったポジションを検出。ジェイソン・シャピロ式逆張り手法のステップ1 | <span class="badge badge-api">FMP必須</span> |
 | **[News Reaction Failure Analyzer]({{ '/ja/skills/news-reaction-failure-analyzer/' | relative_url }})** | モンテカルロ検証済みのドリフト有意性検定により、偏った市場が好材料に反応しなかったかを判定。ジェイソン・シャピロ式逆張り手法のステップ2 | <span class="badge badge-api">FMP必須</span> |
 | **[Contrarian Setup Gate]({{ '/ja/skills/contrarian-setup-gate/' | relative_url }})** | 偏りポジション・ニュースフェイリュア・価格アクションの3判定をフェイルクローズドな優先順位付き状態遷移マシンで統合し、ジェイソン・シャピロ式逆張り手法の判断中枢を担う。ベータ版、完全オフライン計算 | <span class="badge badge-free">API不要</span> |
+| **[Crypto Regime Analyzer]({{ '/ja/skills/crypto-regime-analyzer/' | relative_url }})** | 無料・キー不要の公開データ6要素から暗号資産市場のレジーム健全性を定量化。オフラインスナップショットにも対応 | <span class="badge badge-free">API不要</span> |
+| **[Dealer Gamma Analyzer]({{ '/ja/skills/dealer-gamma-analyzer/' | relative_url }})** | CBOEの無料遅延オプションデータからディーラーのガンマ・エクスポージャー(GEX)を定量化。ガンマウォール・ガンマフリップ・マックスペインを価格水準として描画し、ピン留め型か踏み上げ型かの地合いを判定 | <span class="badge badge-free">API不要</span> |
+| **[Econ Indicator Explainer]({{ '/ja/skills/econ-indicator-explainer/' | relative_url }})** | 米国経済指標の「なぜ重要か」を参照。指標の意味・市場が注目する理由・発表後60分のSPY/TLT/DXY/VIXの典型的反応を提供。economic-calendar-fetcherと併用 | <span class="badge badge-free">API不要</span> |
 
 ---
 
@@ -87,6 +179,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **Theme Detector** | FINVIZの業種データで上昇・下落テーマを3次元スコアリング（Heat、Lifecycle、Confidence）で検出 | <span class="badge badge-free">API不要</span> <span class="badge badge-optional">FMP任意</span> <span class="badge badge-optional">FINVIZ任意</span> |
 | **[Scenario Analyzer]({{ '/ja/skills/scenario-analyzer/' | relative_url }})** | ニュースヘッドラインから18ヶ月シナリオ分析。1次・2次・3次影響と推奨銘柄を生成 | <span class="badge badge-free">API不要</span> |
 | **[Backtest Expert]({{ '/ja/skills/backtest-expert/' | relative_url }})** | 戦略仮説のパラメータ堅牢性検証、ウォークフォワード検証を含むプロフェッショナルグレード検証フレームワーク | <span class="badge badge-free">API不要</span> |
+| **[manifoldbt Backtester]({{ '/ja/skills/manifoldbt-backtester/' | relative_url }})** | Runs a declarative strategy spec over OHLCV bars with the manifoldbt Rust engine and emits the eight inputs backtest-expert scores _(EN, awaiting translation)_ | <span class="badge badge-free">API不要</span> |
 | **[MT5 Robot Tester]({{ '/ja/skills/mt5-robot-tester/' | relative_url }})** | ローカルのMetaTrader 5 EAを再開可能な3ラウンドで一括検証し、上書きを防ぐファイル処理、決定論的ゲート、実行間学習を提供。Windows、MT5、EAファイル、ブローカーのtick dataが必要 | <span class="badge badge-free">API不要</span> |
 | **[Stockbee 20% Study]({{ '/ja/skills/stockbee-20pct-study/' | relative_url }})** | +20% / -20% mover のモデルブックを日次で作成し、カタリスト、チャート文脈、将来リターン、コホート傾向を研究用に整理。売買シグナルではなく仮説作成専用 | <span class="badge badge-api">FMP必須</span> <span class="badge badge-optional">ローカルJSON任意</span> |
 | **Options Strategy Advisor** | Black-Scholesモデルで理論価格・グリークス算出。17以上のオプション戦略を教育的に解説 | <span class="badge badge-optional">FMP任意</span> |
@@ -106,7 +199,6 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **[Drawdown Circuit Breaker]({{ '/ja/skills/drawdown-circuit-breaker/' | relative_url }})** | trader-memory-coreの状態を読み、実現損益・連敗・週次/月次ドローダウンから TRADING_ALLOWED / COOLDOWN / HALTED を返す口座レベルの新規リスクゲート | <span class="badge badge-free">API不要</span> |
 | **[Weekly Performance Digest]({{ '/ja/skills/weekly-performance-digest/' | relative_url }})** | クローズドトレードから週次パフォーマンスサマリを生成。勝率・期待値・プロフィットファクター・Rマルチプル・MAE/MFE と、ソーススキル／エグジット理由／テシスタイプ／セクター／メカニズム別の勝敗パターン分析を出力。ローカル計算のみ | <span class="badge badge-free">API不要</span> |
 | **[Position Sizer]({{ '/ja/skills/position-sizer/' | relative_url }})** | Fixed Fractional、ATRベース、Kelly Criterionの3手法でリスクベースポジションサイズを計算 | <span class="badge badge-free">API不要</span> |
-| **[Adversarial Trade Debate]({{ '/ja/skills/adversarial-trade-debate/' | relative_url }})** | 2段階のディベートで候補を反対尋問。強気vs弱気を5段階のコンビクション評価に集約し（中立回避）、次に積極vs保守のリスク議論をポートフォリオマネージャーが裁定して最終的なアクション/エントリー/ストップ/サイズを決定。Beta | <span class="badge badge-free">API不要</span> |
 | **[Futures Position Sizer]({{ '/ja/skills/futures-position-sizer/' | relative_url }})** | 方向・エントリー・ストップから先物のコントラクト数を計算。検証済みの23銘柄契約仕様テーブル（乗数・ティックサイズ・ティック価値）を使用し、明示フラグまたはcontrarian-setup-gateのREADY_FOR_PLAN引き継ぎに対応。Beta。オフラインで動作 | <span class="badge badge-free">API不要</span> |
 | **[Breakout Trade Planner]({{ '/ja/skills/breakout-trade-planner/' | relative_url }})** | VCPスクリーナー出力からミネルヴィニ式ブレイクアウトトレードプランを生成。worst-case entryベースのGate、stop-limit bracketテンプレート（pre_place / post_confirm）、ポートフォリオヒート管理 | <span class="badge badge-free">API不要</span> |
 | **[Parabolic Short Trade Planner]({{ '/ja/skills/parabolic-short-trade-planner/' | relative_url }})** | Parabolic Short 候補の日次スクリーナー（5因子加重スコア）と寄り前プラン生成器。候補ごとに3種類のトリガー（5min ORL ブレイク / First Red 5-min / VWAP fail）を条件付きプランとして出力。Alpaca ETB-only ショート確認は `requests` 直叩き（SDK 非依存）、SEC Rule 201 SSR トラッカー、blocking / advisory 分離型 manual confirmation | <span class="badge badge-api">FMP必須</span> <span class="badge badge-optional">Alpaca任意</span> |
@@ -114,8 +206,9 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | **[US Stock Analysis]({{ '/ja/skills/us-stock-analysis/' | relative_url }})** | ファンダメンタル、テクニカル、同業比較を網羅した包括的米国株リサーチアシスタント | <span class="badge badge-free">API不要</span> |
 | **Earnings Calendar** | FMP APIで今後の決算発表を取得。時価総額$2B以上の中大型株に焦点 | <span class="badge badge-api">FMP必須</span> |
 | **Economic Calendar Fetcher** | FMP APIで7-90日間の経済イベントを取得。インパクト評価付き時系列レポート | <span class="badge badge-api">FMP必須</span> |
-| **[Econ Indicator Explainer]({{ '/ja/skills/econ-indicator-explainer/' | relative_url }})** | 米国主要指標約30種の静的ナレッジカード。各指標の内容、市場が注目する理由、発表後60分の典型的なSPY/TLT/DXY/VIX反応を提供。API呼び出しなしでeconomic-calendar-fetcherの出力を補完 | <span class="badge badge-free">API不要</span> |
 | **[FXMacroData Calendar]({{ '/ja/skills/fxmacrodata-calendar/' | relative_url }})** | FXMacroDataを使い公式ソースのマクロ発表カレンダーイベントを取得。トレードプランニングとイベントリスクフィルタに利用。USDの公開カレンダー行はキーなしで動作。Beta | <span class="badge badge-optional">FXMacroDataキー任意</span> |
+| **[Pre-Trade Discipline Gate]({{ '/ja/skills/pre-trade-discipline-gate/' | relative_url }})** | 注文計画を進める前に決定論的な事前チェックリストとフェイルクローズド判断ゲートを適用 | <span class="badge badge-free">API不要</span> |
+| **[Adversarial Trade Debate]({{ '/ja/skills/adversarial-trade-debate/' | relative_url }})** | 候補銘柄を2段階の敵対的ディベートにかける。強気対弱気を5段階の確信度に判定し、次に積極対保守のリスク量をポートフォリオマネージャー役が判定して最終のアクション/エントリー/ストップ/サイズを決定 | <span class="badge badge-free">API不要</span> |
 
 ---
 
@@ -150,11 +243,13 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 | スキル | 説明 | API要件 |
 |--------|------|---------|
 | **Data Quality Checker** | マーケット分析ドキュメントの価格スケール、日付曜日、配分合計、単位の不整合を検証 | <span class="badge badge-free">API不要</span> |
-| **Dual-Axis Skill Reviewer** | デュアルアクシス方式でスキル品質をレビュー。決定論的オートスコアリング + オプションLLMレビュー | <span class="badge badge-free">API不要</span> |
+| **Dual Axis Skill Reviewer** | デュアルアクシス方式でスキル品質をレビュー。決定論的オートスコアリング + オプションLLMレビュー | <span class="badge badge-free">API不要</span> |
 | **Skill Designer** | 構造化されたアイデア仕様からClaudeスキルを設計。SKILL.md、references、scripts、testsを含む完全なスキルディレクトリを生成 | <span class="badge badge-free">API不要</span> |
 | **Skill Idea Miner** | Claude Codeセッションログからスキルアイデア候補を抽出・スコアリング・バックログ化 | <span class="badge badge-free">API不要</span> |
 | **Skill Integration Tester** | CLAUDE.mdで定義されたマルチスキルワークフローをスキル存在、データ契約互換性、ハンドオフ整合性の観点で検証 | <span class="badge badge-free">API不要</span> |
 | **Trade Hypothesis Ideator** | マーケットデータ、トレードログ、ジャーナルから反証可能なトレード仮説を生成しランキング。strategy.yamlエクスポート対応 | <span class="badge badge-free">API不要</span> |
+| **[Stockbee Episodic Pivot Analyzer]({{ '/ja/skills/stockbee-episodic-pivot-analyzer/' | relative_url }})** | エピソディックピボット候補のカタリスト、価格、出来高、フォロースルーの根拠を分析 | <span class="badge badge-optional">FMP任意</span> |
+| **[Stockbee Setup Fluency Trainer]({{ '/ja/skills/stockbee-setup-fluency-trainer/' | relative_url }})** | ローカル事例からStockbeeセットアップ認識を反復練習し、必要に応じてFMPデータで補強 | <span class="badge badge-optional">FMP任意</span> |
 | **[Trading Skills Navigator]({{ '/ja/skills/trading-skills-navigator/' | relative_url }})** | オンランプ。自然言語のトレード目標から最適なワークフロー・スキルセット・API要件・セットアップ手順を推奨。決定論的レコメンダーと「該当ワークフロー未提供」の正直なギャップ提示。API不要・初心者向けパス対応 | <span class="badge badge-free">API不要</span> |
 | **Weekly Trade Strategy** | 週次トレード戦略の構造化テンプレートとワークフロー | <span class="badge badge-workflow">ワークフロー</span> |
 
@@ -172,6 +267,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 
 ### 配当収入がほしい
 
+- **[US Undervalued Growth Screener]({{ '/ja/skills/us-undervalued-growth-screener/' | relative_url }})** - 米国中小型株の監査付きGARPスクリーニング
 - **Value Dividend Screener** - 高配当バリュー株をスクリーニング
 - **Dividend Growth Pullback Screener** - 増配株のプルバック買い機会を検出
 - **Kanchi Dividend SOP** - かんち式5ステップで体系的に配当株を選定
@@ -197,6 +293,7 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 ### 戦略を検証したい
 
 - **[Backtest Expert]({{ '/ja/skills/backtest-expert/' | relative_url }})** - 戦略仮説のプロフェッショナルグレード検証
+- **[manifoldbt Backtester]({{ '/ja/skills/manifoldbt-backtester/' | relative_url }})** - Executes a strategy spec and produces the metrics backtest-expert scores _(EN, awaiting translation)_
 - **Strategy Pivot Designer** - 停滞した戦略から新しいアプローチを生成
 
 ### ポートフォリオを管理したい
@@ -211,46 +308,84 @@ Claude Trading Skillsの全スキルをカテゴリ別に紹介します。各�
 ## API要件マトリクス
 
 | スキル | FMP | FINVIZ Elite | Alpaca |
-|--------|-----|-------------|--------|
-| CANSLIM Screener | 必須 | - | - |
-| VCP Screener | 必須 | - | - |
-| FinViz Screener | - | 任意 | - |
-| Value Dividend Screener | 必須 | 推奨 | - |
-| Dividend Growth Pullback Screener | 必須 | 推奨 | - |
-| Earnings Trade Analyzer | 必須 | - | - |
-| PEAD Screener | 必須 | - | - |
-| Short-Squeeze Radar | - | - | - |
-| Dealer Gamma Analyzer | - | - | - |
+|-------|-----|--------------|--------|
 | Adversarial Trade Debate | - | - | - |
-| FTD Detector | 必須 | - | - |
-| Institutional Flow Tracker | 必須 | - | - |
-| Theme Detector | 任意 | 推奨 | - |
-| Pair Trade Screener | 必須 | - | - |
-| Macro Regime Detector | 任意 | - | - |
-| Options Strategy Advisor | 任意 | - | - |
-| Portfolio Manager | - | - | 必須 |
-| Trader Memory Core | 任意 | - | - |
-| Earnings Calendar | 必須 | - | - |
-| Economic Calendar Fetcher | 必須 | - | - |
-| Econ Indicator Explainer | - | - | - |
-| Downtrend Duration Analyzer | 必須 | - | - |
-| IBD Distribution Day Monitor | 必須 | - | - |
-| Parabolic Short Trade Planner | 必須 | - | - |
-| Edge Candidate Agent | 任意 | - | - |
-| Kanchi Dividend Review Monitor | 任意 | - | - |
-| Kanchi Dividend SOP | 任意 | - | - |
-| Stockbee Momentum Burst Screener | 必須 | - | - |
-| Stockbee Episodic Pivot Analyzer | 任意 | - | - |
-| Stockbee Setup Fluency Trainer | 任意 | - | - |
-| Stockbee 20pct Study | 必須 | - | - |
-| Stockbee Exhaustion Hammer Screener | 必須 | - | - |
-| Drawdown Circuit Breaker | - | - | - |
-| COT Contrarian Detector | 必須 | - | - |
-| News Reaction Failure Analyzer | 必須 | - | - |
-| Technical Analyst | 任意 | - | - |
+| Backtest Expert | - | - | - |
+| Breadth Chart Analyst | - | - | - |
+| Breakout Trade Planner | - | - | - |
+| CANSLIM Screener | 必須 | - | - |
 | Contrarian Setup Gate | - | - | - |
+| COT Contrarian Detector | 必須 | - | - |
+| Crypto Regime Analyzer | - | - | - |
+| Data Quality Checker | - | - | - |
+| Dealer Gamma Analyzer | - | - | - |
+| Dividend Growth Pullback Screener | 必須 | 推奨 | - |
+| Downtrend Duration Analyzer | - | - | - |
+| Drawdown Circuit Breaker | - | - | - |
+| Dual Axis Skill Reviewer | - | - | - |
+| Earnings Calendar | 必須 | - | - |
+| Earnings Trade Analyzer | 必須 | - | - |
+| Econ Indicator Explainer | - | - | - |
+| Economic Calendar Fetcher | 必須 | - | - |
+| Edge Candidate Agent | 任意 | - | - |
+| Edge Concept Synthesizer | - | - | - |
+| Edge Hint Extractor | - | - | - |
+| Edge Pipeline Orchestrator | - | - | - |
+| Edge Signal Aggregator | - | - | - |
+| Edge Strategy Designer | - | - | - |
+| Edge Strategy Reviewer | - | - | - |
+| Exposure Coach | - | - | - |
+| Finviz Screener | - | 任意 | - |
+| FTD Detector | 必須 | - | - |
 | Futures Position Sizer | - | - | - |
+| FXMacroData Calendar | - | - | - |
+| IBD Distribution Day Monitor | 必須 | - | - |
+| Institutional Flow Tracker | 必須 | - | - |
+| Kanchi Dividend Review Monitor | 推奨 | - | - |
+| Kanchi Dividend SOP | 推奨 | - | - |
+| Kanchi Dividend US Tax Accounting | - | - | - |
+| Macro Regime Detector | 任意 | - | - |
+| manifoldbt Backtester | - | - | - |
+| Market Breadth Analyzer | - | - | - |
+| Market Environment Analysis | - | - | - |
+| Market News Analyst | - | - | - |
+| Market Top Detector | - | - | - |
 | MT5 Robot Tester | - | - | - |
-| その他すべてのスキル | - | - | - |
+| News Reaction Failure Analyzer | 必須 | - | - |
+| Options Strategy Advisor | 任意 | - | - |
+| Pair Trade Screener | 必須 | - | - |
+| Parabolic Short Trade Planner | 必須 | - | 任意 |
+| PEAD Screener | 必須 | - | - |
+| Portfolio Manager | - | - | 必須 |
+| Position Sizer | - | - | - |
+| Pre-Trade Discipline Gate | - | - | - |
+| Residual Edge Analyzer | - | - | - |
+| Scenario Analyzer | - | - | - |
+| Sector Analyst | - | - | - |
+| Short-Squeeze Radar | - | - | - |
+| Signal Postmortem | - | - | - |
+| Skill Designer | - | - | - |
+| Skill Idea Miner | - | - | - |
+| Skill Integration Tester | - | - | - |
+| Stanley Druckenmiller Investment | - | - | - |
+| Stockbee 20% Study | 必須 | - | - |
+| Stockbee Episodic Pivot Analyzer | 任意 | - | - |
+| Stockbee Exhaustion Hammer Screener | 必須 | - | - |
+| Stockbee Momentum Burst Screener | 必須 | - | - |
+| Stockbee Setup Fluency Trainer | 任意 | - | - |
+| Strategy Pivot Designer | - | - | - |
+| Technical Analyst | 任意 | - | - |
+| Theme Detector | 任意 | 推奨 | - |
+| Trade Hypothesis Ideator | - | - | - |
+| Trade Performance Coach | - | - | - |
+| Trader Memory Core | 任意 | - | - |
+| Trading Skills Navigator | - | - | - |
+| Uptrend Analyzer | - | - | - |
+| US Market Bubble Detector | - | - | - |
+| US Stock Analysis | - | - | - |
+| US Undervalued Growth Screener | 推奨 | - | - |
+| Value Dividend Screener | 必須 | 推奨 | - |
+| VCP Screener | 必須 | - | - |
+| Weekly Performance Digest | - | - | - |
 
-「-」は不要を意味します。「任意」はあれば機能強化、なくても基本機能は動作します。
+「-」は不要を意味します。「必須」はそのプロバイダーなしでは実行できないこと、「推奨」は代替手段があるものの優先される経路であること、「任意」は機能強化にのみ使用することを意味します。
