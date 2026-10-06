@@ -13,6 +13,10 @@
           "type": "calculation"
         }
       ],
+      "operational_role": {
+        "rationale": "Red-teams a single candidate on demand; no workflow supplies its input.",
+        "type": "standalone"
+      },
       "status": "beta",
       "summary": "Force a candidate through two staged adversarial debates — bull vs bear judged into a 5-tier conviction rating, then aggressive vs conservative risk judged by a Portfolio Manager into a final action/entry/stop/size decision. Red-teams a thesis before capital commits.",
       "timeframe": "event-driven"
@@ -194,6 +198,10 @@
           "type": "market_data"
         }
       ],
+      "operational_role": {
+        "rationale": "Maps dealer gamma for one symbol on demand from a keyless public feed.",
+        "type": "standalone"
+      },
       "status": "production",
       "summary": "Quantify dealer options gamma (GEX) for an equity or index from FREE CBOE delayed options data. Renders gamma walls, the gamma flip, and max pain as explicit support/resistance price levels, and classifies the positive- (pin) vs negative-gamma (squeeze-prone) regime.",
       "timeframe": "daily"
@@ -330,6 +338,10 @@
           "type": "calculation"
         }
       ],
+      "operational_role": {
+        "rationale": "Static lookup answered directly for the user; no workflow handoff.",
+        "type": "standalone"
+      },
       "status": "production",
       "summary": "Look up the \"why it matters\" context for a US economic indicator — what it measures, why markets care, and the typical 60-minute SPY/TLT/DXY/VIX reaction. Pairs with economic-calendar-fetcher, which supplies the schedule and consensus.",
       "timeframe": "event-driven"
@@ -1070,6 +1082,10 @@
           "type": "market_data"
         }
       ],
+      "operational_role": {
+        "rationale": "Ranks a user-supplied ticker list on demand from free FINRA files.",
+        "type": "standalone"
+      },
       "status": "production",
       "summary": "Rank US equities by short-squeeze potential using FREE FINRA data (no API key). Reads Reg SHO daily short-volume files for rising short-volume inflections and optional bi-monthly short interest, flagging crowded-short versus low-pressure names.",
       "timeframe": "daily"
