@@ -280,3 +280,38 @@ def test_manifest_records_native_execution_evidence(tmp_path: Path) -> None:
     full_evidence = load_yaml(tmp_path / "full" / "manifest.yaml")["execution_evidence"]
     assert full_evidence["native_tax_planning_cli_executed"] is True
     assert full_evidence["native_review_queue_cli_executed"] is True
+
+
+def test_review_queue_normalizes_only_generated_at_metadata(monkeypatch, tmp_path: Path) -> None:
+    generated_at = "2026-09-26T12:34:56.123456+00:00"
+    original = (
+        "# Dividend Review Queue\n\n"
+        f"- Generated at: `{generated_at}`\n"
+        f"- Finding: observed at `{generated_at}`\n"
+        f"Test name: {generated_at}\n"
+        "\n## Quoted metadata\n"
+        f"- Generated at: `{generated_at}`\n"
+    )
+
+    def fake_run_cli(command, repo_root):
+        Path(command[command.index("--output") + 1]).write_text(
+            json.dumps({"generated_at": generated_at, "results": []}), encoding="utf-8"
+        )
+        Path(command[command.index("--markdown") + 1]).write_text(original, encoding="utf-8")
+
+    monkeypatch.setattr(replay_module, "_run_cli", fake_run_cli)
+    spec = load_yaml(SPEC)
+    step = next(row for row in spec["steps"] if row["executor"] == "kanchi_review_queue")
+    inputs = replay_module.validate_spec(ROOT, SPEC)["inputs"]
+    artifacts = replay_module.EXECUTORS["kanchi_review_queue"].run(
+        ROOT, spec, step, inputs, {}, tmp_path / "work", tmp_path / "stage"
+    )
+    result = artifacts["review_queue"]["files"]
+    assert (
+        json.loads(Path(result["canonical"]).read_text())["generated_at"] == spec["fixed_timestamp"]
+    )
+    assert Path(result["companion"]).read_text() == original.replace(
+        f"- Generated at: `{generated_at}`",
+        f"- Generated at: `{spec['fixed_timestamp']}`",
+        1,
+    )

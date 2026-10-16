@@ -26,6 +26,12 @@ GENERATED_SKILLS = {
     "macro-regime-detector",
     "market-top-detector",
     "us-undervalued-growth-screener",
+    # Issue #495 Batch A: calendars / simple GETs share the family-B core
+    # without the per-run API-call budget (their scripts never capped calls).
+    "earnings-calendar",
+    "economic-calendar-fetcher",
+    "institutional-flow-tracker",
+    "cot-contrarian-detector",
 }
 NO_COMPAT_SKILLS = {
     "ftd-detector",
@@ -33,6 +39,16 @@ NO_COMPAT_SKILLS = {
     "macro-regime-detector",
     "market-top-detector",
     "us-undervalued-growth-screener",
+    # Batch A rows target /stable endpoints 1:1, so no v3→stable rewrite.
+    "economic-calendar-fetcher",
+    "institutional-flow-tracker",
+    "cot-contrarian-detector",
+}
+NO_BUDGET_FAMILY_B = {
+    "earnings-calendar",
+    "economic-calendar-fetcher",
+    "institutional-flow-tracker",
+    "cot-contrarian-detector",
 }
 
 
@@ -54,7 +70,7 @@ def test_registry_has_expected_skills(gen):
     skills = _skills(gen)
     assert set(skills) == GENERATED_SKILLS
     for cfg in skills.values():
-        assert cfg.budget == (cfg.family == "B")
+        assert cfg.budget == (cfg.family == "B" and cfg.skill not in NO_BUDGET_FAMILY_B)
         assert cfg.has_compat == (cfg.skill not in NO_COMPAT_SKILLS)
         assert bool(cfg.standalone_template) == (cfg.family == "special")
 
@@ -76,9 +92,14 @@ def test_family_b_no_quote_has_budget(gen):
         out = gen.render_fmp_client(cfg)
         assert "def get_quote" not in out
         assert '"quote"' not in out  # no quote entry in _FMP_ENDPOINTS
-        assert "class ApiCallBudgetExceeded(Exception):" in out
-        assert "max_api_calls: int = 200" in out
-        assert '"budget_remaining"' in out
+        if cfg.skill in NO_BUDGET_FAMILY_B:
+            # Issue #495 Batch A: no per-run budget surface.
+            assert "ApiCallBudgetExceeded" not in out
+            assert "max_api_calls" not in out
+        else:
+            assert "class ApiCallBudgetExceeded(Exception):" in out
+            assert "max_api_calls: int = 200" in out
+            assert '"budget_remaining"' in out
 
 
 def test_family_a_has_quote_no_budget(gen):
@@ -356,3 +377,12 @@ def test_generated_output_redacts_apikey_in_stderr(gen):
         out = gen.render_fmp_client(cfg)
         assert "_redact_key(" in out, cfg.skill
         assert expected_pattern_literal in out, cfg.skill
+
+
+def test_redaction_has_one_shared_template_definition(gen):
+    templates = [gen.SRC_DIR / "core_template.py.tmpl", *(gen.SRC_DIR / "specials").glob("*.tmpl")]
+    assert all("def _redact_secret" not in path.read_text() for path in templates)
+    fragment = (gen.SRC_DIR / "redaction.py.tmpl").read_text()
+    assert fragment.count("def _redact_secret") == 1
+    for cfg in _skills(gen).values():
+        assert gen.render_fmp_client(cfg).count(fragment.rstrip()) == 1

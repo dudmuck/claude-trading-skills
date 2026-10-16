@@ -17,8 +17,9 @@ import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Literal
 
 logger = logging.getLogger("skill_improvement")
 
@@ -622,10 +623,11 @@ def apply_improvement(
     skill_name: str,
     report: dict,
     dry_run: bool = False,
-) -> dict | None:
+) -> dict | Literal["pr_already_open"] | None:
     """Create a branch, use claude to improve the skill, and open a PR.
 
-    Returns the post-improvement report dict on success, or None on failure/dry-run.
+    Returns the report on success, "pr_already_open" for a healthy skip,
+    or None on failure/dry-run.
     """
     if dry_run:
         logger.info(
@@ -647,7 +649,7 @@ def apply_improvement(
 
     if check_existing_pr(project_root, branch_name):
         logger.info("Open PR already exists for %s; skipping.", branch_name)
-        return None
+        return "pr_already_open"
 
     # Get pre-improvement auto score (use auto_review to avoid LLM merge bias)
     pre_score = report["auto_review"]["score"]
@@ -1126,6 +1128,7 @@ def run(project_root: Path, dry_run: bool = False) -> int:
 
         # Improvement
         improved = False
+        improvement_failed = False
         if final_score < SCORE_THRESHOLD:
             logger.info(
                 "Auto score %d below %d; attempting improvement.", final_score, SCORE_THRESHOLD
@@ -1138,6 +1141,8 @@ def run(project_root: Path, dry_run: bool = False) -> int:
                 report = improvement_result
                 final_score = report.get("auto_review", {}).get("score", final_score)
                 improved = True
+            elif not dry_run and improvement_result != "pr_already_open":
+                improvement_failed = True
         else:
             logger.info(
                 "Auto score meets threshold (%d >= %d); no improvement needed.",
@@ -1163,8 +1168,11 @@ def run(project_root: Path, dry_run: bool = False) -> int:
         if not dry_run:
             cleanup_merged_branches(project_root)
             rotate_logs(project_root)
+            if not improvement_failed:
+                state["last_success_at"] = datetime.now(timezone.utc).isoformat()
+                save_state(project_root, state)
 
-        return 0
+        return 1 if improvement_failed else 0
 
     finally:
         release_lock(project_root)

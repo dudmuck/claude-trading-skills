@@ -14,6 +14,7 @@ __pycache__/
 .venv/
 venv/
 env/
+.venv-smoke-*/
 
 # Tool configurations
 .idea/
@@ -55,4 +56,5 @@ scripts/weekly_portfolio_review_fetch.py
 # CI artifacts
 htmlcov/
 .coverage
+/_site/
 # .secrets.baseline is tracked — needed by detect-secrets pre-commit hook

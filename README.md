@@ -52,6 +52,24 @@ See [`workflows/README.md`](workflows/README.md) for how to read a manifest and 
 
 New here? Follow [Your First Week](docs/en/your-first-week.md) ([日本語](docs/ja/your-first-week.md)) from installation through a no-paid-data-API market check, first journal entry, and first weekly review.
 
+### See Example Outputs
+
+These visual excerpts use fictional data to show the kinds of results you can review before setting up a skill. They are illustrations, not live market readings or trading instructions.
+
+Select a preview to open the full-size SVG; on a phone, zoom after opening.
+
+[![Illustrative Navigator recommendation for a 15-minute daily market check, listing three required skills and a no-paid-API path](docs/assets/previews/navigator-recommendation.svg)](docs/assets/previews/navigator-recommendation.svg)
+
+**Choose a workflow:** [Trading Skills Navigator](docs/en/skills/trading-skills-navigator.md) recommends a starting path from your goal.
+
+[![Illustrative Market Posture Summary with a 36% exposure ceiling, REDUCE_ONLY posture, and LOW confidence because critical inputs are missing](docs/assets/previews/market-posture.svg)](docs/assets/previews/market-posture.svg)
+
+**Review market risk:** The [market-regime-daily workflow](workflows/market-regime-daily.yaml) ends with an Exposure Coach posture for human review, not an order.
+
+[![Illustrative Weekly Performance Digest for four fictional closed trades with a 50% win rate and 75 dollars realized profit](docs/assets/previews/weekly-digest.svg)](docs/assets/previews/weekly-digest.svg)
+
+**Learn from closed trades:** [Weekly Performance Digest](docs/en/skills/weekly-performance-digest.md) summarizes realized outcomes and process lessons.
+
 ### What This Actually Costs
 
 Claude Web Skills are currently available on Free, Pro, Max, Team, and
@@ -86,15 +104,17 @@ This path lets you review market conditions, size trades, journal decisions, and
 - `skill-packages/` – Pre-built `.skill` archives ready to upload to Claude's web app **Skills** tab.
 - `docs/` – Documentation site content, generated skill pages, and `docs/dev/metadata-and-workflow-schema.md` (schema spec).
 - `scripts/` – Repository-level automation, including the schema validator and one-shot bootstrap helper.
-- `skillsets/` – Purpose-specific install bundles defining required / recommended / optional skills for major goals (4 core skillsets shipped: market-regime, core-portfolio, swing-opportunity, trade-memory; consumed by the Navigator).
+- `skillsets/` – Purpose-specific install bundles defining required / recommended / optional skills for major goals (5 skillsets shipped: market-regime, core-portfolio, swing-opportunity, trade-memory, strategy-research; consumed by the Navigator).
 
 ## Getting Started
 
 First time here? Read the [FAQ](docs/en/faq.md) for plan, cost, safety, and scope
 answers.
 
+See the [Changelog](CHANGELOG.md) for changes and the [release compatibility and migration policy](docs/dev/release-compatibility.md) before updating an installed skill.
+
 ### Use with Claude Web App
-1. Download the `.skill` file that matches the skill you want from `skill-packages/`.
+1. Open the [latest GitHub Release](https://github.com/tradermonty/claude-trading-skills/releases/latest) and download the `.skill` asset that matches the skill you want, plus `SHA256SUMS`. Verify its hash as described in the [release policy](docs/dev/release-compatibility.md). If the Releases page is empty, follow the source-folder installation path below or build a local package with `scripts/package_skills.py`.
 2. For an individual account, open **Settings > Capabilities** and enable **Code execution and file creation**. Team and Enterprise users may need an organization owner to enable Skills.
 3. Open **Customize > Skills**, upload the ZIP, confirm it appears in the list, and enable it if needed (see Anthropic's [current Skills help](https://support.claude.com/en/articles/12512180-use-skills-in-claude)).
 

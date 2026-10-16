@@ -11,6 +11,7 @@ truncated is refused rather than silently dropping names.
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,15 +19,29 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 FETCHERS = {
-    "pipeline": ROOT / "examples/weekly-trade-strategy/skills/earnings-calendar/scripts/fetch_earnings_fmp.py",
+    "pipeline": ROOT
+    / "examples/weekly-trade-strategy/skills/earnings-calendar/scripts/fetch_earnings_fmp.py",
     "skill": ROOT / "skills/earnings-calendar/scripts/fetch_earnings_fmp.py",
 }
 
 
 def _load(path: Path):
-    spec = importlib.util.spec_from_file_location(f"fetch_earnings_{path.parent.parent.parent.name}", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # The skill copy imports its vendored `fmp_client` sibling. From scripts/tests
+    # that name otherwise resolves to the scripts/fmp_client/ generator package,
+    # so import with the fetcher's own directory first and nothing cached.
+    saved_path, saved_mod = list(sys.path), sys.modules.pop("fmp_client", None)
+    sys.path.insert(0, str(path.parent))
+    try:
+        spec = importlib.util.spec_from_file_location(
+            f"fetch_earnings_{path.parent.parent.parent.name}", path
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = saved_path
+        sys.modules.pop("fmp_client", None)
+        if saved_mod is not None:
+            sys.modules["fmp_client"] = saved_mod
     return module
 
 
@@ -46,20 +61,35 @@ class _Response:
         return self._payload
 
 
+def _serve(module, client, rows):
+    """Answer the screener request with ``rows``, whichever transport is in use.
+
+    The skill copy goes through the vendored FMPClient (header auth); the
+    pipeline copy still calls ``requests.get`` directly.
+    """
+    if hasattr(client, "_fmp"):
+        return patch.object(client._fmp, "_rate_limited_get", return_value=rows)
+    return patch.object(module.requests, "get", return_value=_Response(rows))
+
+
 def test_empty_screener_falls_back_to_per_symbol(module):
     client = module.FMPEarningsCalendar("dummy")
-    with patch.object(client, "_fetch_profiles_bulk", return_value={}), patch.object(
-        client, "_fetch_profiles_per_symbol", return_value={"AAPL": {"symbol": "AAPL"}}
-    ) as per_symbol:
+    with (
+        patch.object(client, "_fetch_profiles_bulk", return_value={}),
+        patch.object(
+            client, "_fetch_profiles_per_symbol", return_value={"AAPL": {"symbol": "AAPL"}}
+        ) as per_symbol,
+    ):
         assert client.fetch_company_profiles(["AAPL"]) == {"AAPL": {"symbol": "AAPL"}}
     assert per_symbol.called
 
 
 def test_working_screener_never_touches_the_per_symbol_loop(module):
     client = module.FMPEarningsCalendar("dummy")
-    with patch.object(
-        client, "_fetch_profiles_bulk", return_value={"AAPL": {"symbol": "AAPL"}}
-    ), patch.object(client, "_fetch_profiles_per_symbol") as per_symbol:
+    with (
+        patch.object(client, "_fetch_profiles_bulk", return_value={"AAPL": {"symbol": "AAPL"}}),
+        patch.object(client, "_fetch_profiles_per_symbol") as per_symbol,
+    ):
         client.fetch_company_profiles(["AAPL"])
     assert not per_symbol.called, "the point of the screener is to avoid N requests"
 
@@ -69,7 +99,7 @@ def test_response_at_the_row_limit_is_refused_as_possibly_truncated(module):
     client = module.FMPEarningsCalendar("dummy")
     limit = module.FMPEarningsCalendar.SCREENER_ROW_LIMIT
     rows = [{"symbol": f"S{i}", "marketCap": 3_000_000_000} for i in range(limit)]
-    with patch.object(module.requests, "get", return_value=_Response(rows)):
+    with _serve(module, client, rows):
         assert client._fetch_profiles_bulk(["S1"]) == {}
 
 
@@ -92,7 +122,7 @@ def test_short_exchange_code_is_what_reaches_the_us_exchange_filter(module):
             "exchangeShortName": "NASDAQ",
         }
     ]
-    with patch.object(module.requests, "get", return_value=_Response(rows)):
+    with _serve(module, client, rows):
         profiles = client._fetch_profiles_bulk(["AAPL"])
     assert profiles["AAPL"]["exchange"] == "NASDAQ"
     assert profiles["AAPL"]["exchange"] in module.FMPEarningsCalendar.US_EXCHANGES
@@ -102,7 +132,7 @@ def test_market_cap_keeps_the_api_numeric_type(module):
     """The per-symbol path emitted ints; the JSON contract should not change."""
     client = module.FMPEarningsCalendar("dummy")
     rows = [{"symbol": "AAPL", "marketCap": 4_000_000_000_000, "exchangeShortName": "NASDAQ"}]
-    with patch.object(module.requests, "get", return_value=_Response(rows)):
+    with _serve(module, client, rows):
         profiles = client._fetch_profiles_bulk(["AAPL"])
     assert isinstance(profiles["AAPL"]["marketCap"], int)
 
@@ -115,7 +145,7 @@ def test_symbols_below_the_threshold_are_simply_absent(module):
     """
     client = module.FMPEarningsCalendar("dummy")
     rows = [{"symbol": "AAPL", "marketCap": 4_000_000_000_000, "exchangeShortName": "NASDAQ"}]
-    with patch.object(module.requests, "get", return_value=_Response(rows)):
+    with _serve(module, client, rows):
         profiles = client._fetch_profiles_bulk(["AAPL", "TINYCO"])
     assert "TINYCO" not in profiles
 

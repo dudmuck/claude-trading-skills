@@ -182,4 +182,7 @@ python scripts/generate_report.py earnings_data.json earnings_calendar_2025-11-0
 **スクリプト:**
 
 - `skills/earnings-calendar/scripts/fetch_earnings_fmp.py`
+
+- `skills/earnings-calendar/scripts/fmp_client.py`
+- `skills/earnings-calendar/scripts/_fmp_compat.py`
 - `skills/earnings-calendar/scripts/generate_report.py`

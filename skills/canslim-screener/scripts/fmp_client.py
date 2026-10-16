@@ -160,6 +160,28 @@ class FMPClient:
     STABLE_URL = "https://financialmodelingprep.com/stable"
     RATE_LIMIT_DELAY = 0.3  # 300ms between requests (200 requests/minute max)
 
+    def _redact_secret(self, text) -> str:
+        """Mask raw and URL-encoded key echoes before diagnostics are truncated."""
+        from urllib.parse import quote, quote_plus
+
+        text = _redact_key(text)
+        if not self.api_key:
+            return text
+        patterns = {re.escape(self.api_key)}
+        for encoded in (quote(self.api_key, safe=""), quote_plus(self.api_key, safe="")):
+            # Percent triplets are case-insensitive; the key's letters are not.
+            parts = re.split(r"(%[0-9A-Fa-f]{2})", encoded)
+            patterns.add(
+                "".join(
+                    "(?i:" + re.escape(part) + ")"
+                    if re.fullmatch(r"%[0-9A-Fa-f]{2}", part)
+                    else re.escape(part)
+                    for part in parts
+                )
+            )
+        # One pass prevents a short key from matching the replacement marker.
+        return re.sub("|".join(sorted(patterns, key=len, reverse=True)), "***REDACTED***", text)
+
     def __init__(self, api_key: Optional[str] = None):
         """
         Initialize FMP API client
@@ -170,7 +192,7 @@ class FMPClient:
         Raises:
             ValueError: If API key not provided and not in environment
         """
-        self.api_key = api_key or os.getenv("FMP_API_KEY")
+        self.api_key = (api_key or os.getenv("FMP_API_KEY") or "").strip()
         if not self.api_key:
             raise ValueError(
                 "FMP API key required. Set FMP_API_KEY environment variable "
@@ -239,15 +261,15 @@ class FMPClient:
             else:
                 if not quiet:
                     print(
-                        _redact_key(
-                            f"ERROR: API request failed: {response.status_code} - {response.text[:200]}"
+                        self._redact_secret(
+                            f"ERROR: API request failed: {response.status_code} - {self._redact_secret(response.text)[:200]}"
                         ),
                         file=sys.stderr,
                     )
                 return None
 
         except requests.exceptions.RequestException as e:
-            print(_redact_key(f"ERROR: Request exception: {e}"), file=sys.stderr)
+            print(self._redact_secret(f"ERROR: Request exception: {e}"), file=sys.stderr)
             return None
 
     def _request_with_fallback(self, endpoint_key, symbols_str, extra_params=None):

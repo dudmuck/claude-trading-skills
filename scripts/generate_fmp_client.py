@@ -110,6 +110,9 @@ def _insert_banner(text: str, banner: str) -> str:
 def _render_standalone_template(cfg) -> str:
     """Render a PR2 special client from its full-file standalone template."""
     text = (SRC_DIR / "specials" / cfg.standalone_template).read_text(encoding="utf-8")
+    text = text.replace(
+        "@@REDACTION@@\n", (SRC_DIR / "redaction.py.tmpl").read_text(encoding="utf-8")
+    )
     if "@@" in text:
         leftover = next(tok for tok in text.split("@@")[1:2])
         raise ValueError(
@@ -140,6 +143,9 @@ def render_fmp_client(cfg) -> str:
     # @@BATCH_DAYS@@ lives in the family_a_quote extension, so substitute after it.
     text = text.replace("@@BATCH_DAYS@@", str(cfg.batch_days))
 
+    text = text.replace(
+        "@@REDACTION@@\n", (SRC_DIR / "redaction.py.tmpl").read_text(encoding="utf-8")
+    )
     if "@@" in text:
         leftover = next(tok for tok in text.split("@@")[1:2])
         raise ValueError(f"Unsubstituted template token near: @@{leftover[:40]}")

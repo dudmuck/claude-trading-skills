@@ -52,6 +52,24 @@ manifest の読み方や手動実行手順は [`workflows/README.md`](workflows/
 
 初めて使う場合は、[最初の1週間](docs/ja/your-first-week.md)（[English](docs/en/your-first-week.md)）で、インストール、有料データAPI不要の相場確認、最初のジャーナル登録、最初の週次レビューまで順に進めてください。
 
+### 出力イメージ
+
+設定前に確認できる、架空データによる出力例です。現在の相場情報や売買指示ではありません。
+
+画像を選ぶと原寸のSVGを開けます。スマートフォンでは開いた後に拡大できます。
+
+[![架空の毎朝15分の確認目標に対し、必要な3スキルと有料API不要の経路を示すNavigatorの出力例](docs/assets/previews/navigator-recommendation.svg)](docs/assets/previews/navigator-recommendation.svg)
+
+**ワークフローを選ぶ:** [Trading Skills Navigator](docs/ja/skills/trading-skills-navigator.md)が目的に合う開始経路を提案します。
+
+[![架空のスコアから計算したエクスポージャー上限36%、REDUCE_ONLY、重要入力不足によるLOWの信頼度を示す出力例](docs/assets/previews/market-posture.svg)](docs/assets/previews/market-posture.svg)
+
+**相場リスクを確認する:** [市場レジーム日次ワークフロー](workflows/market-regime-daily.yaml)は、人間が確認するための方針を示します。注文は行いません。
+
+[![架空の決済済み4取引を使い、勝率50%と実現損益プラス75ドルを示す週次振り返りの出力例](docs/assets/previews/weekly-digest.svg)](docs/assets/previews/weekly-digest.svg)
+
+**決済済み取引を振り返る:** [Weekly Performance Digest](docs/ja/skills/weekly-performance-digest.md)は実現損益と改善点を整理します。
+
 ### 実際に必要な費用
 
 Claude WebのSkillsは現在Free、Pro、Max、Team、Enterpriseで利用できます。
@@ -85,15 +103,17 @@ FMP / FINVIZ / Alpaca の有料サブスクをまだ持っていない場合は�
 - `skill-packages/` – Claudeウェブアプリの**Skills**タブへそのままアップロードできる`.skill`パッケージ置き場。
 - `docs/` – ドキュメントサイトのコンテンツ、生成済みスキルページ、`docs/dev/metadata-and-workflow-schema.md`（スキーマ仕様書）。
 - `scripts/` – リポジトリ全体の自動化・保守スクリプト。validator や bootstrap helper を含む。
-- `skillsets/` – 目的別のインストール単位。主要 goal ごとに required / recommended / optional skills を定義します（コア 4 skillset 実装済み: market-regime, core-portfolio, swing-opportunity, trade-memory。Navigator が参照）。
+- `skillsets/` – 目的別のインストール単位。主要 goal ごとに required / recommended / optional skills を定義します（5 skillset 実装済み: market-regime, core-portfolio, swing-opportunity, trade-memory, strategy-research。Navigator が参照）。
 
 ## はじめに
 
 初めて利用する場合は、プラン・費用・安全性・機能範囲をまとめた
 [よくある質問](docs/ja/faq.md)を先に確認してください。
 
+更新時は [変更履歴](CHANGELOG.md) と [リリース互換性・移行ポリシー](docs/dev/release-compatibility.md) を確認してください。
+
 ### Claudeウェブアプリで使う場合
-1. 利用したいスキルに対応する`.skill`ファイルを`skill-packages/`からダウンロードします。
+1. [最新のGitHub Release](https://github.com/tradermonty/claude-trading-skills/releases/latest)から利用したいスキルの`.skill`アセットと`SHA256SUMS`をダウンロードし、[リリースポリシー](docs/dev/release-compatibility.md)に従ってハッシュを確認します。Releasesページが空の場合は、下記のソースフォルダの導入方法を使うか、`scripts/package_skills.py`でローカルパッケージを生成してください。
 2. 個人アカウントでは**Settings > Capabilities**を開き、**Code execution and file creation**を有効にします。Team/Enterpriseでは組織オーナーによる有効化が必要な場合があります。
 3. **Customize > Skills**でZIPをアップロードし、一覧への表示を確認して、必要に応じて有効化します（Anthropicの[最新のSkillsヘルプ](https://support.claude.com/en/articles/12512180-use-skills-in-claude)も参照）。
 

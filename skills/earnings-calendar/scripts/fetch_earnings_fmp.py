@@ -20,20 +20,20 @@ import sys
 from datetime import datetime
 from typing import Optional
 
-import requests
+from fmp_client import FMPClient
 
 
 class FMPEarningsCalendar:
-    """FMP Earnings Calendar API client"""
+    """FMP Earnings Calendar pipeline over the vendored FMP client."""
 
-    BASE_URL = "https://financialmodelingprep.com/stable"
     MIN_MARKET_CAP = 2_000_000_000  # $2B
+    SCREENER_URL = "https://financialmodelingprep.com/stable/company-screener"
     SCREENER_ROW_LIMIT = 10000  # company-screener max rows per response
     US_EXCHANGES = ["NYSE", "NASDAQ", "AMEX", "NYSEArca", "BATS", "NMS", "NGM", "NCM"]
 
     def __init__(self, api_key: str, us_only: bool = True):
         """
-        Initialize FMP client
+        Initialize FMP pipeline
 
         Args:
             api_key: FMP API key
@@ -41,6 +41,9 @@ class FMPEarningsCalendar:
         """
         self.api_key = api_key
         self.us_only = us_only
+        # Header auth (deliberate change from query-param, Issue #495): the
+        # key never appears in a URL — including error/exception texts.
+        self._fmp = FMPClient(api_key=api_key)
 
     def fetch_earnings_calendar(self, start_date: str, end_date: str) -> Optional[list[dict]]:
         """
@@ -53,55 +56,29 @@ class FMPEarningsCalendar:
         Returns:
             List of earnings announcements or None on error
         """
-        url = f"{self.BASE_URL}/earnings-calendar"
-        # includeReportTimes must be the literal string "true"/"false" (any
-        # other value, including a JSON boolean, is HTTP 400); without it the
-        # response omits `time` entirely (#352).
-        params = {
-            "from": start_date,
-            "to": end_date,
-            "includeReportTimes": "true",
-            "apikey": self.api_key,
-        }
-
-        try:
-            response = requests.get(url, params=params, timeout=30)
-
-            if response.status_code == 401:
+        data = self._fmp.get_earnings_calendar(start_date, end_date)
+        if data is None:
+            error = (self._fmp._last_error or "unknown error").strip()
+            if "HTTP 401" in error:
                 print("❌ ERROR: Invalid API key", file=sys.stderr)
                 print(
                     "Get free API key: https://site.financialmodelingprep.com/developer/docs",
                     file=sys.stderr,
                 )
-                return None
-
-            if response.status_code == 429:
+            elif "HTTP 429" in error or "rate limit" in error.lower():
                 print("❌ ERROR: Rate limit exceeded", file=sys.stderr)
                 print("Free tier: 250 calls/day. Consider upgrading.", file=sys.stderr)
-                return None
-
-            response.raise_for_status()
-            data = response.json()
-
-            # Check if response is error message
-            if isinstance(data, dict) and "Error Message" in data:
-                print(f"❌ API Error: {data['Error Message']}", file=sys.stderr)
-                return None
-
-            print(f"✓ Retrieved {len(data)} earnings announcements", file=sys.stderr)
-            return data
-
-        except requests.exceptions.Timeout:
-            print("❌ ERROR: Request timeout. Please try again.", file=sys.stderr)
+            else:
+                print(f"❌ ERROR: Unexpected error: {error}", file=sys.stderr)
             return None
 
-        except requests.exceptions.ConnectionError:
-            print("❌ ERROR: Connection error. Check your internet connection.", file=sys.stderr)
+        # Check if response is error message
+        if isinstance(data, dict) and "Error Message" in data:
+            print(f"❌ API Error: {data['Error Message']}", file=sys.stderr)
             return None
 
-        except Exception as e:
-            print(f"❌ ERROR: Unexpected error: {str(e)}", file=sys.stderr)
-            return None
+        print(f"✓ Retrieved {len(data)} earnings announcements", file=sys.stderr)
+        return data
 
     def _fetch_profiles_bulk(self, symbols: list[str]) -> dict[str, dict]:
         """Market caps + company data for every US name above the cap, in ONE request.
@@ -118,21 +95,20 @@ class FMPEarningsCalendar:
         than silently dropping names.
         """
         wanted = set(symbols)
-        url = f"{self.BASE_URL}/company-screener"
         params = {
             "marketCapMoreThan": int(self.MIN_MARKET_CAP),
             "isEtf": "false",
             "isFund": "false",
             "limit": self.SCREENER_ROW_LIMIT,
-            "apikey": self.api_key,
         }
 
-        try:
-            response = requests.get(url, params=params, timeout=60)
-            response.raise_for_status()
-            data = response.json()
-        except Exception as e:
-            print(f"  ⚠️  Screener request failed: {str(e)}", file=sys.stderr)
+        # Through the shared client: header auth (the key never appears in a
+        # URL) and redacted failure text. quiet=True because a failure here is
+        # not fatal — the caller falls back to the per-symbol loop.
+        data = self._fmp._rate_limited_get(self.SCREENER_URL, params, quiet=True)
+        if data is None:
+            error = self._fmp._last_error or "unknown error"
+            print(f"  ⚠️  Screener request failed: {error}", file=sys.stderr)
             return {}
 
         if not isinstance(data, list) or not data:
@@ -142,8 +118,7 @@ class FMPEarningsCalendar:
         # screener drops real names without saying so. Fall back instead.
         if len(data) >= self.SCREENER_ROW_LIMIT:
             print(
-                f"  ⚠️  Screener returned {len(data)} rows (at the limit) — "
-                "may be truncated",
+                f"  ⚠️  Screener returned {len(data)} rows (at the limit) — may be truncated",
                 file=sys.stderr,
             )
             return {}
@@ -208,26 +183,29 @@ class FMPEarningsCalendar:
         print(f"✓ Fetching profiles for {len(symbols)} companies...", file=sys.stderr)
 
         for i, symbol in enumerate(symbols):
-            url = f"{self.BASE_URL}/profile"
-            params = {"symbol": symbol, "apikey": self.api_key}
-
             try:
-                response = requests.get(url, params=params, timeout=30)
-                response.raise_for_status()
-
-                data = response.json()
-                if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
-                    profiles[data[0].get("symbol")] = data[0]
-
-                if (i + 1) % 50 == 0:
-                    print(f"  ✓ Fetched {i + 1}/{len(symbols)} profiles", file=sys.stderr)
-
+                data = self._fmp.get_company_profiles([symbol])
             except Exception as e:
                 print(
                     f"  ⚠️  Warning: Failed to fetch profile for {symbol}: {str(e)}",
                     file=sys.stderr,
                 )
                 continue
+            if not data:
+                # The generated client surfaces transport/HTTP failures via
+                # _last_error without raising; keep the old per-symbol warn.
+                error = self._fmp._last_error or "no data returned by API"
+                print(
+                    f"  ⚠️  Warning: Failed to fetch profile for {symbol}: {error}",
+                    file=sys.stderr,
+                )
+                continue
+            first = next(iter(data.values()))
+            if isinstance(first, dict) and first.get("symbol"):
+                profiles[first.get("symbol", symbol)] = first
+
+            if (i + 1) % 50 == 0:
+                print(f"  ✓ Fetched {i + 1}/{len(symbols)} profiles", file=sys.stderr)
 
         print(f"✓ Retrieved {len(profiles)} company profiles", file=sys.stderr)
         return profiles

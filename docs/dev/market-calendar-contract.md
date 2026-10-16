@@ -21,6 +21,9 @@ because a PEP 604 union is evaluated at runtime. Version 5.2.2 is therefore
 pinned and exercised in a required Python 3.9 clean-room CI job. `uv.lock`
 records repository resolutions, but standalone compatibility is guarded by the
 direct pin plus behavioral tests rather than a fully locked transitive graph.
+Dependabot ignores `pandas-market-calendars` (`.github/dependabot.yml`), because
+5.5.0 and later require Python 3.10+. Raise the pin only together with a
+decision to drop the Python 3.9 standalone floor.
 
 The Python 3.9 compatibility job creates one isolated virtual environment per
 consumer and installs only that skill's generated requirements. This prevents

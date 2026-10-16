@@ -19,17 +19,17 @@ Snapshot as of: `2026-09-12T00:00:00Z`
 
 | Total | production | beta | Knowledge-only | Executable | With tests | Without tests |
 |---:|---:|---:|---:|---:|---:|---:|
-| 74 | 62 | 12 | 3 | 71 | 71 | 0 |
+| 78 | 65 | 13 | 3 | 75 | 75 | 0 |
 
 ## Test coverage
 
 - Aggregate coverage target: 75.0%
-- Aggregate coverage floor: 72.0%
+- Aggregate coverage floor: 75.0%
 - Allowed failures: 0 (target 0)
 
 ## End-to-end replay
 
-- Workflows covered by E2E replay: 11 / 11
+- Workflows covered by E2E replay: 12 / 12
 
 ## Dependencies
 
@@ -39,12 +39,13 @@ Snapshot as of: `2026-09-12T00:00:00Z`
 | FINVIZ | 4 |
 | ALPACA | 2 |
 | other external provider | 8 |
-| offline (no external data source) | 35 |
+| offline (no external data source) | 39 |
 
 ## Beta pipeline
 
 | Skill | Days in beta |
 |---|---:|
+| `adversarial-trade-debate` | not yet measured |
 | `crypto-regime-analyzer` | not yet measured |
 | `fxmacrodata-calendar` | not yet measured |
 | `manifoldbt-backtester` | not yet measured |
@@ -62,6 +63,7 @@ Snapshot as of: `2026-09-12T00:00:00Z`
 
 | Skill | Status | Executable | Tests | Coverage |
 |---|---|---|---|---|
+| **Adversarial Trade Debate** (`adversarial-trade-debate`) | beta | yes | yes | not yet measured |
 | **Backtest Expert** (`backtest-expert`) | production | yes | yes | not yet measured |
 | **Breadth Chart Analyst** (`breadth-chart-analyst`) | production | yes | yes | not yet measured |
 | **Breakout Trade Planner** (`breakout-trade-planner`) | production | yes | yes | not yet measured |
@@ -70,12 +72,14 @@ Snapshot as of: `2026-09-12T00:00:00Z`
 | **COT Contrarian Detector** (`cot-contrarian-detector`) | production | yes | yes | not yet measured |
 | **Crypto Regime Analyzer** (`crypto-regime-analyzer`) | beta | yes | yes | not yet measured |
 | **Data Quality Checker** (`data-quality-checker`) | production | yes | yes | not yet measured |
+| **Dealer Gamma Analyzer** (`dealer-gamma-analyzer`) | production | yes | yes | not yet measured |
 | **Dividend Growth Pullback Screener** (`dividend-growth-pullback-screener`) | production | yes | yes | not yet measured |
 | **Downtrend Duration Analyzer** (`downtrend-duration-analyzer`) | production | yes | yes | not yet measured |
 | **Drawdown Circuit Breaker** (`drawdown-circuit-breaker`) | production | yes | yes | not yet measured |
 | **Dual Axis Skill Reviewer** (`dual-axis-skill-reviewer`) | production | yes | yes | not yet measured |
 | **Earnings Calendar** (`earnings-calendar`) | production | yes | yes | not yet measured |
 | **Earnings Trade Analyzer** (`earnings-trade-analyzer`) | production | yes | yes | not yet measured |
+| **Econ Indicator Explainer** (`econ-indicator-explainer`) | production | yes | yes | not yet measured |
 | **Economic Calendar Fetcher** (`economic-calendar-fetcher`) | production | yes | yes | not yet measured |
 | **Edge Candidate Agent** (`edge-candidate-agent`) | production | yes | yes | not yet measured |
 | **Edge Concept Synthesizer** (`edge-concept-synthesizer`) | production | yes | yes | not yet measured |
@@ -112,6 +116,7 @@ Snapshot as of: `2026-09-12T00:00:00Z`
 | **Residual Edge Analyzer** (`residual-edge-analyzer`) | beta | yes | yes | not yet measured |
 | **Scenario Analyzer** (`scenario-analyzer`) | production | no | no | not yet measured |
 | **Sector Analyst** (`sector-analyst`) | production | yes | yes | not yet measured |
+| **Short-Squeeze Radar** (`short-squeeze-radar`) | production | yes | yes | not yet measured |
 | **Signal Postmortem** (`signal-postmortem`) | production | yes | yes | not yet measured |
 | **Skill Designer** (`skill-designer`) | production | yes | yes | not yet measured |
 | **Skill Idea Miner** (`skill-idea-miner`) | production | yes | yes | not yet measured |

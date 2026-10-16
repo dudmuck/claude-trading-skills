@@ -80,7 +80,7 @@ python3 .../analyze_gex.py QQQ --min-dte 21 --max-dte 45 --as-of 2026-07-24 --ou
 
 The window is inclusive on both ends and is stamped into both reports
 (`dte_window` in JSON, an **Expiry window** line in markdown) so a saved report is
-self-describing. Contracts with an unparseable expiry are dropped when a bound is
+self-describing. Contracts with an unparsable expiry are dropped when a bound is
 set. An empty window exits non-zero rather than reporting a fabricated map.
 
 **Always report which window produced the numbers.** A wall from the whole chain and

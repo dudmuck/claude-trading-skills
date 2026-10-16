@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Deterministic workflow contract replay harness (Issue #294, coverage 11/11).
+"""Deterministic workflow contract replay harness (Issue #294, coverage 12/12).
 
 The harness executes real offline CLIs for the Stockbee fluency, 20% study,
 trade-memory, market-regime, monthly-performance-review, core-portfolio,
 kanchi-dividend-weekly, shapiro-contrarian, stockbee-ep-daily, swing-opportunity-daily,
-and multi-asset-opportunity-daily workflows. Human decisions
+multi-asset-opportunity-daily, and strategy-research-pipeline workflows. Human decisions
 and fixture-backed native API evidence are reported separately from full skill
 execution. Golden outputs are comparison targets only and are never used as
 replay inputs.
@@ -27,11 +27,12 @@ import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
+from validate_provenance import validate_provenance
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_COVERAGE = REPO_ROOT / "examples" / "workflows" / "replay-coverage.yaml"
@@ -60,7 +61,7 @@ KANCHI_FORBIDDEN_REVIEW_TOKENS = frozenset(
 )
 VARIANTS = ("required-only", "full-path")
 
-# Coverage 11/11 leaves no workflow deferred. This frozen baseline prevents a
+# Coverage 12/12 leaves no workflow deferred. This frozen baseline prevents a
 # newly introduced workflow from being waved through as another deferral.
 FROZEN_DEFERRED_WORKFLOWS = frozenset()
 
@@ -253,7 +254,7 @@ def coverage_errors(workflow_ids: set[str], coverage: Mapping[str, Any]) -> list
 
     if set(deferred) != FROZEN_DEFERRED_WORKFLOWS:
         errors.append(
-            "deferred workflows must match the frozen coverage 11/11 deferred set; "
+            "deferred workflows must match the frozen coverage 12/12 deferred set; "
             f"expected {sorted(FROZEN_DEFERRED_WORKFLOWS)}, got {sorted(deferred)}"
         )
     for workflow_id, entry in deferred.items():
@@ -412,6 +413,7 @@ def validate_spec(repo_root: Path, spec_path: Path) -> dict[str, Any]:
     composite_steps: list[int] = []
     executor_components: dict[int, list[str]] = {}
     output_path_owners: dict[Path, str] = {}
+    provenance_declaration_owners: dict[str, int] = {}
     for number, step in workflow_steps.items():
         replay_step = spec_steps[number]
         expected_outputs = set(step.get("produces") or [])
@@ -421,6 +423,21 @@ def validate_spec(repo_root: Path, spec_path: Path) -> dict[str, Any]:
                 f"step {number} output_files must match produces: "
                 f"expected {sorted(expected_outputs)}, got {sorted(configured_outputs)}"
             )
+        for artifact_id in replay_step.get("required_provenance", []):
+            roles = replay_step["output_files"].get(artifact_id)
+            canonical = roles.get("canonical") if roles else None
+            if not canonical or Path(canonical).suffix.lower() not in {".json", ".yaml", ".yml"}:
+                raise ReplayError(
+                    f"step {number} required_provenance {artifact_id!r} must name a produced "
+                    "artifact with a canonical JSON/YAML file"
+                )
+            previous_step = provenance_declaration_owners.get(artifact_id)
+            if previous_step is not None:
+                raise ReplayError(
+                    f"duplicate required_provenance declaration for artifact {artifact_id!r}: "
+                    f"step {previous_step} and step {number}"
+                )
+            provenance_declaration_owners[artifact_id] = number
         expected_policy = (
             {"record_only", "continue", "halt"} if step.get("decision_gate") else {"continue"}
         )
@@ -487,6 +504,9 @@ def validate_spec(repo_root: Path, spec_path: Path) -> dict[str, Any]:
         "trade_memory_postmortem": {"realized_returns", "root_cause_decision"},
         "trade_memory_coach": {"coach_decision"},
         "trade_memory_backtest": {"backtest_metrics"},
+        "strategy_research_detect_initial": {"ohlcv"},
+        "strategy_research_detect_final": {"ohlcv"},
+        "strategy_research_hold": {"backtest_metrics"},
         "trade_memory_lessons": {"lessons_required", "lessons_full"},
         "market_regime_breadth": {"market_breadth_components"},
         "market_regime_uptrend": {"market_uptrend_components"},
@@ -629,6 +649,7 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -671,7 +692,7 @@ def _normalize_jsonl_file(
         + "\n"
         for record in records
     )
-    destination.write_text(text, encoding="utf-8")
+    destination.write_text(text, encoding="utf-8", newline="\n")
 
 
 def _scrubbed_environment() -> dict[str, str]:
@@ -690,6 +711,9 @@ def _run_cli(
     env_overrides: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     environment = _scrubbed_environment()
+    # Native CLIs print Unicode status lines. On Windows a pipe otherwise uses
+    # the legacy code page, which cannot encode them, so pin stdio to UTF-8.
+    environment["PYTHONIOENCODING"] = "utf-8"
     if path_override is not None:
         environment["PATH"] = str(path_override)
     if env_overrides:
@@ -704,6 +728,7 @@ def _run_cli(
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip() or "no CLI output"
@@ -761,6 +786,45 @@ def _validate_artifact_files(
                     f"{previous} and {artifact_id}.{role}"
                 )
             seen[path] = f"{artifact_id}.{role}"
+
+
+def _validate_artifact_provenance(
+    artifacts: Mapping[str, dict[str, Any]],
+    required: Mapping[str, int],
+    label: str,
+) -> None:
+    """Validate canonical provenance; declarations survive mutable artifact bundles."""
+    for artifact_id, bundle in artifacts.items():
+        producer = required.get(artifact_id)
+        context = f"{label} artifact {artifact_id!r}"
+        if producer is not None:
+            context += f" (provenance required by producer step {producer})"
+        canonical = bundle["files"].get("canonical")
+        if not canonical:
+            if producer is not None:
+                raise ReplayError(f"{context}: missing canonical role for data_provenance")
+            continue
+        path = Path(canonical)
+        suffix = path.suffix.lower()
+        if suffix not in {".json", ".yaml", ".yml"}:
+            if producer is not None:
+                raise ReplayError(f"{context}: data_provenance requires canonical JSON/YAML")
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+            payload = json.loads(text) if suffix == ".json" else yaml.safe_load(text)
+        except (OSError, UnicodeError, ValueError, yaml.YAMLError) as exc:
+            raise ReplayError(
+                f"{context}: cannot parse canonical provenance payload: {exc}"
+            ) from exc
+        has_block = isinstance(payload, dict) and "data_provenance" in payload
+        if not has_block:
+            if producer is not None:
+                raise ReplayError(f"{context}: missing data_provenance object")
+            continue
+        errors = validate_provenance(payload["data_provenance"])
+        if errors:
+            raise ReplayError(f"{context}: invalid data_provenance:\n- " + "\n- ".join(errors))
 
 
 def _artifact_file_digests(
@@ -981,7 +1045,7 @@ def _manual_lessons(
     artifacts = _artifact_paths(stage, step["output_files"])
     output = Path(artifacts["accepted_lessons_log"]["files"]["canonical"])
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(_dump_yaml_with_digest_allowlist(payload), encoding="utf-8")
+    output.write_text(_dump_yaml_with_digest_allowlist(payload), encoding="utf-8", newline="\n")
     return artifacts
 
 
@@ -1265,7 +1329,7 @@ def _manual_twenty_pct_lessons(
     artifacts = _artifact_paths(stage, step["output_files"])
     output = Path(artifacts["accepted_lessons_log"]["files"]["canonical"])
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(_dump_yaml_with_digest_allowlist(payload), encoding="utf-8")
+    output.write_text(_dump_yaml_with_digest_allowlist(payload), encoding="utf-8", newline="\n")
     return artifacts
 
 
@@ -1531,7 +1595,7 @@ def _write_yaml(path: Path, payload: Any, *, digest_allowlist: bool = False) -> 
         text = _dump_yaml_with_digest_allowlist(payload)
     else:
         text = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def _require_mapping_keys(
@@ -1597,7 +1661,7 @@ def _trade_memory_close(
     )
     thesis_store, _review = _trader_memory_modules(repo_root)
     try:
-        thesis_store._validate_thesis(active)
+        thesis_store.validate_thesis(active)
     except Exception as exc:
         raise ReplayError(f"invalid active thesis: {exc}") from exc
     if active.get("status") != "ACTIVE":
@@ -1631,7 +1695,7 @@ def _trade_memory_close(
     )
     closed = load_yaml(source)
     try:
-        thesis_store._validate_thesis(closed)
+        thesis_store.validate_thesis(closed)
     except Exception as exc:
         raise ReplayError(f"native close produced invalid thesis: {exc}") from exc
     if closed.get("status") != "CLOSED":
@@ -1642,7 +1706,7 @@ def _trade_memory_close(
     canonical = _canonicalize(closed, spec["fixed_timestamp"], {str(state_dir): "$STATE"})
     canonical["created_at"] = closed["created_at"]
     try:
-        thesis_store._validate_thesis(canonical)
+        thesis_store.validate_thesis(canonical)
     except Exception as exc:
         raise ReplayError(f"normalized close artifact is invalid: {exc}") from exc
     _write_yaml(output, canonical)
@@ -1834,7 +1898,8 @@ def _trade_memory_coach(
     coach = _canonicalize(
         coach,
         spec["fixed_timestamp"],
-        {str(input_path): "$INPUT/coach-input.json"},
+        # The coach records source paths with forward slashes on every platform.
+        {input_path.as_posix(): "$INPUT/coach-input.json"},
     )
 
     decision = load_yaml(inputs["coach_decision"])
@@ -2058,7 +2123,7 @@ def _trade_memory_lessons(
     if not isinstance(closed, dict):
         raise ReplayError("postmortem closed thesis snapshot must be a mapping")
     try:
-        thesis_store._validate_thesis(closed)
+        thesis_store.validate_thesis(closed)
     except Exception as exc:
         raise ReplayError(f"postmortem closed thesis snapshot is invalid: {exc}") from exc
     expected_closed_sha = (
@@ -2105,7 +2170,7 @@ def _trade_memory_lessons(
     normalized = _canonicalize(updated, spec["fixed_timestamp"], {str(state_dir): "$STATE"})
     normalized["created_at"] = closed["created_at"]
     try:
-        thesis_store._validate_thesis(normalized)
+        thesis_store.validate_thesis(normalized)
     except Exception as exc:
         raise ReplayError(f"normalized lessons state is invalid: {exc}") from exc
     _write_yaml(Path(artifacts["lessons_log_entry"]["files"]["state"]), normalized)
@@ -2656,7 +2721,9 @@ def _core_portfolio_allocation(
     artifacts = _artifact_paths(stage, step["output_files"])
     files = artifacts["allocation_report"]["files"]
     _write_json(Path(files["canonical"]), payload)
-    Path(files["companion"]).write_text(_core_allocation_markdown(payload), encoding="utf-8")
+    Path(files["companion"]).write_text(
+        _core_allocation_markdown(payload), encoding="utf-8", newline="\n"
+    )
     return artifacts
 
 
@@ -3228,6 +3295,17 @@ def _monthly_postmortem(
     return artifacts
 
 
+def _canonical_source_record(record: Any) -> Any:
+    """Keep relative source references; remove machine roots from absolute ones."""
+    if isinstance(record, str):
+        if PurePosixPath(record).is_absolute():
+            return "./" + PurePosixPath(record).name
+        windows_path = PureWindowsPath(record)
+        if windows_path.is_absolute():
+            return "./" + windows_path.name
+    return record
+
+
 def _monthly_coach(
     repo_root: Path,
     spec: Mapping[str, Any],
@@ -3260,13 +3338,9 @@ def _monthly_coach(
     coach = _canonicalize(
         _load_json(reports / "monthly-coach.json", "coach report"), spec["fixed_timestamp"], {}
     )
-    pub_dir = agg_path.parent
     source_records = coach.get("source_records")
     if isinstance(source_records, list):
-        coach["source_records"] = [
-            "./" + Path(rec).name if isinstance(rec, str) and Path(rec).parent == pub_dir else rec
-            for rec in source_records
-        ]
+        coach["source_records"] = [_canonical_source_record(rec) for rec in source_records]
 
     gate = coach.get("human_decision_gate") or {}
     allowed_actions = gate.get("allowed_actions") or []
@@ -3423,7 +3497,9 @@ def _monthly_skill_review(
     report = _canonicalize(
         report,
         spec["fixed_timestamp"],
-        {str(repo_root) + "/": ""},
+        # The reviewer serializes paths with forward slashes on every platform, so
+        # both the lexical and the resolved root are stripped in that spelling.
+        {repo_root.as_posix() + "/": "", repo_root.resolve().as_posix() + "/": ""},
     )
     report = _normalize_elapsed(report)
     payload = {
@@ -4165,7 +4241,7 @@ def _swing_discipline(
     if not markdown_sources:
         raise ReplayError("pre-trade discipline markdown report was not produced")
     Path(artifacts["pre_trade_discipline_decision"]["files"]["companion"]).write_text(
-        markdown_sources[-1].read_text(encoding="utf-8"), encoding="utf-8"
+        markdown_sources[-1].read_text(encoding="utf-8"), encoding="utf-8", newline="\n"
     )
     return artifacts
 
@@ -4197,7 +4273,9 @@ def _kanchi_fixed_date(spec: Mapping[str, Any]) -> str:
 
 def _normalize_text_file(path: Path) -> None:
     """Keep generated text artifacts byte-stable under the end-of-file fixer."""
-    path.write_text(path.read_text(encoding="utf-8").rstrip("\n") + "\n", encoding="utf-8")
+    path.write_text(
+        path.read_text(encoding="utf-8").rstrip("\n") + "\n", encoding="utf-8", newline="\n"
+    )
 
 
 def _kanchi_candidate_screen(
@@ -4442,8 +4520,8 @@ def _kanchi_tax_advice(
     artifacts = _artifact_paths(stage, step["output_files"])
     markdown_out = Path(artifacts["account_location_advice"]["files"]["markdown"])
     csv_out = Path(artifacts["account_location_advice"]["files"]["csv"])
-    markdown_out.write_text(markdown.read_text(encoding="utf-8"), encoding="utf-8")
-    csv_out.write_text(csv_file.read_text(encoding="utf-8"), encoding="utf-8")
+    markdown_out.write_text(markdown.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+    csv_out.write_text(csv_file.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     _normalize_text_file(markdown_out)
     _normalize_text_file(csv_out)
     return artifacts
@@ -4517,9 +4595,14 @@ def _kanchi_review_queue(
     _write_json(Path(artifacts["review_queue"]["files"]["canonical"]), canonical)
     markdown = markdown_out.read_text(encoding="utf-8")
     if isinstance(generated_at, str) and generated_at:
-        markdown = markdown.replace(generated_at, spec["fixed_timestamp"])
+        markdown = re.sub(
+            rf"(?m)^- Generated at: `{re.escape(generated_at)}`$",
+            lambda _: f"- Generated at: `{spec['fixed_timestamp']}`",
+            markdown,
+            count=1,
+        )
     review_markdown = Path(artifacts["review_queue"]["files"]["companion"])
-    review_markdown.write_text(markdown, encoding="utf-8")
+    review_markdown.write_text(markdown, encoding="utf-8", newline="\n")
     _normalize_text_file(review_markdown)
     return artifacts
 
@@ -4587,7 +4670,7 @@ def _kanchi_register_thesis(
     thesis_ids = thesis_ingest.ingest("kanchi-dividend-sop", str(candidates_path), str(state_dir))
     if not thesis_ids:
         raise ReplayError("native thesis ingest registered no theses")
-    theses = [thesis_store._load_thesis(state_dir, thesis_id) for thesis_id in thesis_ids]
+    theses = [thesis_store.get(state_dir, thesis_id) for thesis_id in thesis_ids]
     if sorted(row["ticker"] for row in theses) != sorted(decision["expected_idea"]):
         raise ReplayError("native thesis ingest did not register the expected IDEA theses")
 
@@ -4614,7 +4697,7 @@ def _kanchi_register_thesis(
 
     entries = []
     for thesis in theses:
-        reloaded = thesis_store._load_thesis(state_dir, thesis["thesis_id"])
+        reloaded = thesis_store.get(state_dir, thesis["thesis_id"])
         if reloaded["status"] != "IDEA":
             raise ReplayError("kanchi registration must never leave IDEA status")
         if decision["expected_active"]:
@@ -5925,7 +6008,7 @@ def _multi_register(
     thesis_ids = thesis_ingest.ingest("manual", str(ingest_path), str(state_dir))
     if len(thesis_ids) != len(records):
         raise ReplayError("native thesis ingest did not register every expected thesis")
-    theses = [thesis_store._load_thesis(state_dir, thesis_id) for thesis_id in thesis_ids]
+    theses = [thesis_store.get(state_dir, thesis_id) for thesis_id in thesis_ids]
     if sorted(row["ticker"] for row in theses) != sorted(
         card_by_id[hypothesis_id]["ticker"] for hypothesis_id in idea + entry_ready
     ):
@@ -5952,7 +6035,7 @@ def _multi_register(
     for hypothesis_id in actionable_ids:
         card = card_by_id[hypothesis_id]
         status = "ENTRY_READY" if hypothesis_id in set(entry_ready) else "IDEA"
-        reloaded = thesis_store._load_thesis(state_dir, thesis_id_by_ticker[card["ticker"]])
+        reloaded = thesis_store.get(state_dir, thesis_id_by_ticker[card["ticker"]])
         if reloaded["status"] != "IDEA":
             raise ReplayError("multi-asset registration must never leave IDEA status")
         if card.get("asset_class") == "forex" and not card.get("research_only"):
@@ -6007,7 +6090,218 @@ def _multi_register(
     return artifacts
 
 
+def _strategy_research_tickets(report_dir: Path) -> list[dict[str, Any]]:
+    paths = sorted((report_dir / "tickets").glob("*/*.yaml"))
+    tickets = [load_yaml(path) for path in paths]
+    if len({ticket.get("id") for ticket in tickets}) != len(tickets):
+        raise ReplayError("strategy research generated duplicate ticket IDs")
+    return tickets
+
+
+def _strategy_research_detect(
+    repo_root: Path,
+    spec: Mapping[str, Any],
+    step: Mapping[str, Any],
+    inputs: Mapping[str, Path],
+    consumed: Mapping[str, dict[str, Any]],
+    work: Path,
+    stage: Path,
+    *,
+    final: bool,
+) -> dict[str, dict[str, Any]]:
+    expected = {"edge_hints"} if final else set()
+    if set(consumed) != expected:
+        raise ReplayError(f"strategy research detection requires {sorted(expected)}")
+    as_of = spec["fixed_timestamp"][:10]
+    report_dir = work / "reports"
+    command = [
+        sys.executable,
+        str(repo_root / "skills/edge-candidate-agent/scripts/auto_detect_candidates.py"),
+        "--ohlcv",
+        str(inputs["ohlcv"]),
+        "--as-of",
+        as_of,
+        "--output-dir",
+        str(report_dir),
+    ]
+    if final:
+        command.extend(["--hints", consumed["edge_hints"]["files"]["canonical"]])
+    _run_cli(command, repo_root)
+    tickets = _strategy_research_tickets(report_dir)
+    artifacts = _artifact_paths(stage, step["output_files"])
+    if final:
+        if not tickets:
+            raise ReplayError("strategy research replay needs a final ticket for evaluation")
+        payload = {
+            "as_of": as_of,
+            "ohlcv_sha256": _file_sha256(inputs["ohlcv"]),
+            "hints_sha256": _file_sha256(Path(consumed["edge_hints"]["files"]["canonical"])),
+            "tickets": tickets,
+        }
+        _write_json(Path(artifacts["final_research_tickets"]["files"]["canonical"]), payload)
+    else:
+        summary = _load_json(report_dir / "market_summary.json", "initial market summary")
+        anomalies = _load_json(report_dir / "anomalies.json", "initial anomalies")
+        _write_json(Path(artifacts["initial_market_summary"]["files"]["canonical"]), summary)
+        _write_json(Path(artifacts["initial_anomalies"]["files"]["canonical"]), anomalies)
+        _write_json(Path(artifacts["initial_tickets"]["files"]["canonical"]), tickets)
+    return artifacts
+
+
+def _strategy_research_detect_initial(
+    repo_root: Path,
+    spec: Mapping[str, Any],
+    step: Mapping[str, Any],
+    inputs: Mapping[str, Path],
+    consumed: Mapping[str, dict[str, Any]],
+    work: Path,
+    stage: Path,
+) -> dict[str, dict[str, Any]]:
+    return _strategy_research_detect(
+        repo_root, spec, step, inputs, consumed, work, stage, final=False
+    )
+
+
+def _strategy_research_hints(
+    repo_root: Path,
+    spec: Mapping[str, Any],
+    step: Mapping[str, Any],
+    inputs: Mapping[str, Path],
+    consumed: Mapping[str, dict[str, Any]],
+    work: Path,
+    stage: Path,
+) -> dict[str, dict[str, Any]]:
+    del inputs
+    if set(consumed) != {"initial_market_summary", "initial_anomalies"}:
+        raise ReplayError("strategy research hints require initial summary and anomalies")
+    output = work / "hints.yaml"
+    _run_cli(
+        [
+            sys.executable,
+            str(repo_root / "skills/edge-hint-extractor/scripts/build_hints.py"),
+            "--market-summary",
+            consumed["initial_market_summary"]["files"]["canonical"],
+            "--anomalies",
+            consumed["initial_anomalies"]["files"]["canonical"],
+            "--as-of",
+            spec["fixed_timestamp"][:10],
+            "--output",
+            str(output),
+        ],
+        repo_root,
+    )
+    hints = load_yaml(output)
+    if hints.get("as_of") != spec["fixed_timestamp"][:10]:
+        raise ReplayError("strategy research hints as_of differs from detector as_of")
+    hints.pop("generated_at_utc", None)
+    artifacts = _artifact_paths(stage, step["output_files"])
+    _write_yaml(Path(artifacts["edge_hints"]["files"]["canonical"]), hints)
+    return artifacts
+
+
+def _strategy_research_detect_final(
+    repo_root: Path,
+    spec: Mapping[str, Any],
+    step: Mapping[str, Any],
+    inputs: Mapping[str, Path],
+    consumed: Mapping[str, dict[str, Any]],
+    work: Path,
+    stage: Path,
+) -> dict[str, dict[str, Any]]:
+    return _strategy_research_detect(
+        repo_root, spec, step, inputs, consumed, work, stage, final=True
+    )
+
+
+def _strategy_research_hold(
+    repo_root: Path,
+    spec: Mapping[str, Any],
+    step: Mapping[str, Any],
+    inputs: Mapping[str, Path],
+    consumed: Mapping[str, dict[str, Any]],
+    work: Path,
+    stage: Path,
+) -> dict[str, dict[str, Any]]:
+    if set(consumed) != {"final_research_tickets"}:
+        raise ReplayError("strategy research evaluation requires final tickets")
+    tickets_path = Path(consumed["final_research_tickets"]["files"]["canonical"])
+    final = _load_json(tickets_path, "final research tickets")
+    metrics = _require_mapping_keys(
+        _load_json(inputs["backtest_metrics"], "strategy research backtest metrics"),
+        label="strategy research backtest metrics",
+        required={
+            "ticket_id",
+            "as_of",
+            "universe",
+            "period",
+            "cost_assumptions",
+            "source",
+            "total_trades",
+            "win_rate",
+            "avg_win_pct",
+            "avg_loss_pct",
+            "max_drawdown_pct",
+            "years_tested",
+            "num_parameters",
+            "slippage_tested",
+        },
+    )
+    tickets = {ticket["id"]: ticket for ticket in final["tickets"]}
+    ticket_id = _require_non_empty_string(metrics["ticket_id"], "backtest ticket_id")
+    for field in ("universe", "period", "source"):
+        _require_non_empty_string(metrics[field], f"backtest {field}")
+    if not isinstance(metrics["cost_assumptions"], dict):
+        raise ReplayError("backtest cost_assumptions must be a mapping")
+    if metrics["slippage_tested"] is not True and metrics["slippage_tested"] is not False:
+        raise ReplayError("backtest slippage_tested must be boolean")
+    reasons = []
+    ticket = tickets.get(ticket_id)
+    if ticket is None:
+        reasons.append("ticket ID is absent from final research tickets")
+    if metrics["as_of"] != final["as_of"]:
+        reasons.append("metrics as-of date differs from final detection")
+    if ticket is not None:
+        if ticket.get("observation", {}).get("symbol") not in metrics["universe"]:
+            reasons.append("metrics universe does not identify the selected ticket symbol")
+        test_spec = ticket.get("test_spec") or {}
+        if metrics["period"] != test_spec.get("period"):
+            reasons.append("metrics period differs from selected ticket test period")
+        if metrics["cost_assumptions"] != test_spec.get("cost_model"):
+            reasons.append("metrics costs differ from selected ticket cost model")
+    if not metrics["slippage_tested"]:
+        reasons.append("slippage was not separately tested")
+    reasons.append("independent look-ahead, survivorship, and out-of-sample reviews are absent")
+    reasons.append("fictional aggregate metrics are not separate backtest provenance")
+    result = {
+        "status": "HOLD",
+        "evaluation_invoked": False,
+        "reasons": reasons,
+        "provenance": {
+            "execution": "manual_contract_only",
+            "ticket_id": ticket_id,
+            "as_of": final["as_of"],
+            "universe": metrics["universe"],
+            "period": metrics["period"],
+            "cost_assumptions": metrics["cost_assumptions"],
+            "source": metrics["source"],
+            "final_tickets_sha256": _file_sha256(tickets_path),
+            "limitation": "No backtest or scoring CLI was executed; human review is required.",
+        },
+    }
+    artifacts = _artifact_paths(stage, step["output_files"])
+    _write_json(Path(artifacts["backtest_quality_assessment"]["files"]["canonical"]), result)
+    return artifacts
+
+
 EXECUTORS: dict[str, ExecutorRegistration] = {
+    "strategy_research_detect_initial": ExecutorRegistration(
+        "native_cli", _strategy_research_detect_initial
+    ),
+    "strategy_research_hints": ExecutorRegistration("native_cli", _strategy_research_hints),
+    "strategy_research_detect_final": ExecutorRegistration(
+        "native_cli", _strategy_research_detect_final
+    ),
+    "strategy_research_hold": ExecutorRegistration("manual_contract", _strategy_research_hold),
     "ep_circuit": ExecutorRegistration("native_cli", _ep_circuit),
     "ep_screen": ExecutorRegistration("manual_contract", _ep_screen),
     "ep_analyze": ExecutorRegistration("native_cli", _ep_analyze),
@@ -6350,9 +6644,11 @@ def _write_manifest(
         ]
         payload["execution_evidence_limitations"] = limitations
     (stage / "manifest.yaml").write_text(
-        yaml.safe_dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8"
+        yaml.safe_dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8", newline="\n"
     )
-    (stage / "prompt.md").write_text(_prompt_text(workflow, variant), encoding="utf-8")
+    (stage / "prompt.md").write_text(
+        _prompt_text(workflow, variant), encoding="utf-8", newline="\n"
+    )
 
 
 def _cleanup_backup(path: Path) -> None:
@@ -6494,6 +6790,11 @@ def execute_replay(
     workflow = load_yaml(repo_root / "workflows" / f"{spec['workflow_id']}.yaml")
     workflow_steps = {int(item["step"]): item for item in workflow["steps"]}
     spec_steps = {int(item["step"]): item for item in spec["steps"]}
+    provenance_requirements = {
+        artifact_id: number
+        for number, step in spec_steps.items()
+        for artifact_id in step.get("required_provenance", [])
+    }
     inputs = dict(validation["inputs"])
     for name, path in (input_overrides or {}).items():
         if name not in inputs:
@@ -6531,6 +6832,9 @@ def execute_replay(
                             f"step {number} missing required consumed artifact {artifact_id!r}",
                             completed_steps,
                         )
+                _validate_artifact_provenance(
+                    consumed, provenance_requirements, f"step {number} consumed"
+                )
                 executor_name = replay_step["executor"]
                 registration = EXECUTORS.get(executor_name)
                 if registration is None:
@@ -6555,6 +6859,9 @@ def execute_replay(
                 candidate_artifacts = dict(artifacts)
                 candidate_artifacts.update(produced)
                 _validate_artifact_files(stage, candidate_artifacts, f"step {number} output")
+                _validate_artifact_provenance(
+                    produced, provenance_requirements, f"step {number} output"
+                )
                 produced_digests = _artifact_file_digests(produced)
                 duplicate_seals = set(produced_digests) & set(sealed_artifact_digests)
                 if duplicate_seals:
@@ -6584,6 +6891,9 @@ def execute_replay(
                     break
 
             _validate_artifact_files(stage, artifacts, "final artifact store")
+            _validate_artifact_provenance(
+                artifacts, provenance_requirements, "final artifact store"
+            )
             final_digests = _artifact_file_digests(artifacts)
             changed_artifacts = sorted(
                 artifact_id

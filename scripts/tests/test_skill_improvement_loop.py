@@ -1193,3 +1193,41 @@ def test_apply_improvement_allows_preexisting_unfaithful_prereqs(
 
     assert isinstance(result, dict), "Pre-existing debt must not block an unrelated improvement"
     assert result["auto_review"]["score"] == 85
+
+
+@pytest.mark.parametrize(
+    "outcome,dry_run,expected",
+    [(None, False, 1), ({"auto_review": {"score": 95}}, False, 0), (None, True, 0)],
+)
+def test_heartbeat_only_for_completed_improvement(
+    loop_module, tmp_path, monkeypatch, outcome, dry_run, expected
+):
+    for name in ("git_safe_check", "acquire_lock"):
+        monkeypatch.setattr(loop_module, name, lambda *a: True)
+    for name in ("release_lock", "write_daily_summary", "cleanup_merged_branches", "rotate_logs"):
+        monkeypatch.setattr(loop_module, name, lambda *a: None)
+    monkeypatch.setattr(loop_module, "discover_skills", lambda *a: ["test"])
+    monkeypatch.setattr(
+        loop_module, "run_auto_score", lambda *a, **kw: {"auto_review": {"score": 70}}
+    )
+    monkeypatch.setattr(loop_module, "apply_improvement", lambda *a, **kw: outcome)
+    assert loop_module.run(tmp_path, dry_run=dry_run) == expected
+    state = loop_module.load_state(tmp_path)
+    assert ("last_success_at" in state) == (not dry_run and expected == 0)
+
+
+def test_existing_improvement_pr_is_healthy(loop_module, tmp_path, monkeypatch):
+    monkeypatch.setattr(loop_module.shutil, "which", lambda *a: "fake")
+    monkeypatch.setattr(loop_module, "check_existing_pr", lambda *a: True)
+    for name in ("git_safe_check", "acquire_lock"):
+        monkeypatch.setattr(loop_module, name, lambda *a: True)
+    for name in ("release_lock", "write_daily_summary", "cleanup_merged_branches", "rotate_logs"):
+        monkeypatch.setattr(loop_module, name, lambda *a: None)
+    monkeypatch.setattr(loop_module, "discover_skills", lambda *a: ["test"])
+    monkeypatch.setattr(
+        loop_module, "run_auto_score", lambda *a, **kw: {"auto_review": {"score": 70}}
+    )
+    assert loop_module.run(tmp_path) == 0
+    state = loop_module.load_state(tmp_path)
+    assert "last_success_at" in state
+    assert state["history"][-1]["improved"] is False

@@ -231,6 +231,28 @@ class FMPClient:
     CAPABILITY_CACHE_TTL_DAYS = 30
     CAPABILITY_DISABLING_STATUS_CODES = (402, 403)
 
+    def _redact_secret(self, text) -> str:
+        """Mask raw and URL-encoded key echoes before diagnostics are truncated."""
+        from urllib.parse import quote, quote_plus
+
+        text = _redact_key(text)
+        if not self.api_key:
+            return text
+        patterns = {re.escape(self.api_key)}
+        for encoded in (quote(self.api_key, safe=""), quote_plus(self.api_key, safe="")):
+            # Percent triplets are case-insensitive; the key's letters are not.
+            parts = re.split(r"(%[0-9A-Fa-f]{2})", encoded)
+            patterns.add(
+                "".join(
+                    "(?i:" + re.escape(part) + ")"
+                    if re.fullmatch(r"%[0-9A-Fa-f]{2}", part)
+                    else re.escape(part)
+                    for part in parts
+                )
+            )
+        # One pass prevents a short key from matching the replacement marker.
+        return re.sub("|".join(sorted(patterns, key=len, reverse=True)), "***REDACTED***", text)
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -244,7 +266,7 @@ class FMPClient:
         rate_limit_delay: float | None = None,
         respect_capability_cache: bool = True,
     ):
-        self.api_key = api_key or os.getenv("FMP_API_KEY")
+        self.api_key = (api_key or os.getenv("FMP_API_KEY") or "").strip()
         self.offline = bool(offline)
         # Provenance of the payload returned by the most recent
         # _request_json call: {"source": "cache"|"http"|None,
@@ -380,7 +402,7 @@ class FMPClient:
                 self._record_failure(url, f"request_exception:{exc.__class__.__name__}")
                 if not quiet:
                     print(
-                        f"WARN: FMP request failed for {url}: {_redact_key(exc)}",
+                        self._redact_secret(f"WARN: FMP request failed for {url}: {exc}"),
                         file=sys.stderr,
                     )
                 return None
@@ -391,7 +413,7 @@ class FMPClient:
                 self._record_failure(url, f"http_{response.status_code}", response.status_code)
                 if not quiet:
                     print(
-                        f"WARN: FMP endpoint failed: {_redact_key(url)} HTTP {response.status_code}",
+                        f"WARN: FMP endpoint failed: {self._redact_secret(url)} HTTP {response.status_code}",
                         file=sys.stderr,
                     )
                 return None
@@ -400,7 +422,10 @@ class FMPClient:
             except ValueError:
                 self._record_failure(url, "invalid_json", response.status_code)
                 if not quiet:
-                    print(f"WARN: FMP returned invalid JSON: {_redact_key(url)}", file=sys.stderr)
+                    print(
+                        f"WARN: FMP returned invalid JSON: {self._redact_secret(url)}",
+                        file=sys.stderr,
+                    )
                 return None
             if _is_provider_error_payload(payload):
                 # FMP reports plan limits and endpoint errors as HTTP 200
@@ -409,7 +434,8 @@ class FMPClient:
                 self._record_failure(url, "provider_error_payload", response.status_code)
                 if not quiet:
                     print(
-                        f"WARN: FMP returned an error payload: {_redact_key(url)}", file=sys.stderr
+                        f"WARN: FMP returned an error payload: {self._redact_secret(url)}",
+                        file=sys.stderr,
                     )
                 return None
             if validate is not None and not validate(payload):
@@ -419,7 +445,7 @@ class FMPClient:
                 self._record_failure(url, "schema_validation_failed", response.status_code)
                 if not quiet:
                     print(
-                        f"WARN: FMP payload failed schema validation: {_redact_key(url)}",
+                        f"WARN: FMP payload failed schema validation: {self._redact_secret(url)}",
                         file=sys.stderr,
                     )
                 return None
@@ -737,7 +763,7 @@ class FMPClient:
             "cache_hits": self.cache_hits,
             "failure_count": len(self.failures),
             "failure_samples": [
-                {**item, "endpoint": _redact_key(item.get("endpoint", ""))}
+                {**item, "endpoint": self._redact_secret(item.get("endpoint", ""))}
                 for item in self.failures[:20]
             ],
             "disabled_endpoint_count": len(self._disabled_endpoints),

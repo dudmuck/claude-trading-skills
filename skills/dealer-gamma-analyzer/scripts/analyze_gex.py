@@ -373,7 +373,7 @@ def filter_by_dte(rows, as_of, min_dte: int | None = None, max_dte: int | None =
     that reasons about a multi-week horizon (a hedge roll, a weekly-close trigger
     level) must bound the window first.
 
-    Contracts with an unparseable expiry are DROPPED when a bound is set — a
+    Contracts with an unparsable expiry are DROPPED when a bound is set — a
     silently mis-parsed expiry would otherwise leak 0DTE gamma into a window that
     explicitly excluded it. With no bounds set, nothing is filtered.
     """

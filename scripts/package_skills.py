@@ -9,9 +9,12 @@ security-scanner noise when users install .skill archives in Claude Web App.
 from __future__ import annotations
 
 import argparse
+import lzma
 import os
+import stat
+import zlib
 from pathlib import Path
-from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
+from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile, ZipInfo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SKILLS_DIR = PROJECT_ROOT / "skills"
@@ -126,7 +129,9 @@ def _source_logical_contents(skill_dir: Path) -> dict[str, tuple[bytes, bool]]:
     return contents
 
 
-def _archive_logical_contents(archive_path: Path) -> dict[str, tuple[bytes, bool]]:
+def _archive_logical_contents(
+    archive_path: Path, expected_skill: str
+) -> dict[str, tuple[bytes, bool]]:
     """Logical contents of a committed .skill: name -> (uncompressed bytes, exec bit).
 
     Compares logical content (not raw ZIP_DEFLATED bytes) so the gate does not
@@ -135,8 +140,31 @@ def _archive_logical_contents(archive_path: Path) -> dict[str, tuple[bytes, bool
     contents: dict[str, tuple[bytes, bool]] = {}
     with ZipFile(archive_path) as archive:
         for info in archive.infolist():
+            name = info.filename
+            parts = name.split("/")
+            if (
+                name in contents
+                or info.is_dir()
+                or "\\" in name
+                or any(ord(char) < 32 or ord(char) == 127 for char in name)
+                or len(parts) < 2
+                or parts[0] != expected_skill
+                or any(part in {"", ".", ".."} for part in parts)
+                or stat.S_IFMT(info.external_attr >> 16) not in (0, stat.S_IFREG)
+            ):
+                raise ValueError(f"Unsafe or duplicate archive member: {name!r}")
             exec_bit = bool((info.external_attr >> 16) & 0o111)
-            contents[info.filename] = (archive.read(info.filename), exec_bit)
+            try:
+                data = archive.read(info)
+            except (
+                RuntimeError,
+                NotImplementedError,
+                EOFError,
+                zlib.error,
+                lzma.LZMAError,
+            ) as exc:
+                raise ValueError(f"Unreadable archive member: {name!r}") from exc
+            contents[name] = (data, exec_bit)
     return contents
 
 
@@ -150,7 +178,13 @@ def check_skill(skill_dir: Path, output_dir: Path) -> bool:
     archive_path = output_dir.resolve() / f"{skill_dir.resolve().name}.skill"
     if not archive_path.is_file():
         return False
-    return _source_logical_contents(skill_dir) == _archive_logical_contents(archive_path)
+    try:
+        return _source_logical_contents(skill_dir) == _archive_logical_contents(
+            archive_path, skill_dir.resolve().name
+        )
+    except (BadZipFile, OSError, ValueError) as exc:
+        print(f"DRIFT: {archive_path}: {exc}")
+        return False
 
 
 def discover_skill_dirs(skills_dir: Path) -> list[Path]:

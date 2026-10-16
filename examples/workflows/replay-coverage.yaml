@@ -26,6 +26,11 @@ covered:
     variants:
       - required-only
       - full-path
+  strategy-research-pipeline:
+    spec: strategy-research-pipeline/replay.yaml
+    variants:
+      - required-only
+      - full-path
   stockbee-20pct-study-daily:
     spec: stockbee-20pct-study-daily/replay.yaml
     variants:
@@ -57,6 +62,6 @@ covered:
       - required-only
       - full-path
 
-# Frozen Coverage 11/11 baseline. All canonical workflows ship both replay
+# Frozen Coverage 12/12 baseline. All canonical workflows ship both replay
 # variants; a newly introduced workflow must do the same.
 deferred: {}

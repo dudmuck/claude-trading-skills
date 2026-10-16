@@ -21,7 +21,14 @@ def test_every_project_job_uses_locked_environment():
         config = workflow(name)
         assert config["permissions"] == {"contents": "read"}
         for job_id, job in config["jobs"].items():
-            if job_id in {"market-calendar-compat", "dependency-review"}:
+            # Exemptions are keyed by (workflow, job) so a same-named job elsewhere
+            # is still checked. `preflight` (fmp-contract-canary.yml) is a bash-only
+            # gate: it runs no Python and has no project environment to lock.
+            if (name, job_id) in {
+                ("ci.yml", "market-calendar-compat"),
+                ("ci.yml", "dependency-review"),
+                ("fmp-contract-canary.yml", "preflight"),
+            }:
                 continue
             steps = job["steps"]
             sync_steps = [step for step in steps if SYNC in step.get("run", "")]
@@ -44,9 +51,24 @@ def test_packaged_deps_python39_probe_does_not_consume_root_lock():
     assert SYNC not in runs
     for name in ("Offline dependency declaration report", "Clean-room venv smoke per skill"):
         step = next(step for step in steps if step.get("name") == name)
-        assert step["run"].startswith("uv run --isolated --no-project --with packaging python "), (
-            name
-        )
+        run = step["run"]
+        # Both steps probe in an isolated environment that must not consume
+        # the repository's locked root environment (--isolated --no-project).
+        assert run.startswith("uv run --isolated --no-project --with ")
+        assert "packaging" in run
+    # The declaration report parses skills-index.yaml (load_integrations ->
+    # import yaml), so it needs pyyaml. Each package must be its own --with
+    # flag: "--with packaging pyyaml" would treat pyyaml as the command to run.
+    report = next(
+        step for step in steps if step.get("name") == "Offline dependency declaration report"
+    )
+    run = report["run"]
+    # The folded YAML loads as one line: deps first, then the command. Verify
+    # both the dependency args and the executed command precisely.
+    assert run.strip() == (
+        "uv run --isolated --no-project --with packaging --with pyyaml "
+        "python scripts/check_skill_deps.py report > deps-report.json"
+    )
 
 
 def test_matrix_only_checks_installed_requirements_and_security_uses_python311():
@@ -112,3 +134,13 @@ def test_dependabot_tracks_all_three_manifest_families_weekly():
         ("bundler", "/docs"),
     }
     assert all(item["schedule"]["interval"] == "weekly" for item in config["updates"])
+
+
+def test_dependabot_holds_market_calendar_at_python39_floor():
+    # pandas-market-calendars > 5.2.2 breaks the standalone Python 3.9 floor
+    # (config/market-calendar-dependency.yaml); bumps need a policy change, not a PR.
+    config = yaml.safe_load((ROOT / ".github/dependabot.yml").read_text())
+    uv = next(item for item in config["updates"] if item["package-ecosystem"] == "uv")
+    assert {"dependency-name": "pandas-market-calendars"} in uv.get("ignore", [])
+    authority = yaml.safe_load((ROOT / "config/market-calendar-dependency.yaml").read_text())
+    assert authority["requirement"] == "pandas-market-calendars==5.2.2"

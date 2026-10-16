@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "benchmark_version": "2026-08-29.v1",
-  "description": "Manually labeled EN/JA gold corpus for deterministic first-match Navigator routing.",
+  "benchmark_version": "2026-10-10.issue-511",
+  "description": "Manually labeled EN/JA gold corpus for deterministic Navigator routing, including the no-API constraint exception.",
   "baseline": {
     "candidate_precision": 1,
     "candidate_recall": 1,
@@ -568,16 +568,16 @@
     {
       "id": "research-p01",
       "language": "en",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "I want to backtest a new strategy",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": null,
       "transformation": null,
@@ -589,16 +589,16 @@
     {
       "id": "research-p02",
       "language": "en",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "Help me validate a strategy hypothesis",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": null,
       "transformation": null,
@@ -610,16 +610,16 @@
     {
       "id": "research-p03",
       "language": "en",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "Research and backtest my strategy idea",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": null,
       "transformation": null,
@@ -631,16 +631,16 @@
     {
       "id": "research-p04",
       "language": "en",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "Build a strategy research workflow",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": null,
       "transformation": null,
@@ -652,16 +652,16 @@
     {
       "id": "research-p05",
       "language": "ja",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "新しい戦略をバックテストしたい",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": null,
       "transformation": null,
@@ -673,16 +673,16 @@
     {
       "id": "research-p06",
       "language": "ja",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "戦略アイデアを検証したい",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": null,
       "transformation": null,
@@ -694,16 +694,16 @@
     {
       "id": "research-p07",
       "language": "ja",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "仮説検証の流れを作りたい",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": null,
       "transformation": null,
@@ -715,16 +715,16 @@
     {
       "id": "research-p08",
       "language": "ja",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "戦略研究を始めたい",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": null,
       "transformation": null,
@@ -736,16 +736,16 @@
     {
       "id": "research-m01",
       "language": "en",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "I want to back test a new strategy",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": "research-p01",
       "transformation": "orthographic",
@@ -757,16 +757,16 @@
     {
       "id": "research-m02",
       "language": "ja",
-      "label": "honest_gap",
+      "label": "positive",
       "query": "検証したい、新しい戦略を",
       "target_persona": "strategy-researcher",
       "expected_candidate_personas": [
         "strategy-researcher"
       ],
       "expected_selected_persona": "strategy-researcher",
-      "expected_primary_workflow": null,
-      "expected_honest_gap": true,
-      "expected_no_api_path": null,
+      "expected_primary_workflow": "strategy-research-pipeline",
+      "expected_honest_gap": false,
+      "expected_no_api_path": true,
       "neighbor_of": null,
       "base_id": "research-p05",
       "transformation": "word_order",
@@ -4801,6 +4801,262 @@
         "ambiguous",
         "shadowing"
       ]
+    },
+    {
+      "id": "availability-csv-en",
+      "language": "en",
+      "query": "Review my portfolio from a CSV file",
+      "label": "no_api",
+      "target_persona": "dividend-long-term-investor",
+      "expected_candidate_personas": [
+        "dividend-long-term-investor"
+      ],
+      "expected_selected_persona": "dividend-long-term-investor",
+      "expected_primary_workflow": null,
+      "expected_honest_gap": true,
+      "expected_no_api_path": null,
+      "neighbor_of": null,
+      "base_id": null,
+      "transformation": null,
+      "tags": [
+        "issue-511",
+        "availability"
+      ],
+      "options": {
+        "no_api": true
+      },
+      "expected_runnability": "blocked",
+      "expected_routing_status": "unavailable",
+      "expected_alternative_workflow": "market-regime-daily",
+      "expected_missing_requirement_kinds": [
+        "paid_api",
+        "missing_input",
+        "unsupported_capability"
+      ]
+    },
+    {
+      "id": "availability-csv-ja",
+      "language": "ja",
+      "query": "CSVからポートフォリオを見直したい",
+      "label": "no_api",
+      "target_persona": "dividend-long-term-investor",
+      "expected_candidate_personas": [
+        "dividend-long-term-investor"
+      ],
+      "expected_selected_persona": "dividend-long-term-investor",
+      "expected_primary_workflow": null,
+      "expected_honest_gap": true,
+      "expected_no_api_path": null,
+      "neighbor_of": null,
+      "base_id": null,
+      "transformation": null,
+      "tags": [
+        "issue-511",
+        "availability"
+      ],
+      "options": {
+        "no_api": true
+      },
+      "expected_runnability": "blocked",
+      "expected_routing_status": "unavailable",
+      "expected_alternative_workflow": "market-regime-daily",
+      "expected_missing_requirement_kinds": [
+        "paid_api",
+        "missing_input",
+        "unsupported_capability"
+      ]
+    },
+    {
+      "id": "availability-phrase-portfolio-en",
+      "language": "en",
+      "label": "no_api",
+      "query": "Review my portfolio without API",
+      "target_persona": "dividend-long-term-investor",
+      "expected_candidate_personas": [
+        "no-api-path",
+        "dividend-long-term-investor"
+      ],
+      "expected_selected_persona": "dividend-long-term-investor",
+      "expected_primary_workflow": null,
+      "expected_honest_gap": true,
+      "expected_no_api_path": null,
+      "neighbor_of": null,
+      "base_id": null,
+      "transformation": null,
+      "tags": [
+        "issue-511",
+        "availability"
+      ],
+      "expected_runnability": "blocked",
+      "expected_routing_status": "unavailable",
+      "expected_alternative_workflow": "market-regime-daily",
+      "expected_missing_requirement_kinds": [
+        "paid_api"
+      ]
+    },
+    {
+      "id": "availability-phrase-swing-en",
+      "language": "en",
+      "label": "no_api",
+      "query": "Find swing candidates without API",
+      "target_persona": "swing-trader",
+      "expected_candidate_personas": [
+        "no-api-path",
+        "swing-trader"
+      ],
+      "expected_selected_persona": "swing-trader",
+      "expected_primary_workflow": null,
+      "expected_honest_gap": true,
+      "expected_no_api_path": null,
+      "neighbor_of": null,
+      "base_id": null,
+      "transformation": null,
+      "tags": [
+        "issue-511",
+        "availability"
+      ],
+      "expected_runnability": "blocked",
+      "expected_routing_status": "unavailable",
+      "expected_alternative_workflow": "market-regime-daily",
+      "expected_missing_requirement_kinds": [
+        "paid_api"
+      ]
+    },
+    {
+      "id": "availability-csv-export-en",
+      "language": "en",
+      "label": "positive",
+      "query": "Review my portfolio, export the results to csv",
+      "target_persona": "dividend-long-term-investor",
+      "expected_candidate_personas": [
+        "dividend-long-term-investor"
+      ],
+      "expected_selected_persona": "dividend-long-term-investor",
+      "expected_primary_workflow": "core-portfolio-weekly",
+      "expected_honest_gap": false,
+      "expected_no_api_path": false,
+      "neighbor_of": null,
+      "base_id": null,
+      "transformation": null,
+      "tags": [
+        "issue-511",
+        "availability",
+        "csv-output-not-input"
+      ],
+      "expected_runnability": "eligible",
+      "expected_routing_status": "exact",
+      "expected_alternative_workflow": null,
+      "expected_missing_requirement_kinds": []
+    },
+    {
+      "id": "availability-csv-export-ja",
+      "language": "ja",
+      "label": "positive",
+      "query": "ポートフォリオを見直したい、結果はCSVに出力したい",
+      "target_persona": "dividend-long-term-investor",
+      "expected_candidate_personas": [
+        "dividend-long-term-investor"
+      ],
+      "expected_selected_persona": "dividend-long-term-investor",
+      "expected_primary_workflow": "core-portfolio-weekly",
+      "expected_honest_gap": false,
+      "expected_no_api_path": false,
+      "neighbor_of": null,
+      "base_id": null,
+      "transformation": null,
+      "tags": [
+        "issue-511",
+        "availability",
+        "csv-output-not-input"
+      ],
+      "expected_runnability": "eligible",
+      "expected_routing_status": "exact",
+      "expected_alternative_workflow": null,
+      "expected_missing_requirement_kinds": []
+    },
+    {
+      "id": "availability-csv-bare-en",
+      "language": "en",
+      "query": "portfolio review with csv",
+      "label": "positive",
+      "target_persona": "dividend-long-term-investor",
+      "expected_candidate_personas": [
+        "dividend-long-term-investor"
+      ],
+      "expected_selected_persona": "dividend-long-term-investor",
+      "neighbor_of": null,
+      "base_id": null,
+      "transformation": null,
+      "tags": [
+        "issue-511",
+        "availability",
+        "csv-input-default"
+      ],
+      "expected_primary_workflow": null,
+      "expected_honest_gap": true,
+      "expected_no_api_path": null,
+      "expected_runnability": "blocked",
+      "expected_routing_status": "unavailable",
+      "expected_alternative_workflow": null,
+      "expected_missing_requirement_kinds": [
+        "missing_input",
+        "unsupported_capability"
+      ]
+    },
+    {
+      "id": "availability-csv-managed-ja",
+      "language": "ja",
+      "query": "CSVファイルで管理しているポートフォリオを見直したい",
+      "label": "positive",
+      "target_persona": "dividend-long-term-investor",
+      "expected_candidate_personas": [
+        "dividend-long-term-investor"
+      ],
+      "expected_selected_persona": "dividend-long-term-investor",
+      "neighbor_of": null,
+      "base_id": null,
+      "transformation": null,
+      "tags": [
+        "issue-511",
+        "availability",
+        "csv-input-default"
+      ],
+      "expected_primary_workflow": null,
+      "expected_honest_gap": true,
+      "expected_no_api_path": null,
+      "expected_runnability": "blocked",
+      "expected_routing_status": "unavailable",
+      "expected_alternative_workflow": null,
+      "expected_missing_requirement_kinds": [
+        "missing_input",
+        "unsupported_capability"
+      ]
+    },
+    {
+      "id": "availability-csv-send-after-alpaca-en",
+      "language": "en",
+      "query": "weekly portfolio review with Alpaca, then send me the csv file afterwards",
+      "label": "positive",
+      "target_persona": "dividend-long-term-investor",
+      "expected_candidate_personas": [
+        "dividend-long-term-investor"
+      ],
+      "expected_selected_persona": "dividend-long-term-investor",
+      "neighbor_of": null,
+      "base_id": null,
+      "transformation": null,
+      "tags": [
+        "issue-511",
+        "availability",
+        "csv-input-default"
+      ],
+      "expected_primary_workflow": "core-portfolio-weekly",
+      "expected_honest_gap": false,
+      "expected_no_api_path": false,
+      "expected_runnability": "eligible",
+      "expected_routing_status": "exact",
+      "expected_alternative_workflow": null,
+      "expected_missing_requirement_kinds": []
     }
   ]
 }

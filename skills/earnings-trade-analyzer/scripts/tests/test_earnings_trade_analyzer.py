@@ -287,6 +287,8 @@ class TestCandidateSelection:
         with tempfile.TemporaryDirectory() as tmpdir:
             argv = [
                 "analyze_earnings_trades.py",
+                "--min-revenue",
+                "0",
                 "--api-key",
                 "test-key",
                 "--output-dir",
@@ -352,6 +354,8 @@ class TestCandidateSelection:
         with tempfile.TemporaryDirectory() as tmpdir:
             argv = [
                 "analyze_earnings_trades.py",
+                "--min-revenue",
+                "0",
                 "--api-key",
                 "test-key",
                 "--output-dir",
@@ -402,6 +406,8 @@ class TestCandidateSelection:
         with tempfile.TemporaryDirectory() as tmpdir:
             argv = [
                 "analyze_earnings_trades.py",
+                "--min-revenue",
+                "0",
                 "--api-key",
                 "test-key",
                 "--output-dir",
@@ -659,6 +665,8 @@ class TestAsOfValidation:
     def _argv(tmpdir):
         return [
             "analyze_earnings_trades.py",
+            "--min-revenue",
+            "0",
             "--api-key",
             "test-key",
             "--output-dir",
@@ -673,6 +681,8 @@ class TestMainZeroResultExitCodes:
     def _argv(tmpdir):
         return [
             "analyze_earnings_trades.py",
+            "--min-revenue",
+            "0",
             "--api-key",
             "test-key",
             "--output-dir",

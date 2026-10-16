@@ -359,3 +359,4 @@ If the user requested specific filters, note at the top:
 **Scripts:**
 
 - `skills/economic-calendar-fetcher/scripts/get_economic_calendar.py`
+- `skills/economic-calendar-fetcher/scripts/fmp_client.py`

@@ -10,6 +10,7 @@ Usage:
 The knowledge base lives in ../references/indicators.md as a sequence of
 frontmatter-tagged cards. We parse on every call (fast — file is <100KB).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -89,11 +90,21 @@ DISAMBIG_TOKENS = {"core", "ex", "excluding", "non", "manufacturing", "services"
 # Tokens map to a bank IDENTITY, not to themselves, so "Fed" and "FOMC" stay
 # interchangeable while "Fed" and "BoJ" become mutually exclusive.
 _BANK_BY_TOKEN = {
-    "fed": "US", "fomc": "US", "federal": "US", "powell": "US",
-    "boj": "JP", "ueda": "JP",
-    "ecb": "EU", "lagarde": "EU",
-    "boe": "GB", "bailey": "GB",
-    "snb": "CH", "rba": "AU", "boc": "CA", "rbnz": "NZ", "pboc": "CN",
+    "fed": "US",
+    "fomc": "US",
+    "federal": "US",
+    "powell": "US",
+    "boj": "JP",
+    "ueda": "JP",
+    "ecb": "EU",
+    "lagarde": "EU",
+    "boe": "GB",
+    "bailey": "GB",
+    "snb": "CH",
+    "rba": "AU",
+    "boc": "CA",
+    "rbnz": "NZ",
+    "pboc": "CN",
 }
 
 

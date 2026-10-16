@@ -502,7 +502,7 @@ def test_skill_review_command_is_normalized_before_other_replay_metadata() -> No
         "generated_at": "2026-09-11T12:34:56Z",
         "auto_review": {
             "test_status": "passed",
-            "test_command": f"{sys.executable} -m pytest {raw_target} -q",
+            "test_command": f"{sys.executable} -m pytest {raw_target.as_posix()} -q",
             "test_output": "262 passed in 1.23s",
         },
     }
@@ -511,7 +511,7 @@ def test_skill_review_command_is_normalized_before_other_replay_metadata() -> No
     canonical = replay_module._canonicalize(
         report,
         "2026-05-31T23:59:59Z",
-        {str(ROOT) + "/": ""},
+        {ROOT.as_posix() + "/": ""},
     )
     canonical = replay_module._normalize_elapsed(canonical)
 
@@ -884,3 +884,63 @@ def test_review_test_output_is_normalized_before_other_replay_metadata() -> None
 
     assert canonical["auto_review"]["test_output"] == (f"{_PROGRESS}\n262 passed in <elapsed>s")
     assert canonical["auto_review"]["test_command"] == "pytest skills/vcp-screener/scripts/tests -q"
+
+
+def test_monthly_coach_scrubs_absolute_source_records(monkeypatch, tmp_path: Path) -> None:
+    aggregate = tmp_path / "stage" / "aggregate.json"
+    records = [
+        str(aggregate),
+        str(aggregate.parent / "nested" / "nested.json"),
+        str(ROOT / "examples" / "repo-record.json"),
+        "/external/reports/external.json",
+        r"C:\reports\windows.json",
+        "C:/reports/forward.json",
+        r"\\server\share\unc.json",
+        "relative/record.json",
+        "./aggregate.json",
+        "../parent/record.json",
+        "",
+        None,
+        7,
+    ]
+    spec = load_yaml(SPEC)
+    inputs = replay_module.validate_spec(ROOT, SPEC)["inputs"]
+    decision = load_yaml(inputs["coach_decision"])
+
+    def fake_run_cli(command, repo_root):
+        reports = Path(command[command.index("--output-dir") + 1])
+        reports.mkdir(parents=True)
+        (reports / "monthly-coach.json").write_text(
+            json.dumps(
+                {
+                    "source_records": records,
+                    "human_decision_gate": {"allowed_actions": [decision["action"]]},
+                    "notes": "/external/reports/external.json",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(replay_module, "_run_cli", fake_run_cli)
+    step = next(row for row in spec["steps"] if row["executor"] == "monthly_coach")
+    consumed = {
+        "monthly_aggregate": {"files": {"canonical": str(aggregate)}},
+        "aggregate_postmortem": {},
+    }
+    artifacts = EXECUTORS["monthly_coach"].run(
+        ROOT, spec, step, inputs, consumed, tmp_path / "work", tmp_path / "stage"
+    )
+    result = json.loads(
+        Path(artifacts["monthly_performance_coach_report"]["files"]["canonical"]).read_text()
+    )
+    assert result["source_records"] == [
+        "./aggregate.json",
+        "./nested.json",
+        "./repo-record.json",
+        "./external.json",
+        "./windows.json",
+        "./forward.json",
+        "./unc.json",
+        *records[7:],
+    ]
+    assert result["notes"] == "/external/reports/external.json"

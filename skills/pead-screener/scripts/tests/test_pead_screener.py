@@ -1470,6 +1470,7 @@ class TestModeACandidates:
     @staticmethod
     def _args(min_market_cap=1_000_000_000, lookback_days=5):
         args = MagicMock()
+        args.min_revenue = 0  # fork-local pre-filter off; fixtures carry no revenue
         args.min_market_cap = min_market_cap
         args.lookback_days = lookback_days
         return args
@@ -1582,6 +1583,7 @@ class TestModeAZeroResultReasons:
     @staticmethod
     def _args(min_market_cap=1_000_000_000, lookback_days=5):
         args = MagicMock()
+        args.min_revenue = 0  # fork-local pre-filter off; fixtures carry no revenue
         args.min_market_cap = min_market_cap
         args.lookback_days = lookback_days
         return args
@@ -1719,6 +1721,8 @@ class TestModeBZeroResultReasons:
         json_path.write_text(json.dumps(payload))
 
         args = MagicMock()
+
+        args.min_revenue = 0  # fork-local pre-filter off; fixtures carry no revenue
         args.candidates_json = str(json_path)
         args.min_grade = "A"
 
@@ -1743,6 +1747,8 @@ class TestModeBZeroResultReasons:
         json_path.write_text(json.dumps(payload))
 
         args = MagicMock()
+
+        args.min_revenue = 0  # fork-local pre-filter off; fixtures carry no revenue
         args.candidates_json = str(json_path)
         args.min_grade = "B"
 
@@ -1792,6 +1798,8 @@ class TestFixtureConsumerFieldContracts:
         client.get_api_stats.return_value = {"budget_remaining": 50, "rate_limit_reached": False}
 
         args = MagicMock()
+
+        args.min_revenue = 0  # fork-local pre-filter off; fixtures carry no revenue
         args.min_market_cap = 2_000_000_000
         args.lookback_days = 5
 
@@ -1834,7 +1842,15 @@ class TestTimingMetadata:
             "rate_limit_reached": False,
         }
 
-        argv = ["screen_pead.py", "--api-key", "test-key", "--output-dir", str(tmp_path)]
+        argv = [
+            "screen_pead.py",
+            "--min-revenue",
+            "0",
+            "--api-key",
+            "test-key",
+            "--output-dir",
+            str(tmp_path),
+        ]
         with patch.object(sys, "argv", argv):
             main()
 
@@ -1908,7 +1924,15 @@ class TestTimingMetadata:
             "rate_limit_reached": False,
         }
 
-        argv = ["screen_pead.py", "--api-key", "test-key", "--output-dir", str(tmp_path)]
+        argv = [
+            "screen_pead.py",
+            "--min-revenue",
+            "0",
+            "--api-key",
+            "test-key",
+            "--output-dir",
+            str(tmp_path),
+        ]
         with patch.object(sys, "argv", argv):
             main()
 
@@ -1957,6 +1981,8 @@ class TestTimingMetadata:
 
             argv = [
                 "screen_pead.py",
+                "--min-revenue",
+                "0",
                 "--api-key",
                 "test-key",
                 "--output-dir",
@@ -1981,7 +2007,15 @@ class TestMainZeroResultExitCodes:
 
     @staticmethod
     def _argv(tmpdir, extra=None):
-        argv = ["screen_pead.py", "--api-key", "test-key", "--output-dir", str(tmpdir)]
+        argv = [
+            "screen_pead.py",
+            "--min-revenue",
+            "0",
+            "--api-key",
+            "test-key",
+            "--output-dir",
+            str(tmpdir),
+        ]
         return argv + (extra or [])
 
     @patch("screen_pead.FMPClient")

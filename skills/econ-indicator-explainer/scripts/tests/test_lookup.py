@@ -2,6 +2,7 @@
 
 Run with: python3 -m pytest skills/econ-indicator-explainer/scripts/tests/
 """
+
 import subprocess
 import sys
 from pathlib import Path
@@ -10,9 +11,7 @@ SCRIPT = Path(__file__).parent.parent / "lookup_indicator.py"
 
 
 def _run(*args):
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True
-    )
+    return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True)
 
 
 def test_list_runs():

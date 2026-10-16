@@ -744,8 +744,7 @@ def _get_candidates_mode_a(client: FMPClient, args) -> tuple[list[dict], Optiona
             e
             for e in earnings
             if isinstance(e, dict)
-            and max(e.get("revenueEstimated") or 0, e.get("revenueActual") or 0)
-            >= args.min_revenue
+            and max(e.get("revenueEstimated") or 0, e.get("revenueActual") or 0) >= args.min_revenue
         ]
         print(
             f"  Revenue filter (>=${args.min_revenue / 1e9:.1f}B): "

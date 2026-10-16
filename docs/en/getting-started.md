@@ -27,6 +27,26 @@ plain-language reference.
 
 ---
 
+## Preview the Outputs
+
+These illustrated excerpts use fictional data. They show what a recommendation, risk review, and closed-trade review can look like before you install a skill. They are not live data or trading instructions.
+
+Select a preview to open the full-size SVG; on a phone, zoom after opening.
+
+[![Illustrative Navigator recommendation for a 15-minute daily market check and its three required skills]({{ '/assets/previews/navigator-recommendation.svg' | relative_url }})]({{ '/assets/previews/navigator-recommendation.svg' | relative_url }})
+
+**Find a starting path:** [Trading Skills Navigator]({{ '/en/skills/trading-skills-navigator/' | relative_url }}) recommends a workflow from your goal.
+
+[![Illustrative market posture with 36 percent exposure ceiling, REDUCE_ONLY, and LOW confidence because critical inputs are missing]({{ '/assets/previews/market-posture.svg' | relative_url }})]({{ '/assets/previews/market-posture.svg' | relative_url }})
+
+**Review the daily posture:** [Market Regime Daily]({{ '/en/workflows/' | relative_url }}) ends with a human decision gate.
+
+[![Illustrative weekly digest with four fictional closed trades, 50 percent win rate, and 75 dollars realized profit]({{ '/assets/previews/weekly-digest.svg' | relative_url }})]({{ '/assets/previews/weekly-digest.svg' | relative_url }})
+
+**Review completed trades:** [Weekly Performance Digest]({{ '/en/skills/weekly-performance-digest/' | relative_url }}) summarizes outcomes and lessons.
+
+---
+
 ## Prerequisites
 
 > **What this actually costs:** Claude Web Skills are currently available on

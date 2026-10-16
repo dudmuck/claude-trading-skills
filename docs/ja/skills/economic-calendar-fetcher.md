@@ -279,3 +279,5 @@ python3 skills/economic-calendar-fetcher/scripts/get_economic_calendar.py \
 **スクリプト:**
 
 - `skills/economic-calendar-fetcher/scripts/get_economic_calendar.py`
+
+- `skills/economic-calendar-fetcher/scripts/fmp_client.py`

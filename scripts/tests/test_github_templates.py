@@ -63,7 +63,11 @@ FMP_PACKAGE_DRIFT_COMMAND = (
     "--skill canslim-screener "
     "--skill macro-regime-detector "
     "--skill market-top-detector "
-    "--skill us-undervalued-growth-screener"
+    "--skill us-undervalued-growth-screener "
+    "--skill earnings-calendar "
+    "--skill economic-calendar-fetcher "
+    "--skill institutional-flow-tracker "
+    "--skill cot-contrarian-detector"
 )
 
 

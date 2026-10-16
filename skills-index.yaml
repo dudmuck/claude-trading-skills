@@ -67,6 +67,7 @@ skills:
   - stockbee-20pct-study-daily
   - stockbee-fluency-loop
   - trade-memory-loop
+  - strategy-research-pipeline
 - id: breadth-chart-analyst
   display_name: Breadth Chart Analyst
   category: market-regime
@@ -625,6 +626,7 @@ skills:
   - tickets_dir
   workflows:
   - stockbee-20pct-study-daily
+  - strategy-research-pipeline
 - id: edge-concept-synthesizer
   display_name: Edge Concept Synthesizer
   category: strategy-research
@@ -686,6 +688,7 @@ skills:
   - hints_yaml
   workflows:
   - stockbee-20pct-study-daily
+  - strategy-research-pipeline
 - id: edge-pipeline-orchestrator
   display_name: Edge Pipeline Orchestrator
   category: strategy-research

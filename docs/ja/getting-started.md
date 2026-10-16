@@ -27,6 +27,26 @@ Claude Trading Skillsのインストール方法、APIキーの設定、最初�
 
 ---
 
+## 出力プレビュー
+
+インストール前に確認できる架空データによる表示例です。ワークフロー提案、リスク確認、決済済み取引の振り返りを示します。現在の相場情報や売買指示ではありません。
+
+画像を選ぶと原寸のSVGを開けます。スマートフォンでは開いた後に拡大できます。
+
+[![架空の毎朝15分の確認目標に対し、必要な3スキルと有料API不要の経路を示すNavigatorの出力例]({{ '/assets/previews/navigator-recommendation.svg' | relative_url }})]({{ '/assets/previews/navigator-recommendation.svg' | relative_url }})
+
+**開始経路を探す:** [Trading Skills Navigator]({{ '/ja/skills/trading-skills-navigator/' | relative_url }})が目的に合うワークフローを提案します。
+
+[![架空のスコアから計算した上限36%、REDUCE_ONLY、重要入力不足によるLOWの信頼度を示す相場方針の出力例]({{ '/assets/previews/market-posture.svg' | relative_url }})]({{ '/assets/previews/market-posture.svg' | relative_url }})
+
+**日々の方針を確認する:** [市場レジーム日次ワークフロー]({{ '/ja/workflows/' | relative_url }})の最後に人間の判断ゲートがあります。
+
+[![架空の決済済み4取引を使い、勝率50%と実現損益プラス75ドルを示す週次振り返りの出力例]({{ '/assets/previews/weekly-digest.svg' | relative_url }})]({{ '/assets/previews/weekly-digest.svg' | relative_url }})
+
+**決済済み取引を振り返る:** [Weekly Performance Digest]({{ '/ja/skills/weekly-performance-digest/' | relative_url }})が成果と改善点を整理します。
+
+---
+
 ## 必要なもの
 
 > **実際に必要な費用:** Claude WebのSkillsは現在Free、Pro、Max、Team、

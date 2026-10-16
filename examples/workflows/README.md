@@ -104,9 +104,9 @@ cross-artifact arithmetic. All files also remain subject to standard hygiene hoo
 (whitespace, YAML syntax, `detect-secrets`, `no-absolute-paths`, and related
 checks).
 
-## Executable workflow replay (Issue #294, Coverage 11/11)
+## Executable workflow replay (Issue #294, Coverage 12/12)
 
-All eleven canonical workflows are generated and checked by the
+All twelve canonical workflows are generated and checked by the
 executable replay harness:
 
 - `core-portfolio-weekly`
@@ -120,6 +120,7 @@ executable replay harness:
 - `shapiro-contrarian`
 - `stockbee-ep-daily`
 - `multi-asset-opportunity-daily`
+- `strategy-research-pipeline`
 
 ```bash
 python3 scripts/workflow_replay.py validate
@@ -199,10 +200,18 @@ goldens; committed goldens are never executor inputs. The monthly replay uses
 dedicated `replay-run/` and `replay-run-full-path/` golden trees, distinct from
 the teaching `sample-run/` and `sample-run-full-path/` fixtures covered by Issue
 #208. The coverage manifest
-holds all eleven workflows at Coverage 11/11 with no deferrals. A newly added
+holds all twelve workflows at Coverage 12/12 with no deferrals. A newly added
 workflow cannot join a deferral set and must ship
 both required-only and full-path replay specs. Issue #294 is closed by the
 multi-asset slice completing the eleventh workflow.
+
+The strategy research replay runs the native candidate detector twice against
+the same fictional local OHLCV parquet and `--as-of` date. Between runs it
+executes the native hint extractor and passes its dated hints to the second
+detector. The fictional metrics fixture has a period that does not match the
+selected ticket and lacks independent bias review. Step 4 records `HOLD` with
+the reasons and never invokes the scoring CLI or emits a verdict. Both replay
+variants execute all four required steps.
 
 Replay validation rejects a `golden_dir` that resolves to the replay spec or its
 directory, overlaps any offline-input directory, or overlaps the other

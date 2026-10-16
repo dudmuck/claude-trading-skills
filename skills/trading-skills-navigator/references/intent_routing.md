@@ -23,18 +23,21 @@ explicitly labeled 211-case EN/JA gold corpus, and
 If **no** persona matches, the input is treated as unmapped → a graceful
 **beginner default** (`market-regime-daily`, `honest_gap: false`) with a
 `note` asking the user to rephrase. This is distinct from an *honest gap*
-(personas #1/#2), which is a recognized intent with no shipped workflow.
+(persona #1), which is a recognized intent with no shipped workflow.
 `routing_diagnostics.status` is `fallback` in this path, so the default is not
 presented as a confident exact match.
 
 ## Persona table (order matters)
 
-Evaluated top-to-bottom; first match wins. Order encodes precedence:
+Evaluated top-to-bottom; first match wins, except that `no-api-path` becomes a
+constraint when another substantive goal also matches. Candidate order stays
+unchanged, while the selected persona identifies the substantive goal. Order
+otherwise encodes precedence:
 
 | # | Persona | Trigger gist | Result |
 |---|---|---|---|
 | 1 | `short-strategy-trader` | "short strategies / shorting / parabolic short" | honest gap → `advanced-satellite` |
-| 2 | `strategy-researcher` | "backtest / research a strategy / strategy ideas" | honest gap → `strategy-research` |
+| 2 | `strategy-researcher` | "backtest / research a strategy / strategy ideas" | `strategy-research-pipeline` |
 | 3 | `shapiro-contrarian-futures-trader` | "COT / Shapiro / crowded futures" | `shapiro-contrarian` |
 | 4 | `no-api-path` | "without API / no subscription / free only" | `market-regime-daily` + {`trade-memory-loop`, `monthly-performance-review`}, force `no_api` |
 | 5 | `stockbee-20pct-researcher` | "20% movers / explosive mover model book" | `stockbee-20pct-study-daily` |
@@ -53,8 +56,8 @@ Evaluated top-to-bottom; first match wins. Order encodes precedence:
 
 **Critical orderings**
 
-- #1/#2 (honest gaps) before everything so "short strategies" / "backtest" are
-  not swallowed by accidental keyword overlap.
+- #1/#2 before everything so "short strategies" / "backtest" are not
+  swallowed by accidental keyword overlap. Only #1 remains an honest gap.
 - #1 triggers only on short-**selling** phrases ("short strateg", "shorting",
   "go short", "short position"…) — it deliberately does **not** match
   "short-term", so #6 ("separate long-term holdings from short-term risk")
@@ -77,7 +80,7 @@ constraints are applied. The first candidate remains the selected persona for
 backward compatibility. One match is `exact`; multiple matches are
 `ambiguous`; no matches are `fallback` with `selected_persona: null`.
 
-The versioned corpus requires all 17 personas and all 11 workflows to carry
+The versioned corpus requires all 17 personas and all 12 workflows to carry
 positive and hard-negative coverage in both English and Japanese. Its
 metamorphic cases cover EN case/punctuation/word-order/orthographic changes and
 JA punctuation/word-order/orthographic/particle/conjugation changes. Candidate
@@ -110,11 +113,17 @@ a golden test in `tests/test_recommend.py` (the hard Phase-1 gate).
 | 7 | use short strategies | **null** | — | advanced-satellite | — | **yes** |
 | 8 | what works without API keys | `market-regime-daily` | `trade-memory-loop`, `monthly-performance-review` | market-regime | yes | no |
 | 9 | beginner-friendly starting path | `market-regime-daily` | — | market-regime | yes | no |
-| 10 | research and backtest new strategy ideas *(authored)* | **null** | — | strategy-research | — | **yes** |
+| 10 | research and backtest new strategy ideas *(authored)* | `strategy-research-pipeline` | — | strategy-research | yes | no |
 
 Q8 honors the single-`primary_workflow` schema: primary is
 `market-regime-daily`; the rest of the no-API set are `secondary_workflows`;
 `skillset` is the primary's category (`market-regime`).
+
+For backtest execution terms (`backtest`, `back-test`, `back test`,
+`バックテスト`), Q10 still recommends the offline research workflow but includes
+a capability note in JSON and text: the workflow evaluates metrics from a
+separate backtest and cannot perform that backtest itself. `no_api_path: true`
+describes only this workflow, not the external tool or its historical data.
 
 ## Skillset rule
 
@@ -129,9 +138,9 @@ trade-planning / trade-memory; only the first (`vcp-screener` →
 manifest ships (the manifest `id` == the skills-index category, so the lookup
 is a direct match — carried as the `skillsets` list in the SSoT / bundled
 snapshot). Today the shipped set is `market-regime`, `core-portfolio`,
-`swing-opportunity`, `trade-memory` → those report `active`. Categories with no
-manifest — including every honest-gap category (`advanced-satellite` for #7,
-`strategy-research` for #10) — report `deferred`. The skillset object shape is
+`swing-opportunity`, `trade-memory`, `strategy-research` → those report `active`.
+Categories with no manifest — including the honest-gap category
+`advanced-satellite` for #7 — report `deferred`. The skillset object shape is
 unchanged (`{id, source, manifest_status}`); only the status value reflects
 manifest presence.
 
@@ -171,9 +180,29 @@ credentials are always inspected. Consequences:
 - `trade-memory-loop` / `monthly-performance-review` are `no-api-basic`;
   `trader-memory-core` has FMP at `optional` (not required) → kept.
 
-When `--no-api` removes the persona's primary, the engine falls back to the
-universal no-API on-ramp (`market-regime-daily`) and records the exclusion
-reason in `rationale`. Honest gaps are unaffected (they have no primary).
+When `--no-api` blocks the matched workflow, the engine keeps that workflow
+in `goal_match` with `runnability: blocked` and the paid integration in
+`missing_requirements`. The requested goal has `primary_workflow: null`,
+`honest_gap: true`, `no_api_path: null`, and an empty `setup_bundle`.
+`market-regime-daily` may appear separately as a different-goal
+`alternative_workflow`; it never becomes an exact portfolio/swing match.
+For core-portfolio-weekly, any CSV mention ("from a CSV file", "I have a csv",
+"portfolio review csv", "CSVファイルで管理している…") is read as the portfolio
+*source* and stays blocked because #512 has not shipped a CSV workflow.
+Navigator accepts no CSV path argument. The one exception is a CSV that is
+clearly an output ("export/save/send … csv", "CSVに出力") with no input
+pattern present; input patterns win, a negated CSV ("not from a CSV") is
+ignored, and naming or negating Alpaca never changes the outcome by itself.
+Known limitation: a CSV query with no portfolio wording (for example "I have
+a CSV") does not match the portfolio persona and falls back to
+market-regime-daily; goal matching is unchanged here.
+
+Under `--no-api`, paid-API *secondary* workflows are removed from
+`secondary_workflows` and listed in `dropped_secondary_workflows`
+(`[{id, reason}]`, `[]` when none). The field is deliberately separate from
+`goal_match.missing_requirements`: dropping a follow-on step does not block the
+matched goal. Text output prints one `Dropped secondary (no-API): <id>` line
+per entry.
 
 ## `no_api` vs `no_api_path` (the DoD's API-vs-no-API separation)
 
@@ -185,7 +214,7 @@ Two distinct booleans — narrate `no_api_path`, not `no_api`:
 - **`no_api_path`** — *path-side*: does the **entire** recommendation (primary
   **and every** secondary) work without paid API keys?
   `workflow_paid_api_reason(primary) is None and all(... for secondary)`.
-  `null` on an honest gap (no path). This is the 10-Question Contract's
+  `null` when no usable goal path exists (unshipped or blocked). This is the 10-Question Contract's
   "no-API" column.
 
 This is why Q1 and Q2 both recommend `market-regime-daily` yet differ: Q2 has
@@ -207,9 +236,25 @@ and no-API paths".
 
 ## Honest gap output
 
-For personas #1 (`advanced-satellite`) and #2 (`strategy-research`):
+For persona #1 (`advanced-satellite`):
 `primary_workflow: null`, `secondary_workflows: []`, `skillset.id` = the gap
 category, `suggested_skills` = that category's non-deprecated skills
 (id-sorted, `{id, display_name, category}`), `honest_gap: true`, and a `note`
 stating the workflow manifest is deferred. Exit code is still `0` — an honest
 gap is a successful, honest recommendation.
+
+## Goal availability (Issue #511)
+
+`goal_match` retains the original persona and best matching workflow before
+constraints are applied. Its `runnability` is `eligible` (metadata and stated
+constraints allow the path, not proof that data is ready), `blocked` (a matching
+workflow exists but the request cannot use it), `unshipped` (no dedicated
+workflow), or `unmatched` (unmapped input and a beginner fallback). A blocked
+result has `routing_diagnostics.status: unavailable`, typed
+`missing_requirements`, and no primary/setup bundle. A different-goal
+`alternative_workflow` is shown independently.
+
+When a query combines a substantive goal with a phrase such as "without API",
+the no-API persona supplies a constraint and the substantive persona remains
+the goal. A standalone request for a no-API path still selects that persona's
+general on-ramp.

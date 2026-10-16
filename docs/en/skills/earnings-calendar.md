@@ -393,4 +393,6 @@ The script automatically handles all formatting including:
 **Scripts:**
 
 - `skills/earnings-calendar/scripts/fetch_earnings_fmp.py`
+- `skills/earnings-calendar/scripts/fmp_client.py`
+- `skills/earnings-calendar/scripts/_fmp_compat.py`
 - `skills/earnings-calendar/scripts/generate_report.py`

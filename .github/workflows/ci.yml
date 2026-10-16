@@ -26,7 +26,7 @@ jobs:
           python-version: "3.11"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.10"
       - name: Sync locked project environment
@@ -44,6 +44,40 @@ jobs:
       - name: Codespell
         run: codespell --toml pyproject.toml skills/ scripts/
 
+  docs-cli-examples:
+    name: Documented CLI examples (issue #336)
+    runs-on: ubuntu-latest
+    # The gate is stdlib-only and offline, but the job still uses the project's
+    # locked environment for consistency with every other project job.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.12.10"
+      - name: Sync locked project environment
+        run: |
+          uv sync --locked --no-install-project --extra dev --extra ci
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Validate bundled skill resource references
+        run: python3 scripts/check_skill_references.py
+
+      - name: Validate documented CLI examples
+        run: python3 scripts/check_doc_cli_examples.py validate
+
+      # Execute only examples explicitly marked `offline ci`; each runs in an
+      # isolated temp cwd and API-key env vars are stripped. Fails on any
+      # marked example that errors or mutates the repo.
+      - name: Execute offline CI examples
+        run: python3 scripts/check_doc_cli_examples.py execute --ci
+
   discover-tests:
     name: Discover test matrix
     runs-on: ubuntu-latest
@@ -56,7 +90,7 @@ jobs:
         with:
           python-version: "3.10"
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.10"
       - name: Sync locked project environment
@@ -82,7 +116,7 @@ jobs:
         with:
           python-version: "3.10"
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.10"
       - name: Sync locked project environment
@@ -97,7 +131,7 @@ jobs:
           --coverage-dir coverage-data
       - name: Upload coverage row
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-${{ matrix.id }}
           path: coverage-data/
@@ -116,7 +150,7 @@ jobs:
         with:
           python-version: "3.10"
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.10"
       - name: Sync locked project environment
@@ -124,7 +158,7 @@ jobs:
           uv sync --locked --no-install-project --extra dev --extra ci
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Download coverage rows
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: coverage-*
           path: coverage-artifacts
@@ -135,7 +169,7 @@ jobs:
           --output combined-coverage
       - name: Upload executable-code coverage report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: executable-code-coverage-report
           path: combined-coverage/
@@ -156,7 +190,7 @@ jobs:
           python-version: "3.11"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.10"
       - name: Sync locked project environment
@@ -245,7 +279,7 @@ jobs:
         run: python3 scripts/check_package_drift_for_changed_skills.py
 
       - name: FMP skill package drift check
-        run: python3 scripts/package_skills.py --check --skill pead-screener --skill earnings-trade-analyzer --skill ibd-distribution-day-monitor --skill vcp-screener --skill parabolic-short-trade-planner --skill ftd-detector --skill canslim-screener --skill macro-regime-detector --skill market-top-detector --skill us-undervalued-growth-screener
+        run: python3 scripts/package_skills.py --check --skill pead-screener --skill earnings-trade-analyzer --skill ibd-distribution-day-monitor --skill vcp-screener --skill parabolic-short-trade-planner --skill ftd-detector --skill canslim-screener --skill macro-regime-detector --skill market-top-detector --skill us-undervalued-growth-screener --skill earnings-calendar --skill economic-calendar-fetcher --skill institutional-flow-tracker --skill cot-contrarian-detector
 
       # 5b. Dependency declaration check (offline, issue #330): every
       # executable skill must ship requirements.txt covering its imports.
@@ -268,7 +302,7 @@ jobs:
       # 'Test repo-level scripts' step in the test job above.
 
   workflow-replay:
-    name: Workflow replay (Coverage 11/11)
+    name: Workflow replay (Coverage 12/12)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -279,7 +313,7 @@ jobs:
           python-version: "3.10"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.10"
       - name: Sync locked project environment
@@ -294,7 +328,7 @@ jobs:
 
       - name: Upload workflow replay evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: workflow-replay-report
           path: workflow-replay-report.json
@@ -333,7 +367,7 @@ jobs:
           python-version: "3.11"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.10"
       - name: Sync locked project environment
@@ -377,7 +411,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.10"
       - name: Sync locked project environment
@@ -390,7 +424,7 @@ jobs:
         run: python scripts/check_supply_chain.py audit --report supply-chain-audit.json
       - name: Upload dependency audit report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: supply-chain-audit
           path: supply-chain-audit.json
@@ -433,7 +467,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.10"
 

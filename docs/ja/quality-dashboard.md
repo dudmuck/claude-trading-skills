@@ -19,17 +19,17 @@ generated: true
 
 | 合計 | 本番 | ベータ | 知識のみ | 実行可能 | テストあり | テストなし |
 |---:|---:|---:|---:|---:|---:|---:|
-| 74 | 62 | 12 | 3 | 71 | 71 | 0 |
+| 78 | 65 | 13 | 3 | 75 | 75 | 0 |
 
 ## テストカバレッジ
 
 - 全体カバレッジ目標: 75.0%
-- 全体カバレッジ下限: 72.0%
+- 全体カバレッジ下限: 75.0%
 - 許容失敗: 0 (目標 0)
 
 ## E2E リプレイ
 
-- E2E リプレイでカバーされたワークフロー: 11 / 11
+- E2E リプレイでカバーされたワークフロー: 12 / 12
 
 ## 依存関係
 
@@ -39,12 +39,13 @@ generated: true
 | FINVIZ | 4 |
 | ALPACA | 2 |
 | その他の外部プロバイダ | 8 |
-| オフライン（外部データなし） | 35 |
+| オフライン（外部データなし） | 39 |
 
 ## ベータパイプライン
 
 | スキル | ベータ経過日数 |
 |---|---:|
+| `adversarial-trade-debate` | not yet measured |
 | `crypto-regime-analyzer` | not yet measured |
 | `fxmacrodata-calendar` | not yet measured |
 | `manifoldbt-backtester` | not yet measured |
@@ -62,6 +63,7 @@ generated: true
 
 | スキル | ステータス | 実行可能 | テスト | カバレッジ |
 |---|---|---|---|---|
+| **Adversarial Trade Debate** (`adversarial-trade-debate`) | ベータ | はい | はい | not yet measured |
 | **Backtest Expert** (`backtest-expert`) | 本番 | はい | はい | not yet measured |
 | **Breadth Chart Analyst** (`breadth-chart-analyst`) | 本番 | はい | はい | not yet measured |
 | **Breakout Trade Planner** (`breakout-trade-planner`) | 本番 | はい | はい | not yet measured |
@@ -70,12 +72,14 @@ generated: true
 | **COT Contrarian Detector** (`cot-contrarian-detector`) | 本番 | はい | はい | not yet measured |
 | **Crypto Regime Analyzer** (`crypto-regime-analyzer`) | ベータ | はい | はい | not yet measured |
 | **Data Quality Checker** (`data-quality-checker`) | 本番 | はい | はい | not yet measured |
+| **Dealer Gamma Analyzer** (`dealer-gamma-analyzer`) | 本番 | はい | はい | not yet measured |
 | **Dividend Growth Pullback Screener** (`dividend-growth-pullback-screener`) | 本番 | はい | はい | not yet measured |
 | **Downtrend Duration Analyzer** (`downtrend-duration-analyzer`) | 本番 | はい | はい | not yet measured |
 | **Drawdown Circuit Breaker** (`drawdown-circuit-breaker`) | 本番 | はい | はい | not yet measured |
 | **Dual Axis Skill Reviewer** (`dual-axis-skill-reviewer`) | 本番 | はい | はい | not yet measured |
 | **Earnings Calendar** (`earnings-calendar`) | 本番 | はい | はい | not yet measured |
 | **Earnings Trade Analyzer** (`earnings-trade-analyzer`) | 本番 | はい | はい | not yet measured |
+| **Econ Indicator Explainer** (`econ-indicator-explainer`) | 本番 | はい | はい | not yet measured |
 | **Economic Calendar Fetcher** (`economic-calendar-fetcher`) | 本番 | はい | はい | not yet measured |
 | **Edge Candidate Agent** (`edge-candidate-agent`) | 本番 | はい | はい | not yet measured |
 | **Edge Concept Synthesizer** (`edge-concept-synthesizer`) | 本番 | はい | はい | not yet measured |
@@ -112,6 +116,7 @@ generated: true
 | **Residual Edge Analyzer** (`residual-edge-analyzer`) | ベータ | はい | はい | not yet measured |
 | **Scenario Analyzer** (`scenario-analyzer`) | 本番 | いいえ | いいえ | not yet measured |
 | **Sector Analyst** (`sector-analyst`) | 本番 | はい | はい | not yet measured |
+| **Short-Squeeze Radar** (`short-squeeze-radar`) | 本番 | はい | はい | not yet measured |
 | **Signal Postmortem** (`signal-postmortem`) | 本番 | はい | はい | not yet measured |
 | **Skill Designer** (`skill-designer`) | 本番 | はい | はい | not yet measured |
 | **Skill Idea Miner** (`skill-idea-miner`) | 本番 | はい | はい | not yet measured |
