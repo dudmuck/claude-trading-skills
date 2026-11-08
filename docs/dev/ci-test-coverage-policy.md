@@ -233,10 +233,10 @@ down by 2026-10-31 and were re-dated on evidence as described above.
 
 The 2026-08-11 local planning snapshot measured 27 waived skills and estimated
 2,709 additional covered executable lines to reach every tier target. That
-estimate is for workload planning only: Ubuntu/Python 3.10 CI at each pull
+estimate is for workload planning only: Ubuntu/Python 3.11 CI at each pull
 request head is authoritative because platform-specific imports and branches
-can change both the numerator and denominator. Root CI now runs Python 3.10;
-the dated Python 3.9 measurements above remain historical evidence.
+can change both the numerator and denominator. Root CI now runs Python 3.11;
+earlier Python 3.10 and 3.9 measurements remain historical evidence.
 
 | Week ending | Skills | Planning lift (covered lines) |
 |---|---|---:|
@@ -251,7 +251,7 @@ the dated Python 3.9 measurements above remain historical evidence.
 | 2026-10-11 | `strategy-pivot-designer`, `skill-designer`, `stockbee-20pct-study` | 53 |
 
 This completes the planned per-skill work by 2026-10-11 and leaves October
-12-31 for Ubuntu/Python 3.10 variance, full-matrix reruns, and removal of any
+12-31 for Ubuntu/Python 3.11 variance, full-matrix reruns, and removal of any
 remaining waiver before expiry. The aggregate planning snapshot was 72.963%,
 about 983 covered lines below 75%; the cumulative schedule crosses that local
 estimate by 2026-08-30. Capture the exact CI aggregate at every pull request
@@ -264,7 +264,7 @@ cover`, coverage omit/source changes, file relocation, generated-code
 exclusions, test-only production execution, or production-line deletion whose
 sole purpose is denominator reduction. Local preflight must reach at least
 71.0% for a 70% skill (or 86.0% for an 85% core skill); the waiver is removed
-only after the exact Ubuntu/Python 3.10 CI command reports at least the policy
+only after the exact Ubuntu/Python 3.11 CI command reports at least the policy
 target at the pull request head. If platform results differ, keep the waiver
 and add behavioral tests.
 

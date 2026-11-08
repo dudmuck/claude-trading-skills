@@ -39,7 +39,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -104,7 +104,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -486,7 +486,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -600,7 +600,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -913,7 +913,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -1107,7 +1107,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: passed
     end_to_end_replay: passed
     data_provenance: not_verified
@@ -1167,7 +1167,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -1272,7 +1272,7 @@ skills:
     security_review: not_verified
   operational_role:
     type: workflow_step
-  summary: Detects market top probability using O'Neil Distribution Days, Minervini Leading Stock Deterioration,
+  summary: Assesses heuristic market top risk using O'Neil Distribution Days, Minervini Leading Stock Deterioration,
     and Monty Defensive Sector Rotation.
   timeframe: daily
   difficulty: intermediate
@@ -1321,7 +1321,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -1458,7 +1458,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -1506,22 +1506,25 @@ skills:
   integrations:
   - id: alpaca
     type: broker
-    requirement: required
-    note: Alpaca brokerage MCP/API
+    requirement: optional
+    note: Required for full brokerage analysis; local CSV/saved-position allocation review needs no credentials
   inputs:
   - alpaca_holdings
+  - local_holdings_snapshot
   outputs:
   - allocation_report
+  - holdings_allocation_report
   - rebalance_actions
   workflows:
   - core-portfolio-weekly
+  - portfolio-holdings-review
 - id: position-sizer
   display_name: Position Sizer
   category: trade-planning
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: passed
     end_to_end_replay: passed
     data_provenance: not_verified
@@ -1914,7 +1917,7 @@ skills:
   - id: fmp
     type: market_data
     requirement: optional
-    note: Optional OHLCV/profile enrichment via Financial Modeling Prep
+    note: Optional OHLCV enrichment via Financial Modeling Prep
   - id: local_calculation
     type: calculation
     requirement: not_required
@@ -2074,7 +2077,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -2211,7 +2214,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: not_verified
+    unit_tests: passed
     workflow_contract: passed
     end_to_end_replay: passed
     data_provenance: not_verified

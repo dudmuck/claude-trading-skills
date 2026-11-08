@@ -296,6 +296,8 @@ python3 skills/position-sizer/scripts/position_sizer.py \
 
 ### JSON出力の主要フィールド
 
+リスク割合モード（Kelly入力なし）で`--stop`と`--atr`を両方指定した場合、株数と`final_risk_*`の計算にはATR法を使い、明示したストップはこれらの計算では使わず、`parameters.stop_price`にはATRから算出したストップを表示します。`final_risk_dollars`と`final_risk_pct`に限り、十進数で小数第2位までhalf-up（中間値はリスクが大きい方）の丸めを行い、その他の出力は従来の丸め規則を維持します。
+
 | フィールド | 説明 |
 |-----------|------|
 | `mode` | `shares`（株数算出モード）または `budget`（Kelly予算モード） |
@@ -431,8 +433,8 @@ python3 skills/position-sizer/scripts/position_sizer.py [OPTIONS]
 | `--stop` | ストップロス価格 | - |
 | `--risk-pct` | 1トレードあたりのリスク%（例: 1.0） | - |
 | `--atr` | Average True Range値 | - |
-| `--atr-multiplier` | ATR乗数 | 2.0 |
-| `--win-rate` | 勝率（0-1）、Kelly Criterion用 | - |
+| `--atr-multiplier` | 有限かつ正のATR乗数 | 2.0 |
+| `--win-rate` | 勝率（0より大きく1未満）、Kelly Criterion用 | - |
 | `--avg-win` | 平均利益額、Kelly Criterion用 | - |
 | `--avg-loss` | 平均損失額、Kelly Criterion用 | - |
 | `--max-position-pct` | 1銘柄の最大ポジション比率（%） | - |
@@ -442,6 +444,8 @@ python3 skills/position-sizer/scripts/position_sizer.py [OPTIONS]
 | `--fractional` | 小数株出力を有効化 | false |
 | `--share-precision` | 小数株を切り捨てる桁数（0-8） | 4 |
 | `--output-dir` | レポート出力先ディレクトリ | `reports/` |
+
+数値オプションはすべて有限の数値である必要があります。`nan`、`inf`、`-inf`を指定すると、レポートを書き出す前に終了コード2で終了し、該当オプション名をエラーに表示します。
 
 ### 手法比較表
 

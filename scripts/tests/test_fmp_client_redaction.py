@@ -196,7 +196,15 @@ def test_garp_failure_endpoint_identity_raw_but_diagnostics_masked(tmp_path, mon
     assert FAKE_KEY not in str(samples)
 
 
-# Include every core client, including the Issue #495 Batch A clients.
+STOCKBEE_SKILLS = (
+    "stockbee-20pct-study",
+    "stockbee-episodic-pivot-analyzer",
+    "stockbee-exhaustion-hammer-screener",
+    "stockbee-momentum-burst-screener",
+    "stockbee-setup-fluency-trainer",
+)
+
+# Include every core client, including the Issue #495 Batch A/C clients.
 ADDITIONAL_CORE_CLIENTS = [
     f"skills/{skill}/scripts/fmp_client.py"
     for skill in (
@@ -204,6 +212,11 @@ ADDITIONAL_CORE_CLIENTS = [
         "economic-calendar-fetcher",
         "institutional-flow-tracker",
         "cot-contrarian-detector",
+        "value-dividend-screener",
+        "dividend-growth-pullback-screener",
+        "kanchi-dividend-sop",
+        # Issue #495 Batch C: stockbee family.
+        *STOCKBEE_SKILLS,
     )
 ]
 GENERATED_CLIENTS = ALL_CLIENTS + ADDITIONAL_CORE_CLIENTS
@@ -366,3 +379,118 @@ def test_whitespace_only_key_preserves_missing_key_policy(rel_path, tmp_path, mo
 def test_short_key_does_not_reprocess_replacement(rel_path, tmp_path):
     _mod, client = _make_client(rel_path, tmp_path, api_key="D")
     assert client._redact_secret("D D") == "***REDACTED*** ***REDACTED***"
+
+
+# ---- Issue #495 Batch C: stable-only stockbee primitives ----
+
+STOCKBEE_CLIENTS = [f"skills/{skill}/scripts/fmp_client.py" for skill in STOCKBEE_SKILLS]
+STABLE = "https://financialmodelingprep.com/stable"
+
+
+class _JsonResponse:
+    def __init__(self, status_code: int, payload):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = str(payload)
+
+    def json(self):
+        return self._payload
+
+
+class _FakeSession:
+    def __init__(self, response):
+        self.response = response
+        self.calls: list[tuple[str, dict]] = []
+        self.headers: dict = {}
+
+    def get(self, url, params=None, timeout=None):
+        self.calls.append((url, dict(params or {})))
+        return self.response
+
+
+def _stockbee_client(rel_path, tmp_path, monkeypatch, response):
+    mod, client = _make_client(rel_path, tmp_path)
+    client.RATE_LIMIT_DELAY = 0
+    session = _FakeSession(response)
+    client.session = session
+    monkeypatch.setattr(mod.time, "sleep", lambda *_a, **_k: None)
+    return mod, client, session
+
+
+@pytest.mark.parametrize("rel_path", STOCKBEE_CLIENTS)
+def test_stockbee_fetch_screener_rows_stable_url_and_params(rel_path, tmp_path, monkeypatch):
+    rows = [{"symbol": "AAA"}]
+    _m, client, session = _stockbee_client(
+        rel_path, tmp_path, monkeypatch, _JsonResponse(200, rows)
+    )
+    assert client.fetch_screener_rows({"limit": 5, "isActivelyTrading": "true"}) == rows
+    assert session.calls == [
+        (f"{STABLE}/company-screener", {"limit": 5, "isActivelyTrading": "true"})
+    ]
+
+
+@pytest.mark.parametrize("rel_path", STOCKBEE_CLIENTS)
+def test_stockbee_fetch_eod_rows_uses_et_window(rel_path, tmp_path, monkeypatch):
+    from datetime import date
+
+    rows = [{"date": "2026-10-23", "close": 1.0}]
+    mod, client, session = _stockbee_client(
+        rel_path, tmp_path, monkeypatch, _JsonResponse(200, rows)
+    )
+    monkeypatch.setattr(mod, "_et_today", lambda now=None: date(2026, 10, 23))
+    assert client.fetch_eod_rows("AAPL", 30) == rows
+    # days * 2 + default pad of 10 = 70 calendar days before 2026-10-23.
+    assert session.calls == [
+        (
+            f"{STABLE}/historical-price-eod/full",
+            {"symbol": "AAPL", "from": "2026-08-14", "to": "2026-10-23"},
+        )
+    ]
+    session.calls.clear()
+    assert client.fetch_eod_rows("MSFT", 10, pad_days=5)
+    assert session.calls[0][1]["from"] == "2026-09-28"
+
+
+@pytest.mark.parametrize("rel_path", STOCKBEE_CLIENTS)
+def test_stockbee_fetch_quote_row_stable_url(rel_path, tmp_path, monkeypatch):
+    payload = [{"symbol": "AAPL", "price": 1}]
+    _m, client, session = _stockbee_client(
+        rel_path, tmp_path, monkeypatch, _JsonResponse(200, payload)
+    )
+    assert client.fetch_quote_row("AAPL") == {"symbol": "AAPL", "price": 1}
+    assert session.calls == [(f"{STABLE}/quote", {"symbol": "AAPL"})]
+
+
+@pytest.mark.parametrize("rel_path", STOCKBEE_CLIENTS)
+@pytest.mark.parametrize("call", ["screener", "eod", "quote"])
+@pytest.mark.parametrize("kind", ["http_error", "non_list", "empty"])
+def test_stockbee_primitives_failure_shapes_and_no_v3(rel_path, call, kind, tmp_path, monkeypatch):
+    response = {
+        "http_error": _JsonResponse(402, {"Error Message": "plan"}),
+        "non_list": _JsonResponse(200, {"Error Message": "bad"}),
+        "empty": _JsonResponse(200, []),
+    }[kind]
+    _m, client, session = _stockbee_client(rel_path, tmp_path, monkeypatch, response)
+    result = {
+        "screener": lambda: client.fetch_screener_rows({"limit": 1}),
+        "eod": lambda: client.fetch_eod_rows("AAPL", 5),
+        "quote": lambda: client.fetch_quote_row("AAPL"),
+    }[call]()
+    if kind == "empty" and call != "quote":
+        assert result == []  # empty rows pass through unchanged
+    else:
+        assert result is None
+    # Exactly one stable request; never a v3 fallback and never a circuit breaker.
+    assert len(session.calls) == 1
+    assert all("/api/v3/" not in url for url, _ in session.calls)
+    assert not getattr(client, "_disabled_endpoints", set())
+
+
+@pytest.mark.parametrize("rel_path", STOCKBEE_CLIENTS)
+def test_stockbee_empty_rows_never_disable_later_symbols(rel_path, tmp_path, monkeypatch):
+    _m, client, session = _stockbee_client(rel_path, tmp_path, monkeypatch, _JsonResponse(200, []))
+    for symbol in ("A", "B", "C", "D", "E"):
+        assert client.fetch_eod_rows(symbol, 5) == []
+    session.response = _JsonResponse(200, [{"date": "2026-10-23"}])
+    assert client.fetch_eod_rows("F", 5) == [{"date": "2026-10-23"}]
+    assert len(session.calls) == 6

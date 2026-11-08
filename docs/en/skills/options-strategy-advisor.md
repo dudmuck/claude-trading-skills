@@ -76,19 +76,26 @@ Example requests:
 
 ## 4. Quick Start
 
-```bash
-# Calculate Black-Scholes price and Greeks
-python3 options-strategy-advisor/scripts/black_scholes.py \
-  --ticker AAPL \
-  --strike 150 \
-  --days-to-expiry 30 \
-  --option-type call
+Run this library example from the repository root after installing
+`skills/options-strategy-advisor/requirements.txt`. It uses fictional inputs and
+requires no API key or ticker lookup. `T` is time in years; `r`, `sigma` and `q`
+are annual decimals. The European Black-Scholes model assumes constant
+volatility/rates and a continuous dividend yield. This is a calculation example,
+not a trading recommendation. The module's fixed research demonstration does
+not parse pricing or strategy flags; use `OptionPricer` for custom inputs.
 
-# Analyze covered call strategy
-python3 options-strategy-advisor/scripts/black_scholes.py \
-  --ticker AAPL \
-  --strategy covered_call \
-  --stock-price 155
+<!-- options-library-example -->
+```python
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path("skills/options-strategy-advisor/scripts").resolve()))
+from black_scholes import OptionPricer
+
+# Fictional European option; T is years, r/sigma/q are annual decimals.
+pricer = OptionPricer(S=100.0, K=100.0, T=1.0, r=0.0, sigma=0.2, q=0.0)
+greeks = pricer.get_all_greeks("call")
+print(greeks)
 ```
 
 ---
@@ -147,7 +154,7 @@ HV = returns.std() * np.sqrt(252)  # 252 trading days
 
 **User Can Override:**
 - Provide IV from broker platform (ThinkorSwim, TastyTrade, etc.)
-- Script accepts `--iv 28.0` parameter
+- Pass broker IV of 28% as `sigma=0.28` to `OptionPricer`
 
 ### Step 3: Price Options Using Black-Scholes
 

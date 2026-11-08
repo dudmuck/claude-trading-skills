@@ -21,6 +21,22 @@ test the published standalone dependency ranges, not the root project's locked
 environment. Their install results are compatibility evidence, not lockfile
 reproducibility evidence. Release checksums and SBOMs remain outside this change.
 
+## Lockfile revision maintenance
+
+The repository keeps `revision = 5` in `uv.lock`. Both the CI-pinned uv 0.12.10
+and local uv 0.12.17 can rewrite that field to `revision = 3` during `uv lock`,
+even when resolved packages do not change. For dependency-metadata cleanup or
+lock-only PRs, retain `revision = 5` to avoid unrelated format churn. Review an
+intentional lock-format migration separately.
+
+After regenerating the lock, compare the full diff: package versions, dependency
+edges, sources, artifact hashes, and resolution markers must change only when
+the PR intends to change them. Restore the revision field if it is the only
+unintended change, then run `uv lock --check` with the CI-pinned uv version.
+Repeat the check after local test scripts that invoke `uv run`, since those
+commands can update the lock. `uv lock --check` verifies freshness without
+rewriting the file; passing it does not replace reviewing the dependency diff.
+
 ## Audit and exceptions
 
 Run from the repository root with the locked Python 3.11 environment:
@@ -41,6 +57,12 @@ The JSON report is uploaded by CI even when the audit fails.
 Python 3.9 lock exceptions by moving the shared root environment to Python 3.10 and regenerating
 the lock with patched dependency versions. Standalone skill probes may still run on Python 3.9, but
 they do not consume `uv.lock` or install the root project.
+
+The Python 3.10 resolution fork was retired the same way. Because the audit scans the whole
+`uv.lock` regardless of markers, the `python_full_version < '3.11'` fork pinned pillow 12.3.0,
+virtualenv 21.14.5 and filelock 4.1.0 (and an outdated certifi) with no 3.10-compatible fixed
+release. Python 3.10 reaches end of life in October 2026, so the shared root environment now
+starts at Python 3.11 and the lock carries a single patched resolution.
 
 A vulnerability exception must identify an exact package, version and advisory, plus its owner,
 reason and expiry. Expiry is evaluated against the UTC date; an exception expires

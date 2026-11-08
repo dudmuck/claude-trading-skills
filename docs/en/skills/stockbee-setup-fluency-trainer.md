@@ -143,3 +143,4 @@ For cohorts with enough examples:
 **Scripts:**
 
 - `skills/stockbee-setup-fluency-trainer/scripts/build_model_book.py`
+- `skills/stockbee-setup-fluency-trainer/scripts/fmp_client.py`

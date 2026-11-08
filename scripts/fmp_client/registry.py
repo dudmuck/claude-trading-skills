@@ -50,6 +50,8 @@ class SkillConfig:
     extensions: tuple[str, ...]  # extension module names appended to the FMPClient body
     batch_days: int = 260  # get_batch_historical default `days` (family A only)
     standalone_template: str | None = None  # full-file template for PR2 special clients
+    configurable_timeout: bool = False  # new targets may retain a per-instance timeout
+    pair_history_validation: bool = False  # target-scoped guard before shared normalization
     query_auth: bool = False  # send FMP API key as ?apikey= instead of a header
     # --- fork-local stable-endpoint migration knobs (see module docstring) ---
     rate_limit_delay: float = 0.3  # RATE_LIMIT_DELAY class constant
@@ -289,4 +291,93 @@ SKILLS: dict[str, SkillConfig] = {
         class_constants=(),
         extensions=("cot_reports",),
     ),
+    # ---- Issue #495 Batch B ----
+    "value-dividend-screener": SkillConfig(
+        skill="value-dividend-screener",
+        title="FMP API Client for value-dividend-screener",
+        family="B",
+        has_quote=False,
+        budget=False,
+        hist_days=30,
+        hist_return_list=True,
+        has_compat=False,
+        configurable_timeout=True,
+        feature_lines=("- Stable-only dividend/value routing and response aliases",),
+        class_constants=(("STABLE_URL", '"https://financialmodelingprep.com/stable"'),),
+        extensions=("dividend_stable",),
+    ),
+    "dividend-growth-pullback-screener": SkillConfig(
+        skill="dividend-growth-pullback-screener",
+        title="FMP API Client for dividend-growth-pullback-screener",
+        family="B",
+        has_quote=False,
+        budget=False,
+        hist_days=30,
+        hist_return_list=True,
+        has_compat=False,
+        configurable_timeout=True,
+        feature_lines=("- Stable-only dividend/value routing and response aliases",),
+        class_constants=(("STABLE_URL", '"https://financialmodelingprep.com/stable"'),),
+        extensions=("dividend_stable",),
+    ),
+    "kanchi-dividend-sop": SkillConfig(
+        skill="kanchi-dividend-sop",
+        title="FMP API Client for kanchi-dividend-sop",
+        family="B",
+        has_quote=False,
+        budget=False,
+        hist_days=30,
+        hist_return_list=True,
+        has_compat=False,
+        configurable_timeout=True,
+        feature_lines=("- Stable-only dividend/value routing and response aliases",),
+        class_constants=(("STABLE_URL", '"https://financialmodelingprep.com/stable"'),),
+        extensions=("dividend_stable",),
+    ),
 }
+
+
+def _stockbee(skill: str, hist_days: int) -> SkillConfig:
+    """Issue #495 Batch C: budgeted family-B core + stable-only stockbee primitives."""
+    return SkillConfig(
+        skill=skill,
+        title=f"FMP API Client for {skill}",
+        family="B",
+        has_quote=False,
+        budget=True,
+        hist_days=hist_days,
+        hist_return_list=True,
+        has_compat=False,
+        feature_lines=("- Stable-only screener/EOD/quote primitives for stockbee adapters",),
+        class_constants=(("STABLE_URL", '"https://financialmodelingprep.com/stable"'),),
+        extensions=("stockbee_stable",),
+    )
+
+
+# ---- Issue #495 Batch C (stockbee family) ----
+for _cfg in (
+    _stockbee("stockbee-20pct-study", 320),
+    _stockbee("stockbee-episodic-pivot-analyzer", 90),
+    _stockbee("stockbee-exhaustion-hammer-screener", 120),
+    _stockbee("stockbee-momentum-burst-screener", 80),
+    _stockbee("stockbee-setup-fluency-trainer", 80),
+):
+    SKILLS[_cfg.skill] = _cfg
+del _cfg
+
+
+# ---- Issue #495 Batch D: pair-trade public adapters ----
+SKILLS["pair-trade-screener"] = SkillConfig(
+    skill="pair-trade-screener",
+    title="FMP API Client for Pair Trade Screener",
+    family="B",
+    has_quote=False,
+    budget=False,
+    hist_days=730,
+    hist_return_list=False,
+    has_compat=False,
+    pair_history_validation=True,
+    feature_lines=("- Pair screener and unbounded historical transport adapters",),
+    class_constants=(),
+    extensions=("pair_trade",),
+)

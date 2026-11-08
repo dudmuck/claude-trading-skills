@@ -11,10 +11,11 @@
 - [ ] This PR does not provide financial advice, buy/sell signals, profit guarantees, or broker execution. / 金融助言、売買推奨、利益保証、発注実行を含みません。
 - [ ] I removed secrets, API keys, personal information, brokerage account data, and proprietary customer data. / 秘密情報、APIキー、個人情報、証券口座情報、顧客固有情報を含みません。
 - [ ] This PR contains no unsafe live write and does not mix unrelated cleanup. / 危険なlive writeや無関係な整理を含みません。
+- [ ] A user-visible change has an entry under `## [Unreleased]` in `CHANGELOG.md`, or N/A is explained below. / 利用者に見える変更は `CHANGELOG.md` の `## [Unreleased]` に記録しました。対象外の場合は理由を下に書きました。
 
 ## Local validation / ローカル検証
 
-- [ ] Targeted tests passed with `python3.10 -m pytest <target> -q` (or the repository-compatible Python noted below). / 対象テストが通過しました。
+- [ ] Targeted tests passed with `python3.11 -m pytest <target> -q` (or the repository-compatible Python noted below). / 対象テストが通過しました。
 - [ ] The full skill suite passed with `bash scripts/run_all_tests.sh`, or N/A is explained below. / 全skill testまたはN/A理由を記録しました。
 - [ ] `ruff check skills/ scripts/` passed. / lintが通過しました。
 - [ ] `ruff format --check skills/ scripts/` passed. / format checkが通過しました。
@@ -43,7 +44,7 @@ Mark non-applicable items as N/A and explain them under reviewer notes. / 非該
 - [ ] FMP package mirrors passed the repository CI command below. / FMP package mirrorのdriftを確認しました。
 
 ```bash
-python3 scripts/package_skills.py --check --skill pead-screener --skill earnings-trade-analyzer --skill ibd-distribution-day-monitor --skill vcp-screener --skill parabolic-short-trade-planner --skill ftd-detector --skill canslim-screener --skill macro-regime-detector --skill market-top-detector --skill us-undervalued-growth-screener --skill earnings-calendar --skill economic-calendar-fetcher --skill institutional-flow-tracker --skill cot-contrarian-detector
+python3 scripts/package_skills.py --check --skill pead-screener --skill earnings-trade-analyzer --skill ibd-distribution-day-monitor --skill vcp-screener --skill parabolic-short-trade-planner --skill ftd-detector --skill canslim-screener --skill macro-regime-detector --skill market-top-detector --skill us-undervalued-growth-screener --skill earnings-calendar --skill economic-calendar-fetcher --skill institutional-flow-tracker --skill cot-contrarian-detector --skill value-dividend-screener --skill dividend-growth-pullback-screener --skill kanchi-dividend-sop --skill stockbee-20pct-study --skill stockbee-episodic-pivot-analyzer --skill stockbee-exhaustion-hammer-screener --skill stockbee-momentum-burst-screener --skill stockbee-setup-fluency-trainer --skill pair-trade-screener
 ```
 
 ## Reviewer notes and N/A reasons / レビュー補足・N/A理由

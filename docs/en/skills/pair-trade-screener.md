@@ -79,13 +79,13 @@ Example user requests:
 
 ```bash
 # Screen for pairs in specific sector
-python3 pair-trade-screener/scripts/find_pairs.py --sector Technology
+python3 skills/pair-trade-screener/scripts/find_pairs.py --sector Technology
 
 # Analyze specific pair
-python3 pair-trade-screener/scripts/analyze_spread.py --stock-a AAPL --stock-b MSFT
+python3 skills/pair-trade-screener/scripts/analyze_spread.py --stock-a AAPL --stock-b MSFT
 
 # Custom cointegration parameters
-python3 pair-trade-screener/scripts/find_pairs.py \
+python3 skills/pair-trade-screener/scripts/find_pairs.py \
   --sector Financials \
   --min-correlation 0.7 \
   --lookback-days 365
@@ -140,12 +140,14 @@ Narrow focus to specific industry within sector:
 **Data Requirements:**
 - Timeframe: 2 years (minimum 252 trading days)
 - Frequency: Daily closing prices
-- Adjustments: Adjusted for splits and dividends
+- Adjustments: Dividend-adjusted `adjClose` from `/stable/historical-price-eod/dividend-adjusted` when available. The fallback `full` endpoint serves unadjusted `close`; the run then warns per symbol and records `price_basis: close`
 - Clean data: No gaps or missing values
 
 **FMP API Endpoint:**
 ```
-GET /v3/historical-price-full/{symbol}?apikey=YOUR_API_KEY
+GET /stable/historical-price-eod/dividend-adjusted?symbol={symbol}   # preferred, adjClose
+GET /stable/historical-price-eod/full?symbol={symbol}                  # fallback, unadjusted close
+Header: apikey: <FMP_API_KEY>
 ```
 
 **Data Validation:**
@@ -155,8 +157,11 @@ GET /v3/historical-price-full/{symbol}?apikey=YOUR_API_KEY
 - Log data quality issues
 
 **Script Execution:**
+
+Price retrieval is built into `find_pairs.py`; this command runs the complete screening pipeline rather than a separate download helper.
 ```bash
-python scripts/fetch_price_data.py --sector Technology --lookback 730
+python3 skills/pair-trade-screener/scripts/find_pairs.py \
+  --sector Technology --lookback-days 730 --output reports/pair-trade/technology.json
 ```
 
 ### Step 3: Calculate Correlation and Beta

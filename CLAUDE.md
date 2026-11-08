@@ -276,7 +276,7 @@ The table below is **auto-generated** from `skills-index.yaml` by `scripts/gener
 | **PEAD Screener** | ✅ Required | ❌ Not used | ❌ Not used | Financial Modeling Prep API |
 | **Pair Trade Screener** | ✅ Required | ❌ Not used | ❌ Not used | Financial Modeling Prep API |
 | **Parabolic Short Trade Planner** | ✅ Required | ❌ Not used | 🟡 Optional | Financial Modeling Prep API |
-| **Portfolio Manager** | ❌ Not used | ❌ Not used | ✅ Required | Alpaca brokerage MCP/API |
+| **Portfolio Manager** | ❌ Not used | ❌ Not used | 🟡 Optional | Required for full brokerage analysis; local CSV/saved-position allocation review needs no credentials |
 | **Position Sizer** | ❌ Not used | ❌ Not used | ❌ Not used | Pure calculation; works offline |
 | **Pre-Trade Discipline Gate** | ❌ Not used | ❌ Not used | ❌ Not used | Reads local checklist, workflow artifacts, and trader-memory-core state; works offline |
 | **Residual Edge Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Analyzes aligned local CSV and JSON inputs; works offline |
@@ -289,7 +289,7 @@ The table below is **auto-generated** from `skills-index.yaml` by `scripts/gener
 | **Skill Integration Tester** | ❌ Not used | ❌ Not used | ❌ Not used | Validates multi-skill workflow contracts |
 | **Stanley Druckenmiller Investment** | ❌ Not used | ❌ Not used | ❌ Not used | Synthesizes outputs from upstream skills; pure calculation |
 | **Stockbee 20% Study** | ✅ Required | ❌ Not used | ❌ Not used | Live US universe, daily OHLCV, symbol profile, and optional historical backfill data |
-| **Stockbee Episodic Pivot Analyzer** | 🟡 Optional | ❌ Not used | ❌ Not used | Optional OHLCV/profile enrichment via Financial Modeling Prep |
+| **Stockbee Episodic Pivot Analyzer** | 🟡 Optional | ❌ Not used | ❌ Not used | Optional OHLCV enrichment via Financial Modeling Prep |
 | **Stockbee Exhaustion Hammer Screener** | ✅ Required | ❌ Not used | ❌ Not used | Live US universe, daily OHLCV, and optional quote-derived near-close bar via Financial Modeling Prep |
 | **Stockbee Momentum Burst Screener** | ✅ Required | ❌ Not used | ❌ Not used | Live US universe and daily OHLCV via Financial Modeling Prep |
 | **Stockbee Setup Fluency Trainer** | 🟡 Optional | ❌ Not used | ❌ Not used | Financial Modeling Prep daily OHLCV for automatic outcome updates when local prices are unavailable |
@@ -473,20 +473,25 @@ python3 skills/pead-screener/scripts/screen_pead.py \
 ```
 
 **Options Strategy Advisor:** 🟡 FMP API optional
-<!-- exec: skip reason="black_scholes CLI is a research entry point with no argparse parser, so it would silently ignore the documented flags; implement argparse or drop the example as follow-up" owner=@tradermonty expires=2026-12-31 -->
-```bash
-# Calculate Black-Scholes price and Greeks
-python3 skills/options-strategy-advisor/scripts/black_scholes.py \
-  --ticker AAPL \
-  --strike 150 \
-  --days-to-expiry 30 \
-  --option-type call
+Use the `OptionPricer` library from the repository root after installing
+`skills/options-strategy-advisor/requirements.txt`. The fictional example below
+uses supplied numeric inputs without a ticker lookup or API key. Prices and
+Greeks assume the European Black-Scholes model, constant volatility/rates and a
+continuous dividend yield. The module's fixed research demonstration does not
+parse pricing or strategy flags.
 
-# Analyze covered call strategy
-python3 skills/options-strategy-advisor/scripts/black_scholes.py \
-  --ticker AAPL \
-  --strategy covered_call \
-  --stock-price 155
+<!-- options-library-example -->
+```python
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path("skills/options-strategy-advisor/scripts").resolve()))
+from black_scholes import OptionPricer
+
+# Fictional European option; T is years, r/sigma/q are annual decimals.
+pricer = OptionPricer(S=100.0, K=100.0, T=1.0, r=0.0, sigma=0.2, q=0.0)
+greeks = pricer.get_all_greeks("call")
+print(greeks)
 ```
 
 **Theme Detector:** 🟡 FINVIZ Elite optional; FMP optional
@@ -971,6 +976,8 @@ When skills are ready for distribution:
 5. Commit changes with descriptive message
 
 ZIP packages allow Claude web app users to upload and use skills without cloning the repository.
+
+Repository releases are tag-driven. Update `CHANGELOG.md` and the compatibility table, merge to `main`, then push a stable `vMAJOR.MINOR.PATCH` tag. The workflow marks `releases/latest` by SemVer order, so an older-line patch tag does not move it. See [docs/dev/release-compatibility.md](docs/dev/release-compatibility.md) for the procedure and the required tag ruleset.
 
 **Runtime Dependency Declaration (issue #330):**
 

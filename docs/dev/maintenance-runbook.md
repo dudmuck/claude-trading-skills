@@ -28,15 +28,19 @@ Related references (this runbook links rather than duplicates):
 ## 1. Environment setup
 
 ```bash
-uv sync --extra dev                                  # runtime + dev deps (pytest, jsonschema, pre-commit, ruff, ...)
+uv sync --extra dev --extra ci                       # runtime + dev deps + ci deps (PIL, statsmodels, ...)
 pre-commit install && pre-commit install --hook-type pre-push
 ```
+
+The `ci` extra is required for a full root run: with only `--extra dev`, root
+collection fails on missing imports such as `PIL` and `statsmodels`. This
+matches `.github/workflows/ci.yml`.
 
 Run tests:
 
 ```bash
-uv run pytest -q                                     # full suite
-uv run --extra dev pytest <path>                     # a subset
+uv run --extra dev --extra ci pytest -q              # full suite
+uv run --extra dev pytest <path>                     # a subset (dev extra is enough for most skills)
 bash scripts/run_all_tests.sh                        # per-skill isolation = the pre-push gate
 ```
 
@@ -45,8 +49,9 @@ or agent orchestration, use
 [`knowledge-skill-test-contract.md`](knowledge-skill-test-contract.md) as the
 minimum test contract instead of skipping tests.
 
-A fresh `git worktree` has its own venv — run `uv sync --extra dev` in it
-before `uv run pytest`, or collection fails with import errors.
+A fresh `git worktree` has its own venv — run `uv sync --extra dev --extra ci`
+in it before a full `uv run --extra dev --extra ci pytest -q`, or collection
+fails with import errors.
 
 ---
 
@@ -76,7 +81,7 @@ without writing.
 |---|---|---|
 | `scripts/validate_skills_index.py` | `python3 scripts/validate_skills_index.py [--strict-workflows] [--strict-metadata]` | `skills-index.yaml` ↔ `skills/` bijection, enums, workflow artifact flow. Default = warn on best-effort fields; `--strict-metadata` requires `timeframe`/`difficulty`/`inputs`/`outputs`; `--strict-workflows` errors on workflow issues, including incomplete Japanese prose (`WF014`). |
 | `scripts/validate_skillsets.py` | `python3 scripts/validate_skillsets.py` | `skillsets/*.yaml` manifests (SK001–SK013) + `related_workflows` coherence. Always strict. |
-| `scripts/check_provider_contracts.py` | `python3 scripts/check_provider_contracts.py check` (offline, CI) · `canary` (live, weekly via `.github/workflows/fmp-contract-canary.yml`, needs `FMP_API_KEY`, report-only) | `config/provider-contracts/fmp/*.v*.json` structure + fixtures vs. `skills-index.yaml` owners (`check`); live FMP response vs. contract, redacting the key (`canary`). See [`docs/dev/provider-contracts.md`](provider-contracts.md). |
+| `scripts/check_provider_contracts.py` | `python3 scripts/check_provider_contracts.py check` (offline, CI) · `canary` (live, weekly, report-only: `--provider fmp` via `.github/workflows/fmp-contract-canary.yml` needs `FMP_API_KEY`; `--provider trader-monty` via `.github/workflows/public-csv-contract-canary.yml` needs no key) | `config/provider-contracts/{fmp,trader-monty}/*.v*.json` structure + fixtures vs. `skills-index.yaml` owners (`check`); live response vs. contract, redacting any key (`canary`). See [`docs/dev/provider-contracts.md`](provider-contracts.md). |
 
 ### Skill-doc ownership (the `generated:` marker)
 
@@ -313,3 +318,24 @@ Schedule the checker independently (for example daily from a separate watchdog)
 and inspect its nonzero exit. Running it only inside the monitored agents will
 not detect agents that have stopped firing. No LaunchAgent is installed or
 notification enabled by this repository change.
+
+
+## Smoke evidence layers (issue #507)
+
+| Layer | Current evidence / remaining work |
+|---|---|
+| PR CI | Offline dependency declarations, table/runner regression tests, provider fixtures, and workflow replay; not proof of every CLI failure path |
+| Nightly | Packaged dependency runner records `pass`, `fail`, or `incomplete`; job remains report-only under #349. Keyless optional-provider coverage and actual archive execution remain follow-ups |
+| Weekly sample | #506 tracks the separate live happy-path sample; it cannot establish fallback, personal-state, or failure-path coverage |
+| Monthly LLM sample | Instruction-only and model-driven checks remain planned under #507; they need separate runtime/cost authorization |
+
+Read the nightly artifact's aggregate `outcome` and per-skill rows, not only the
+GitHub conclusion. Exit 2 and `ok: null` mean incomplete coverage; warnings
+identify pending/skip cases. The nightly step stays green on exit 2 with a
+warning annotation and fails on exit 1 or any other nonzero code, which
+overrides incomplete coverage. Today exit 2 is expected every night because
+19 skills are incomplete, so a green step is not evidence of complete smoke
+success.
+See [packaged smoke outcomes](packaged-deps-smoke.md#evidence-outcomes-issue-507-partial-implementation)
+for the schema and remaining acceptance gaps. Issue #507 remains open until
+its full set of layers and coverage requirements is met.

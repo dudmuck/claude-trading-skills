@@ -76,19 +76,25 @@ permalink: /ja/skills/options-strategy-advisor/
 
 ## 4. クイックスタート
 
-```bash
-# ブラック-ショールズの価格とグリークスを計算
-python3 options-strategy-advisor/scripts/black_scholes.py \
-  --ticker AAPL \
-  --strike 150 \
-  --days-to-expiry 30 \
-  --option-type call
+`skills/options-strategy-advisor/requirements.txt` の依存関係をインストールし、
+リポジトリのルートで実行してください。架空の入力を使う計算例であり、APIキーや
+ティッカー検索は不要です。`T` は年単位、`r`・`sigma`・`q` は年率の小数です。
+欧州型Black-Scholesモデルは一定のボラティリティ・金利と連続配当利回りを仮定します。
+投資推奨ではありません。モジュール内の固定デモは価格・戦略のCLI引数を解釈しないため、
+任意の入力には `OptionPricer` を使用してください。
 
-# カバードコール戦略を分析
-python3 options-strategy-advisor/scripts/black_scholes.py \
-  --ticker AAPL \
-  --strategy covered_call \
-  --stock-price 155
+<!-- options-library-example -->
+```python
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path("skills/options-strategy-advisor/scripts").resolve()))
+from black_scholes import OptionPricer
+
+# Fictional European option; T is years, r/sigma/q are annual decimals.
+pricer = OptionPricer(S=100.0, K=100.0, T=1.0, r=0.0, sigma=0.2, q=0.0)
+greeks = pricer.get_all_greeks("call")
+print(greeks)
 ```
 
 ---
@@ -147,7 +153,7 @@ HV = returns.std() * np.sqrt(252)  # 252取引日
 
 **ユーザーによるオーバーライド:**
 - ブローカープラットフォーム（ThinkorSwim、TastyTradeなど）からIVを提供
-- スクリプトは `--iv 28.0` パラメータを受け付け
+- ブローカーのIV 28% は `OptionPricer` に `sigma=0.28` として渡す
 
 ### ステップ3: ブラック-ショールズモデルによるオプション価格算出
 

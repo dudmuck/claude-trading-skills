@@ -358,9 +358,12 @@ class TestAnalyzeStockDisableRs:
     for the per-stock 365-day fetch and L should be a neutral 50 placeholder.
     """
 
-    def test_disable_rs_skips_365d_fetch(self):
+    def test_disable_rs_skips_365d_fetch(self, monkeypatch):
+        from finviz_stock_client import FinvizStockClient
         from screen_canslim import analyze_stock
 
+        fallback = MagicMock(return_value=None)
+        monkeypatch.setattr(FinvizStockClient, "get_institutional_ownership", fallback)
         client = MagicMock()
         client.get_profile.return_value = [
             {"companyName": "Test Corp", "sector": "Technology", "mktCap": 1_000_000_000}
@@ -404,6 +407,7 @@ class TestAnalyzeStockDisableRs:
         assert result["l_component"]["skipped"] is True
         assert result["l_component"]["score"] == 50
         assert result["l_component"]["rs_rating"] == "Skipped"
+        fallback.assert_called_once_with("TEST")
 
         # Verify the only 365-day call (if any) did not happen by inspecting
         # how many distinct days values were requested.
@@ -473,7 +477,7 @@ class TestReportGeneratorRSColumn:
 
         try:
             generate_markdown_report(results, metadata, output_file)
-            with open(output_file) as f:
+            with open(output_file, encoding="utf-8") as f:
                 content = f.read()
 
             assert "## Summary Table" in content
@@ -503,7 +507,7 @@ class TestReportGeneratorRSColumn:
             output_file = f.name
         try:
             generate_markdown_report(results, metadata, output_file)
-            with open(output_file) as f:
+            with open(output_file, encoding="utf-8") as f:
                 content = f.read()
             assert "RS Disabled" in content
             assert "Skipped via --disable-rs" in content

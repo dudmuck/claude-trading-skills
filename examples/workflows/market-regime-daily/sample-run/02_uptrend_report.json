@@ -109,6 +109,20 @@
       "nearest_boundary": 80
     }
   },
+  "data_provenance": {
+    "adjusted": false,
+    "as_of": "2026-01-14T21:00:00+00:00",
+    "corporate_actions_handled": false,
+    "endpoint": "market-regime-uptrend-component-fixture",
+    "point_in_time": false,
+    "provider": "fictional-fixture",
+    "retrieved_at": "2026-01-15T13:08:00+00:00",
+    "run_id": "fictional-market-regime-daily-run-001",
+    "schema_version": "1.0",
+    "scope": "fictional component fixture only; provider fetch not executed",
+    "survivorship_free": false,
+    "timezone": "America/New_York"
+  },
   "metadata": {
     "as_of": "2026-01-14T21:00:00+00:00",
     "data_mode": "fictional offline component fixture",

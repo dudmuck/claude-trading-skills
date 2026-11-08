@@ -146,4 +146,5 @@ Use the output conservatively:
 
 **Scripts:**
 
+- `skills/stockbee-momentum-burst-screener/scripts/fmp_client.py`
 - `skills/stockbee-momentum-burst-screener/scripts/screen_momentum_burst.py`

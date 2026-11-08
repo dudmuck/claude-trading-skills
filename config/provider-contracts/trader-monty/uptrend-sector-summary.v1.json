@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "provider": "trader-monty",
+  "endpoint": "uptrend-sector-summary",
+  "path": "/tradermonty/uptrend-dashboard/main/data/sector_summary.csv",
+  "format": "csv",
+  "url": "https://raw.githubusercontent.com/tradermonty/uptrend-dashboard/main/data/sector_summary.csv",
+  "query": {},
+  "contract_version": 1,
+  "recorded_on": "2026-10-24",
+  "recording": "live public CSV read 2026-10-24 (11 sectors); 8 sectors kept",
+  "owners": ["uptrend-analyzer", "sector-analyst", "theme-detector", "breadth-chart-analyst"],
+  "tier_notes": "raw.githubusercontent.com, no API key; latest snapshot per sector",
+  "required_fields": {"Sector": {"types": ["str"], "nullable": false}, "Ratio": {"types": ["float", "int"], "nullable": false}, "10MA": {"types": ["float", "int"], "nullable": true, "reject_all_null": true}, "Trend": {"types": ["str"], "nullable": false}, "Slope": {"types": ["float", "int"], "nullable": true, "reject_all_null": true}, "Status": {"types": ["str"], "nullable": false}},
+  "optional_fields": [],
+  "legacy_aliases": {},
+  "known_gaps": [],
+  "non_empty": {"min_rows": 1, "reason": "the sector summary must never be empty"},
+  "fixture": [
+    {"Sector": "Energy", "Ratio": 0.46835443037974683, "10MA": 0.34198484643348104, "Trend": "Up", "Slope": 0.03048324178011308, "Status": "Overbought"},
+    {"Sector": "Technology", "Ratio": 0.34438775510204084, "10MA": 0.293967059435488, "Trend": "Down", "Slope": -0.0034509127391963434, "Status": "Normal"},
+    {"Sector": "Healthcare", "Ratio": 0.2916666666666667, "10MA": 0.2547283949108133, "Trend": "Up", "Slope": 0.011775362318840632, "Status": "Normal"},
+    {"Sector": "Financial", "Ratio": 0.22203098106712565, "10MA": 0.12692786697373074, "Trend": "Up", "Slope": 0.015665995633214316, "Status": "Normal"},
+    {"Sector": "Industrials", "Ratio": 0.17506631299734748, "10MA": 0.14729443928339686, "Trend": "Up", "Slope": 0.0031837146330680743, "Status": "Normal"},
+    {"Sector": "Real Estate", "Ratio": 0.15671641791044777, "10MA": 0.11988547892045669, "Trend": "Up", "Slope": 0.011883763003165973, "Status": "Normal"},
+    {"Sector": "Basic Materials", "Ratio": 0.12857142857142856, "10MA": 0.10752259542228818, "Trend": "Up", "Slope": 0.00532289628180041, "Status": "Normal"},
+    {"Sector": "Utilities", "Ratio": 0.02666666666666667, "10MA": 0.018596491228070177, "Trend": "Up", "Slope": 0.0013508771929824567, "Status": "Oversold"}
+  ]
+}

@@ -289,3 +289,103 @@ def test_report_not_ok_but_nothing_flagged():
     assert "no contract entry is flagged" in cli.render_summary(report)
     (line,) = cli.annotations(report)
     assert line.startswith("::error ") and "no contract entry is flagged" in line
+
+
+# --- provider-aware titles (public CSV canary) -----------------------------
+
+
+def _csv_entry(**kwargs):
+    entry = _entry(**kwargs)
+    for key in ("anomalies", "deprecations"):
+        for item in entry[key]:
+            item["count"] = 1
+    return entry
+
+
+def test_fmp_titles_unchanged_with_or_without_provider(bad_report):
+    plain = cli.annotations(bad_report)
+    with_fmp = cli.annotations({**bad_report, "provider": "fmp"})
+    assert plain == with_fmp
+    assert plain[0].startswith("::error title=FMP contract anomaly::")
+    assert cli.render_summary(bad_report).startswith("## FMP contract canary: ANOMALIES")
+    assert cli.render_summary({**bad_report, "provider": "fmp"}) == cli.render_summary(bad_report)
+
+
+def test_trader_monty_report_uses_public_csv_titles(bad_report):
+    report = {**bad_report, "provider": "trader-monty"}
+    lines = cli.annotations(report)
+    assert lines[0].startswith("::error title=Public CSV contract anomaly::")
+    assert any(ln.startswith("::warning title=Public CSV contract deprecation::") for ln in lines)
+    assert not any("FMP" in ln for ln in lines)
+    md = cli.render_summary(report)
+    assert md.startswith("## Public CSV contract canary: ANOMALIES")
+    assert "FMP" not in md
+
+
+def test_all_provider_report_uses_neutral_titles(bad_report):
+    report = {**bad_report, "provider": "all"}
+    lines = cli.annotations(report)
+    assert lines[0].startswith("::error title=Provider contract anomaly::")
+    assert any(ln.startswith("::warning title=Provider contract deprecation::") for ln in lines)
+    assert not any("FMP" in ln or "Public CSV" in ln for ln in lines)
+    md = cli.render_summary(report)
+    assert "FMP" not in md and "Public CSV" not in md
+
+
+def test_all_provider_missing_report_title_is_neutral():
+    assert cli.annotations(None, provider="all")[0].startswith(
+        "::error title=Provider canary report missing::"
+    )
+    assert cli.render_summary(None, provider="all").startswith("## Provider contract canary")
+
+
+def test_missing_report_title_is_provider_specific():
+    assert cli.annotations(None, provider="trader-monty")[0].startswith(
+        "::error title=Public CSV canary report missing::"
+    )
+    assert cli.annotations(None)[0].startswith("::error title=FMP canary report missing::")
+    assert cli.annotations(None, provider="fmp")[0].startswith(
+        "::error title=FMP canary report missing::"
+    )
+    assert cli.render_summary(None, provider="trader-monty").startswith(
+        "## Public CSV contract canary"
+    )
+
+
+def test_cli_provider_flag_selects_missing_report_title(tmp_path, capsys):
+    rc = cli.main(
+        [
+            "summarize",
+            "--provider",
+            "trader-monty",
+            "--report",
+            str(tmp_path / "x.json"),
+            "--github",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "::error title=Public CSV canary report missing::" in out
+
+
+def test_cli_report_provider_wins_over_flag_default(tmp_path, capsys, bad_report):
+    report = {**bad_report, "provider": "trader-monty"}
+    rc = cli.main(["summarize", "--report", str(_write(tmp_path, report)), "--github"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Public CSV contract anomaly" in out
+
+
+def test_summary_cells_show_count_when_greater_than_one():
+    entry = _csv_entry(anomalies=["missing_required_field:ratio"], ok=False)
+    entry["anomalies"][0]["count"] = 30000
+    report = {**_report({"ts": entry}, ok=False), "provider": "trader-monty"}
+    md = cli.render_summary(report)
+    assert "missing_required_field:ratio ×30000" in md
+
+
+def test_summary_cells_hide_count_of_one():
+    entry = _csv_entry(anomalies=["http_status:404"], ok=False)
+    report = {**_report({"ts": entry}, ok=False), "provider": "trader-monty"}
+    md = cli.render_summary(report)
+    assert "http_status:404" in md and "×" not in md

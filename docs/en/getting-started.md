@@ -62,7 +62,7 @@ Select a preview to open the full-size SVG; on a phone, zoom after opening.
 | Item | Required | Description |
 |------|----------|-------------|
 | Claude Account | Yes | Claude Web account with Skills access, or a separately eligible Claude Code account |
-| Python 3.10+ | Yes | Required for the shared repository environment. Standalone packaged skills may retain Python 3.9 support. Most skills use Python-based data fetching |
+| Python 3.11+ | Yes | Required for the shared repository environment. Standalone packaged skills may retain Python 3.9 support. Most skills use Python-based data fetching |
 | FMP API Key | Optional | Financial Modeling Prep API. Required by screening skills (free tier available) |
 | FINVIZ Elite | Optional | Speeds up dividend screeners 70-80% and improves Theme Detector coverage |
 | Alpaca Account | Optional | Required only for Portfolio Manager skill (free paper trading available) |
@@ -91,8 +91,13 @@ git clone https://github.com/tradermonty/claude-trading-skills.git
 mkdir -p ~/.claude/skills
 cp -r claude-trading-skills/skills/finviz-screener ~/.claude/skills/
 
-# 3. Restart only if the top-level skills directory was created after startup
+# 3. Enter the checkout for the Python commands below
+cd claude-trading-skills
+
+# 4. Restart only if the top-level skills directory was created after startup
 ```
+
+Run the following repository commands from this checkout root.
 
 > Claude Code can also discover project-only skills from
 > `.claude/skills/`. See the
@@ -124,7 +129,7 @@ The primary data API used by most screening skills for fundamentals, quotes, and
 export FMP_API_KEY=your_key_here
 
 # Or pass as a command-line argument when running scripts
-python3 scripts/screen_canslim.py --api-key YOUR_KEY
+python3 skills/canslim-screener/scripts/screen_canslim.py --api-key YOUR_KEY
 ```
 
 ### FINVIZ Elite

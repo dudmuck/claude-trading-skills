@@ -280,6 +280,9 @@ class FMPClient:
 # @@ELSE
         self.session.headers.update({"apikey": self.api_key})
 # @@ENDIF
+# @@IF configurable_timeout
+        self.timeout = 30
+# @@ENDIF
         self.cache = {}
         self.last_call_time = 0
         self.rate_limit_reached = False
@@ -343,7 +346,11 @@ class FMPClient:
             time.sleep(self.RATE_LIMIT_DELAY - elapsed)
 
         try:
+# @@IF configurable_timeout
+            response = self.session.get(url, params=params, timeout=self.timeout)
+# @@ELSE
             response = self.session.get(url, params=params, timeout=30)
+# @@ENDIF
             self.last_call_time = time.time()
             self.api_calls_made += 1
 
@@ -420,6 +427,17 @@ class FMPClient:
                 self._warn_fallback(base_url, is_last, self._last_error)
                 continue
 
+# @@IF pair_history_validation
+            if endpoint_key == "historical":
+                issue = self._pair_history_issue(data, symbols_str)
+                if issue:
+                    self._last_error = issue
+                    self._record_endpoint_failure(base_url)
+                    self._warn_fallback(base_url, is_last, issue)
+                    if is_last:
+                        print(f"ERROR: Invalid historical response ({issue})", file=sys.stderr)
+                    continue
+# @@ENDIF
             # Normalize new stable EOD flat-list shape to v3-compatible dict.
             # No-op for v3 dict / historicalStockList responses.
             # `timeseries` (original request) is passed as `limit` so the

@@ -13,7 +13,8 @@
     "ftd-detector",
     "canslim-screener",
     "market-top-detector",
-    "us-undervalued-growth-screener"
+    "us-undervalued-growth-screener",
+    "stockbee-exhaustion-hammer-screener"
   ],
   "tier_notes": "single symbol per call; comma-batched multi-symbol quote returns []",
   "required_fields": {

@@ -1,0 +1,46 @@
+    # Stockbee primitives (#495 Batch C): stable-only, no v3 fallback and no
+    # circuit breaker -- an empty row list for a delisted/new ticker is data,
+    # not an endpoint failure, so one bad streak never disables the scan.
+    def _stable_rows(self, name: str, params: dict, quiet: bool = False):
+        data = self._rate_limited_get(f"{self.STABLE_URL}/{name}", params=params, quiet=quiet)
+        if isinstance(data, list):
+            return data
+        if data is not None:
+            # HTTP 200 with a non-list body (e.g. {"Error Message": ...}) is a
+            # provider-side failure, not an empty answer.
+            self._last_error = "unexpected non-list response"
+            if not quiet:
+                print("ERROR: FMP returned an unexpected non-list response", file=sys.stderr)
+        return None
+
+    def fetch_screener_rows(self, params: dict, quiet: bool = False) -> Optional[list]:
+        """Raw /stable/company-screener rows; None on transport/HTTP failure."""
+        return self._stable_rows("company-screener", dict(params), quiet=quiet)
+
+    def fetch_eod_rows(
+        self, symbol: str, days: int, pad_days: int = 10, quiet: bool = False
+    ) -> Optional[list]:
+        """Raw /stable/historical-price-eod/full rows over an ET calendar window.
+
+        The window spans ``days * 2 + pad_days`` calendar days so ``days``
+        trading sessions fit. Returns None on transport/HTTP failure and []
+        when the provider answered without rows.
+        """
+        today = _et_today()
+        params = {
+            "symbol": symbol,
+            "from": (today - timedelta(days=int(days) * 2 + int(pad_days))).isoformat(),
+            "to": today.isoformat(),
+        }
+        return self._stable_rows("historical-price-eod/full", params, quiet=quiet)
+
+    def fetch_quote_row(self, symbol: str, quiet: bool = True) -> Optional[dict]:
+        """First /stable/quote row for one symbol, or None."""
+        rows = self._stable_rows("quote", {"symbol": symbol}, quiet=quiet)
+        if rows and isinstance(rows[0], dict):
+            return rows[0]
+        return None
+
+    def et_today(self):
+        """America/New_York calendar date used for every query window."""
+        return _et_today()

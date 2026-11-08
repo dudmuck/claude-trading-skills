@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import ROUND_FLOOR, Decimal, localcontext
+from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal, localcontext
+
+CENT = Decimal("0.01")
 
 
 @dataclass
@@ -35,12 +38,35 @@ class SizingParameters:
     share_precision: int = 4
 
 
+FLOAT_FIELDS = (
+    "account_size",
+    "entry_price",
+    "stop_price",
+    "risk_pct",
+    "atr",
+    "win_rate",
+    "avg_win",
+    "avg_loss",
+    "max_position_pct",
+    "max_sector_pct",
+    "current_sector_exposure",
+)
+
+
 def validate_parameters(params: SizingParameters) -> None:
     """Validate input parameters. Raise ValueError on invalid input."""
+    # NaN passes every `<= 0` check below and infinities overflow the share
+    # math, so reject non-finite values before any range check.
+    for name in FLOAT_FIELDS:
+        value = getattr(params, name)
+        if value is not None and not math.isfinite(value):
+            raise ValueError(f"{name} must be finite")
     if params.account_size <= 0:
         raise ValueError("account_size must be positive")
     if params.entry_price is not None and params.entry_price <= 0:
         raise ValueError("entry_price must be positive")
+    if params.stop_price is not None and params.stop_price <= 0:
+        raise ValueError("stop_price must be positive (and below entry_price) for long trades")
     if params.stop_price is not None and params.entry_price is not None:
         if params.stop_price >= params.entry_price:
             raise ValueError("stop_price must be below entry_price for long trades")
@@ -48,9 +74,12 @@ def validate_parameters(params: SizingParameters) -> None:
         raise ValueError("risk_pct must be positive")
     if params.atr is not None and params.atr <= 0:
         raise ValueError("atr must be positive")
+    if not math.isfinite(params.atr_multiplier) or params.atr_multiplier <= 0:
+        raise ValueError("atr_multiplier must be finite and positive")
     if params.win_rate is not None:
-        if params.win_rate <= 0 or params.win_rate > 1.0:
-            raise ValueError("win_rate must be between 0 (exclusive) and 1.0 (inclusive)")
+        # win_rate=1.0 makes full Kelly 100% of the account (half Kelly 50%).
+        if params.win_rate <= 0 or params.win_rate >= 1.0:
+            raise ValueError("win_rate must be between 0 and 1 (exclusive)")
     if params.avg_win is not None and params.avg_win <= 0:
         raise ValueError("avg_win must be positive")
     if params.avg_loss is not None and params.avg_loss <= 0:
@@ -258,7 +287,7 @@ def calculate_position(params: SizingParameters) -> dict:
         budget = (
             to_decimal(params.account_size) * to_decimal(kelly["half_kelly_pct"]) / Decimal(100)
         )
-        if params.stop_price:
+        if params.stop_price is not None:
             risk_per_share = to_decimal(params.entry_price) - to_decimal(params.stop_price)
             risk_shares = floor_share_quantity(budget / risk_per_share, params)
             result["parameters"]["stop_price"] = params.stop_price
@@ -288,18 +317,24 @@ def calculate_position(params: SizingParameters) -> dict:
     result["final_recommended_shares"] = final_shares
     result["final_position_value"] = round(final_shares * params.entry_price, 2)
 
-    # Calculate actual risk for final shares
-    if params.stop_price:
-        risk_per_share = params.entry_price - params.stop_price
-        result["final_risk_dollars"] = round(final_shares * risk_per_share, 2)
-        result["final_risk_pct"] = round(
-            final_shares * risk_per_share / params.account_size * 100, 2
-        )
-    elif params.atr:
-        risk_per_share = params.atr * params.atr_multiplier
-        result["final_risk_dollars"] = round(final_shares * risk_per_share, 2)
-        result["final_risk_pct"] = round(
-            final_shares * risk_per_share / params.account_size * 100, 2
+    # Report risk using the same method that determined the share count.
+    # Exact Decimal math; the monetized outputs round half-up so a tie never
+    # understates risk (the float->Decimal switch also removes binary noise
+    # from near-tie products such as 1.15 * 1.5). Deliberately applies to the
+    # final_risk_* outputs only; other rounded outputs keep half-even round().
+    risk_per_share: Decimal | None = None
+    if calculations["atr_based"] is not None:
+        risk_per_share = to_decimal(params.atr) * to_decimal(params.atr_multiplier)
+    elif params.stop_price is not None:
+        risk_per_share = to_decimal(params.entry_price) - to_decimal(params.stop_price)
+
+    if risk_per_share is not None:
+        risk_total = to_decimal(final_shares) * risk_per_share
+        result["final_risk_dollars"] = float(risk_total.quantize(CENT, rounding=ROUND_HALF_UP))
+        result["final_risk_pct"] = float(
+            (risk_total / to_decimal(params.account_size) * Decimal(100)).quantize(
+                CENT, rounding=ROUND_HALF_UP
+            )
         )
     else:
         # Kelly shares mode without stop/ATR: risk per share is undefined
@@ -373,6 +408,17 @@ def generate_markdown_report(result: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def finite_float(value: str) -> float:
+    """argparse type: a float that is not NaN or +/-infinity."""
+    try:
+        number = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid float value: {value!r}") from None
+    if not math.isfinite(number):
+        raise argparse.ArgumentTypeError(f"{value!r} must be a finite number")
+    return number
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for CLI usage."""
     parser = argparse.ArgumentParser(
@@ -380,53 +426,53 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--account-size",
-        type=float,
+        type=finite_float,
         required=True,
         help="Total account value in dollars",
     )
-    parser.add_argument("--entry", type=float, help="Entry price per share")
-    parser.add_argument("--stop", type=float, help="Stop-loss price per share")
+    parser.add_argument("--entry", type=finite_float, help="Entry price per share")
+    parser.add_argument("--stop", type=finite_float, help="Stop-loss price per share")
     parser.add_argument(
         "--risk-pct",
-        type=float,
+        type=finite_float,
         help="Risk percentage per trade (e.g. 1.0 for 1%%)",
     )
-    parser.add_argument("--atr", type=float, help="Average True Range value")
+    parser.add_argument("--atr", type=finite_float, help="Average True Range value")
     parser.add_argument(
         "--atr-multiplier",
-        type=float,
+        type=finite_float,
         default=2.0,
-        help="ATR multiplier for stop distance (default: 2.0)",
+        help="Finite, positive ATR multiplier for stop distance (default: 2.0)",
     )
     parser.add_argument(
         "--win-rate",
-        type=float,
-        help="Historical win rate (0-1) for Kelly criterion",
+        type=finite_float,
+        help="Historical win rate, between 0 and 1 (exclusive), for Kelly criterion",
     )
     parser.add_argument(
         "--avg-win",
-        type=float,
+        type=finite_float,
         help="Average win amount for Kelly criterion",
     )
     parser.add_argument(
         "--avg-loss",
-        type=float,
+        type=finite_float,
         help="Average loss amount for Kelly criterion",
     )
     parser.add_argument(
         "--max-position-pct",
-        type=float,
+        type=finite_float,
         help="Maximum single position as %% of account",
     )
     parser.add_argument(
         "--max-sector-pct",
-        type=float,
+        type=finite_float,
         help="Maximum sector exposure as %% of account",
     )
     parser.add_argument("--sector", type=str, help="Sector name for concentration check")
     parser.add_argument(
         "--current-sector-exposure",
-        type=float,
+        type=finite_float,
         default=0.0,
         help="Current sector exposure as %% of account",
     )

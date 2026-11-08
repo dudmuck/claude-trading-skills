@@ -17,14 +17,20 @@ from scripts import doctor
 def root(tmp_path):
     (tmp_path / "config").mkdir()
     (tmp_path / "config/python-support.json").write_text(
-        '{"root_project": ">=3.10,<3.14"}', encoding="utf-8"
+        '{"root_project": ">=3.11,<3.14"}', encoding="utf-8"
     )
     return tmp_path
 
 
 @pytest.mark.parametrize(
     "version,expected",
-    [((3, 9), "warning"), ((3, 10), "ok"), ((3, 13), "ok"), ((3, 14), "warning")],
+    [
+        ((3, 9), "warning"),
+        ((3, 10), "warning"),
+        ((3, 11), "ok"),
+        ((3, 13), "ok"),
+        ((3, 14), "warning"),
+    ],
 )
 def test_python_policy(root, version, expected):
     item = doctor.python_check(root, version)

@@ -76,7 +76,7 @@ API key will be requested during skill execution (stored only for current sessio
 export FMP_API_KEY="your-key"
 
 # Date range is two positional arguments; market cap > $2B
-python3 earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-01 2025-11-07
+python3 skills/earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-01 2025-11-07
 ```
 
 ---
@@ -204,19 +204,19 @@ Use the Python script to fetch earnings data from FMP API.
 
 **Script Location**:
 ```
-scripts/fetch_earnings_fmp.py
+skills/earnings-calendar/scripts/fetch_earnings_fmp.py
 ```
 
 **Execution**:
 
 **With the environment variable (CLI)**:
 ```bash
-python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09
+python skills/earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09
 ```
 
 **On Desktop/Web**, export the session key into the environment first:
 ```bash
-FMP_API_KEY="${API_KEY}" python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09
+FMP_API_KEY="${API_KEY}" python skills/earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09
 ```
 
 **Script Workflow** (automatic):
@@ -251,12 +251,12 @@ FMP_API_KEY="${API_KEY}" python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11
 
 **Save to file** (recommended for use with report generator):
 ```bash
-python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09 > earnings_data.json
+python skills/earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09 > earnings_data.json
 ```
 
 Or capture to variable:
 ```bash
-earnings_data=$(python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09)
+earnings_data=$(python skills/earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09)
 ```
 
 **Error Handling**:
@@ -340,19 +340,19 @@ Use the report generation script to create a formatted markdown report from the 
 
 **Script Location**:
 ```
-scripts/generate_report.py
+skills/earnings-calendar/scripts/generate_report.py
 ```
 
 **Execution**:
 
 **Option A: Output to stdout**:
 ```bash
-python scripts/generate_report.py earnings_data.json
+python skills/earnings-calendar/scripts/generate_report.py earnings_data.json
 ```
 
 **Option B: Save to file**:
 ```bash
-python scripts/generate_report.py earnings_data.json earnings_calendar_2025-11-02.md
+python skills/earnings-calendar/scripts/generate_report.py earnings_data.json earnings_calendar_2025-11-02.md
 ```
 
 **What the script does**:

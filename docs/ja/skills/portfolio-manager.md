@@ -14,7 +14,7 @@ permalink: /ja/skills/portfolio-manager/
 Alpaca MCPサーバーと連携し、保有銘柄やポジションを取得して、資産配分・リスク指標・個別銘柄評価・分散度・リバランス提案を含む包括的なポートフォリオ分析を行うスキルです。ポートフォリオレビュー、ポジション分析、リスク評価、パフォーマンス評価、リバランス提案が必要な場合に使用します。
 {: .fs-6 .fw-300 }
 
-<span class="badge badge-api">Alpaca必須</span>
+<span class="badge badge-api">包括分析はAlpaca必須</span>
 
 [スキルパッケージをダウンロード (.skill)](https://github.com/tradermonty/claude-trading-skills/raw/main/skill-packages/portfolio-manager.skill){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [GitHubでソースを見る](https://github.com/tradermonty/claude-trading-skills/tree/main/skills/portfolio-manager){: .btn .fs-5 .mb-4 .mb-md-0 }
@@ -27,6 +27,17 @@ Alpaca MCPサーバーと連携し、保有銘柄やポジションを取得し�
 </details>
 
 ---
+
+## オフライン保有配分レビュー
+
+[`portfolio-holdings-review`](../workflows.md#portfolio-holdings-review)は資格情報なしで
+CSVまたは保存済みAlpacaポジションJSONを読み込み、総保有額ベースの配分と個別損益を計算します。
+Navigatorに「CSVからポートフォリオを確認」と伝えるとこの経路を案内します。
+Navigator自体はファイルを読みません。CLIに実ファイルとタイムゾーン付き取得元時刻を指定してください。
+[入力・共通出力契約](https://github.com/tradermonty/claude-trading-skills/blob/main/skills/portfolio-manager/references/csv-holdings-review.md)
+に架空データの実行例と検証規則があります。口座全体の現金・レバレッジ・運用成績・配当健全性・
+売買判断は扱いません。個人データはローカルに保持してください。包括的な分析にはAlpacaと
+`core-portfolio-weekly`の照合が引き続き必要です。
 
 ## 1. 概要
 

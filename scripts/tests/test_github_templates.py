@@ -67,7 +67,15 @@ FMP_PACKAGE_DRIFT_COMMAND = (
     "--skill earnings-calendar "
     "--skill economic-calendar-fetcher "
     "--skill institutional-flow-tracker "
-    "--skill cot-contrarian-detector"
+    "--skill cot-contrarian-detector "
+    "--skill value-dividend-screener "
+    "--skill dividend-growth-pullback-screener "
+    "--skill kanchi-dividend-sop "
+    "--skill stockbee-20pct-study "
+    "--skill stockbee-episodic-pivot-analyzer "
+    "--skill stockbee-exhaustion-hammer-screener "
+    "--skill stockbee-momentum-burst-screener "
+    "--skill stockbee-setup-fluency-trainer --skill pair-trade-screener"
 )
 
 
@@ -249,7 +257,7 @@ def test_pull_request_template_matches_local_and_ci_gates() -> None:
     template = PR_TEMPLATE.read_text(encoding="utf-8")
 
     required_commands = [
-        "python3.10 -m pytest",
+        "python3.11 -m pytest",
         "bash scripts/run_all_tests.sh",
         "ruff check skills/ scripts/",
         "ruff format --check skills/ scripts/",

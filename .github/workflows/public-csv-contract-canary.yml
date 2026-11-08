@@ -1,0 +1,74 @@
+name: Public CSV contract canary
+
+# Weekly live probe for issue #332: GETs the keyless public CSVs covered by
+# config/provider-contracts/trader-monty/ and scores each response against
+# its recorded contract, catching a renamed or dropped column before the
+# consumer skills (market-breadth-analyzer, uptrend-analyzer, ...) go quietly
+# empty. PRs run the offline `check` subcommand instead (see ci.yml's
+# "Provider contract check" step).
+#
+# Report-only (continue-on-error), under the same promotion policy as
+# fmp-contract-canary.yml: the run stays GREEN on drift. The only drift
+# signals are the ::error / ::warning annotations and the step summary table
+# until a promotion issue makes this fail-closed.
+#
+# No credentials: the CSVs are public, so there is no preflight job and no
+# secret reference of any kind. The job is skipped on forks (repository guard below;
+# update the slug if the repository is renamed or transferred).
+
+on:
+  schedule:
+    - cron: "30 12 * * 1" # weekly, Monday 12:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: Live public CSV contract probe (report-only)
+    if: github.repository == 'tradermonty/claude-trading-skills'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.12.10"
+      - name: Sync locked project environment
+        run: |
+          uv sync --locked --no-install-project --extra dev --extra ci
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Run canary
+        run: |
+          python3 scripts/check_provider_contracts.py canary \
+            --provider trader-monty \
+            --report reports/public-csv-canary-report.json
+
+      - name: Summarize canary report
+        if: always()
+        # Stdlib-only subcommand: runs with plain python3 even if the uv sync failed.
+        run: |
+          python3 scripts/check_provider_contracts.py summarize \
+            --provider trader-monty \
+            --report reports/public-csv-canary-report.json \
+            --summary-file "$GITHUB_STEP_SUMMARY" \
+            --github \
+            || echo "::error title=Public CSV canary summarize failed::see job log"
+
+      - name: Upload canary report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: public-csv-canary-report
+          path: reports/public-csv-canary-report.json
+          if-no-files-found: warn
+          retention-days: 30

@@ -51,6 +51,8 @@ FLAGS = (
     "batch_quote_url",
     "hist_normalize_list",
     "sp500_wikipedia",
+    "configurable_timeout",
+    "pair_history_validation",
 )
 
 

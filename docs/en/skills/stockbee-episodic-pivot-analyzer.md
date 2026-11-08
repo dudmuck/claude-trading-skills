@@ -48,7 +48,7 @@ Analyze Stockbee-style Day 1 Episodic Pivot candidates from earnings, guidance r
 ## 3. Prerequisites
 
 - Python 3.10+
-- Optional: FMP API key for OHLCV/profile enrichment
+- Optional: FMP API key for OHLCV enrichment
 - One of:
   - Catalyst/events JSON
   - `earnings-trade-analyzer` JSON output
@@ -167,3 +167,4 @@ For each candidate, present:
 **Scripts:**
 
 - `skills/stockbee-episodic-pivot-analyzer/scripts/analyze_ep.py`
+- `skills/stockbee-episodic-pivot-analyzer/scripts/fmp_client.py`

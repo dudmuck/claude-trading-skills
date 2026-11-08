@@ -76,7 +76,7 @@ export FMP_API_KEY="your-api-key-here"
 export FMP_API_KEY="your-key"
 
 # 日付範囲は2つの位置引数。時価総額 > 20億ドル
-python3 earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-01 2025-11-07
+python3 skills/earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-01 2025-11-07
 ```
 
 ---
@@ -141,7 +141,7 @@ fi
 Pythonスクリプトを使用してFMP APIから決算データを取得します。
 
 ```bash
-python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09
+python skills/earnings-calendar/scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09
 ```
 
 **スクリプトのワークフロー**（自動）：
@@ -168,7 +168,7 @@ python scripts/fetch_earnings_fmp.py 2025-11-03 2025-11-09
 レポート生成スクリプトを使用して、JSONデータからフォーマット済みマークダウンレポートを作成します。
 
 ```bash
-python scripts/generate_report.py earnings_data.json earnings_calendar_2025-11-02.md
+python skills/earnings-calendar/scripts/generate_report.py earnings_data.json earnings_calendar_2025-11-02.md
 ```
 
 ---

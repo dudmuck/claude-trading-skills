@@ -32,6 +32,7 @@
       "Review weakest positions for exits",
       "Monitor distribution days closely"
     ],
+    "calibrated_probability": false,
     "component_scores": {
       "breadth_divergence": {
         "adjusted_score": 30,
@@ -85,7 +86,10 @@
       "total_components": 6
     },
     "guidance": "Early warning signs detected. Tighten stops and reduce new entries.",
+    "interpretation": "Risk score, not an estimated event probability. Risk budgets are policy heuristics.",
     "risk_budget": "80-90%",
+    "score_kind": "heuristic_risk_score",
+    "score_version": "market-top-risk-v1",
     "strongest_warning": {
       "component": "distribution_days",
       "label": "Distribution Day Count",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import stat
 import sys
 from pathlib import Path
@@ -18,6 +19,16 @@ from package_skills import (  # noqa: E402
     package_skill,
     should_include,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_from_hook_git_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pre-push hooks export GIT_DIR/GIT_INDEX_FILE; without this scrub the
+    fixture's ``git init``/``git add`` (and package_skills' ``git ls-files``)
+    act on the real repository instead of the temp repo -- rewriting its index
+    and flipping ``core.bare`` (mirrors test_check_doc_cli_examples)."""
+    for key in [k for k in os.environ if k.startswith("GIT_")]:
+        monkeypatch.delenv(key, raising=False)
 
 
 def test_should_include_excludes_tests_and_local_artifacts() -> None:
@@ -60,6 +71,47 @@ def test_package_skill_excludes_tests_and_build_artifacts(tmp_path: Path) -> Non
     assert all("__pycache__" not in name for name in names)
     assert all(".pytest_cache" not in name for name in names)
     assert all(not name.endswith(".DS_Store") for name in names)
+
+
+def _git_skill_with_executable_script(tmp_path: Path) -> Path:
+    """A skill in a fresh git repo whose script is 100755 in the index only."""
+    import subprocess
+
+    skill_dir = tmp_path / "skills" / "demo-skill"
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("---\nname: demo-skill\ndescription: Demo.\n---\n")
+    (skill_dir / "requirements.txt").write_text("# stdlib-only\n")
+    script = skill_dir / "scripts" / "run.py"
+    script.write_text("print('ok')\n")
+    script.chmod(0o644)
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "-q")
+    git("add", ".")
+    git("update-index", "--chmod=+x", "skills/demo-skill/scripts/run.py")
+    return skill_dir
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git not installed")
+def test_exec_bit_comes_from_git_index_when_filesystem_lacks_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows os.stat never reports +x on .py files; the git index is the truth."""
+    import package_skills
+
+    monkeypatch.setattr(package_skills, "FILESYSTEM_TRACKS_EXEC_BIT", False)
+    skill_dir = _git_skill_with_executable_script(tmp_path)
+    output_dir = tmp_path / "skill-packages"
+
+    output_path = package_skill(skill_dir, output_dir)
+
+    with ZipFile(output_path) as archive:
+        modes = {info.filename: info.external_attr >> 16 for info in archive.infolist()}
+    assert modes["demo-skill/scripts/run.py"] & 0o111
+    assert not modes["demo-skill/SKILL.md"] & 0o111
+    assert check_skill(skill_dir, output_dir)
 
 
 def test_discover_skill_dirs_sorts_skills_with_skill_md(tmp_path: Path) -> None:

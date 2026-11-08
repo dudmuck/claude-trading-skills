@@ -16,6 +16,10 @@ sys.path.insert(0, str(REPO_ROOT))
 from scripts.provider_contracts import _APIKEY_RE
 
 GENERATED_SKILLS = {
+    "pair-trade-screener",
+    "value-dividend-screener",
+    "dividend-growth-pullback-screener",
+    "kanchi-dividend-sop",
     "pead-screener",
     "earnings-trade-analyzer",
     "ibd-distribution-day-monitor",
@@ -32,8 +36,25 @@ GENERATED_SKILLS = {
     "economic-calendar-fetcher",
     "institutional-flow-tracker",
     "cot-contrarian-detector",
+    # Issue #495 Batch C: stockbee family (stable-only primitives).
+    "stockbee-20pct-study",
+    "stockbee-episodic-pivot-analyzer",
+    "stockbee-exhaustion-hammer-screener",
+    "stockbee-momentum-burst-screener",
+    "stockbee-setup-fluency-trainer",
+}
+STOCKBEE_SKILLS = {
+    "stockbee-20pct-study",
+    "stockbee-episodic-pivot-analyzer",
+    "stockbee-exhaustion-hammer-screener",
+    "stockbee-momentum-burst-screener",
+    "stockbee-setup-fluency-trainer",
 }
 NO_COMPAT_SKILLS = {
+    "pair-trade-screener",
+    "value-dividend-screener",
+    "dividend-growth-pullback-screener",
+    "kanchi-dividend-sop",
     "ftd-detector",
     "canslim-screener",
     "macro-regime-detector",
@@ -43,8 +64,14 @@ NO_COMPAT_SKILLS = {
     "economic-calendar-fetcher",
     "institutional-flow-tracker",
     "cot-contrarian-detector",
+    # Batch C rows target /stable endpoints 1:1.
+    *STOCKBEE_SKILLS,
 }
 NO_BUDGET_FAMILY_B = {
+    "pair-trade-screener",
+    "value-dividend-screener",
+    "dividend-growth-pullback-screener",
+    "kanchi-dividend-sop",
     "earnings-calendar",
     "economic-calendar-fetcher",
     "institutional-flow-tracker",
@@ -91,7 +118,7 @@ def test_family_b_no_quote_has_budget(gen):
             continue
         out = gen.render_fmp_client(cfg)
         assert "def get_quote" not in out
-        assert '"quote"' not in out  # no quote entry in _FMP_ENDPOINTS
+        assert '"quote": [' not in out  # no quote fallback entry in _FMP_ENDPOINTS
         if cfg.skill in NO_BUDGET_FAMILY_B:
             # Issue #495 Batch A: no per-run budget surface.
             assert "ApiCallBudgetExceeded" not in out
@@ -305,7 +332,9 @@ def test_hist_normalize_list_only_where_enabled(gen):
         if cfg.standalone_template:
             continue
         out = gen.render_fmp_client(cfg)
-        normalizes = '"historical": data}' in out
+        # Probe the core-template line itself: upstream's dividend_stable
+        # extension wraps dividend lists in {"historical": data} independently.
+        normalizes = 'data = {"symbol": symbols_str, "historical": data}' in out
         assert normalizes == cfg.hist_normalize_list, cfg.skill
 
 
@@ -386,3 +415,46 @@ def test_redaction_has_one_shared_template_definition(gen):
     assert fragment.count("def _redact_secret") == 1
     for cfg in _skills(gen).values():
         assert gen.render_fmp_client(cfg).count(fragment.rstrip()) == 1
+
+
+def test_batch_b_timeout_option_is_scoped_to_new_targets(gen):
+    new_targets = {
+        "value-dividend-screener",
+        "dividend-growth-pullback-screener",
+        "kanchi-dividend-sop",
+    }
+    for skill, cfg in _skills(gen).items():
+        assert cfg.configurable_timeout is (skill in new_targets)
+        output = gen.render_fmp_client(cfg)
+        if skill in new_targets:
+            assert "timeout=self.timeout" in output
+            assert 'self.session.headers.update({"apikey": self.api_key})' in output
+        elif cfg.family != "special":
+            assert "timeout=self.timeout" not in output
+            assert "timeout=30" in output
+
+
+def test_stockbee_stable_extension_is_scoped_to_stockbee_clients(gen):
+    for skill, cfg in _skills(gen).items():
+        out = gen.render_fmp_client(cfg)
+        if skill in STOCKBEE_SKILLS:
+            assert cfg.extensions == ("stockbee_stable",)
+            assert "def fetch_eod_rows" in out
+            assert "def fetch_screener_rows" in out
+            assert "def fetch_quote_row" in out
+            # No circuit breaker inside the extension block.
+            block = out.split("def _stable_rows", 1)[1]
+            assert "_record_endpoint_failure" not in block
+            assert "_disabled_endpoints" not in block
+        else:
+            assert "stockbee_stable" not in cfg.extensions
+            assert "def fetch_eod_rows" not in out
+            assert "def _stable_rows" not in out
+
+
+def test_pair_history_guard_is_scoped_to_new_target(gen):
+    for skill, config in _skills(gen).items():
+        output = gen.render_fmp_client(config)
+        assert config.pair_history_validation is (skill == "pair-trade-screener")
+        assert ("def _pair_history_issue" in output) is (skill == "pair-trade-screener")
+        assert ("issue = self._pair_history_issue" in output) is (skill == "pair-trade-screener")

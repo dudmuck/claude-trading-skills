@@ -16,6 +16,7 @@ def test_every_project_job_uses_locked_environment():
     for name in (
         "ci.yml",
         "fmp-contract-canary.yml",
+        "public-csv-contract-canary.yml",
         "compat-nightly.yml",
     ):
         config = workflow(name)

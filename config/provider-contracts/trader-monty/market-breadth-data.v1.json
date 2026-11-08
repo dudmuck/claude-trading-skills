@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "provider": "trader-monty",
+  "endpoint": "market-breadth-data",
+  "path": "/market-breadth-analysis/market_breadth_data.csv",
+  "format": "csv",
+  "url": "https://tradermonty.github.io/market-breadth-analysis/market_breadth_data.csv",
+  "query": {},
+  "contract_version": 1,
+  "recorded_on": "2026-10-24",
+  "recording": "live public CSV read 2026-10-24 (2,512 rows); 8 representative rows kept, coerced with parse_csv_rows",
+  "owners": ["market-breadth-analyzer", "market-top-detector", "breadth-chart-analyst"],
+  "tier_notes": "public GitHub Pages file, no API key; ~380 KB; updated each trading day",
+  "required_fields": {"Date": {"types": ["str"], "nullable": false}, "S&P500_Price": {"types": ["float", "int"], "nullable": false}, "Breadth_Index_Raw": {"types": ["float", "int"], "nullable": false}, "Breadth_Index_200MA": {"types": ["float", "int"], "nullable": false}, "Breadth_Index_8MA": {"types": ["float", "int"], "nullable": false}, "Breadth_200MA_Trend": {"types": ["int"], "nullable": false}, "Bearish_Signal": {"types": ["bool"], "nullable": false}, "Is_Peak": {"types": ["bool"], "nullable": false}, "Is_Trough": {"types": ["bool"], "nullable": false}, "Is_Trough_8MA_Below_04": {"types": ["bool"], "nullable": false}},
+  "optional_fields": ["Breadth_50_Index_Raw", "Breadth_50_Index_50MA", "Breadth_50_Index_8MA", "Breadth_50_MA_Trend", "Bearish_Signal_50", "Is_Peak_50", "Is_Trough_50"],
+  "legacy_aliases": {"SP500_Price": {"canonical": "S&P500_Price"}, "Breadth_200MA": {"canonical": "Breadth_Index_200MA"}, "Breadth_8MA": {"canonical": "Breadth_Index_8MA"}, "Trend": {"canonical": "Breadth_200MA_Trend"}},
+  "known_gaps": [],
+  "non_empty": {"min_rows": 1, "reason": "the breadth history must never be empty"},
+  "fixture": [
+    {"Date": "2016-10-26", "S&P500_Price": 182.54, "Breadth_Index_Raw": 0.638, "Breadth_Index_200MA": 0.638, "Breadth_Index_8MA": 0.638, "Breadth_200MA_Trend": 0, "Bearish_Signal": false, "Is_Peak": false, "Is_Trough": false, "Is_Trough_8MA_Below_04": false, "Breadth_50_Index_Raw": 0.338, "Breadth_50_Index_50MA": 0.338, "Breadth_50_Index_8MA": 0.338, "Breadth_50_MA_Trend": 0, "Bearish_Signal_50": false, "Is_Peak_50": false, "Is_Trough_50": false},
+    {"Date": "2018-02-01", "S&P500_Price": 246.59, "Breadth_Index_Raw": 0.776, "Breadth_Index_200MA": 0.7581919891270311, "Breadth_Index_8MA": 0.7921104426377966, "Breadth_200MA_Trend": 1, "Bearish_Signal": false, "Is_Peak": true, "Is_Trough": false, "Is_Trough_8MA_Below_04": false, "Breadth_50_Index_Raw": 0.718, "Breadth_50_Index_50MA": 0.7314291147951816, "Breadth_50_Index_8MA": 0.7549800132874045, "Breadth_50_MA_Trend": 1, "Bearish_Signal_50": false, "Is_Peak_50": false, "Is_Trough_50": false},
+    {"Date": "2019-02-01", "S&P500_Price": 240.99, "Breadth_Index_Raw": 0.496, "Breadth_Index_200MA": 0.5113841814430786, "Breadth_Index_8MA": 0.43880249219972556, "Breadth_200MA_Trend": -1, "Bearish_Signal": true, "Is_Peak": false, "Is_Trough": true, "Is_Trough_8MA_Below_04": false, "Breadth_50_Index_Raw": 0.836, "Breadth_50_Index_50MA": 0.44016947823178226, "Breadth_50_Index_8MA": 0.7284020826811879, "Breadth_50_MA_Trend": 1, "Bearish_Signal_50": false, "Is_Peak_50": false, "Is_Trough_50": false},
+    {"Date": "2019-01-03", "S&P500_Price": 217.92, "Breadth_Index_Raw": 0.156, "Breadth_Index_200MA": 0.5425233505153683, "Breadth_Index_8MA": 0.2000522529673714, "Breadth_200MA_Trend": -1, "Bearish_Signal": true, "Is_Peak": false, "Is_Trough": false, "Is_Trough_8MA_Below_04": true, "Breadth_50_Index_Raw": 0.042, "Breadth_50_Index_50MA": 0.26813949541948723, "Breadth_50_Index_8MA": 0.0935806186328928, "Breadth_50_MA_Trend": -1, "Bearish_Signal_50": true, "Is_Peak_50": false, "Is_Trough_50": false},
+    {"Date": "2018-02-08", "S&P500_Price": 225.62, "Breadth_Index_Raw": 0.568, "Breadth_Index_200MA": 0.7539139578849033, "Breadth_Index_8MA": 0.6925138141105429, "Breadth_200MA_Trend": -1, "Bearish_Signal": true, "Is_Peak": false, "Is_Trough": false, "Is_Trough_8MA_Below_04": false, "Breadth_50_Index_Raw": 0.142, "Breadth_50_Index_50MA": 0.6604818205251259, "Breadth_50_Index_8MA": 0.43374324854479174, "Breadth_50_MA_Trend": -1, "Bearish_Signal_50": true, "Is_Peak_50": false, "Is_Trough_50": false},
+    {"Date": "2021-10-22", "S&P500_Price": 423.81, "Breadth_Index_Raw": 0.772, "Breadth_Index_200MA": 0.7964498267000238, "Breadth_Index_8MA": 0.7477640003517144, "Breadth_200MA_Trend": -1, "Bearish_Signal": true, "Is_Peak": false, "Is_Trough": false, "Is_Trough_8MA_Below_04": false, "Breadth_50_Index_Raw": 0.666, "Breadth_50_Index_50MA": 0.5144439565224177, "Breadth_50_Index_8MA": 0.578756598235144, "Breadth_50_MA_Trend": 1, "Bearish_Signal_50": false, "Is_Peak_50": false, "Is_Trough_50": false},
+    {"Date": "2026-10-22", "S&P500_Price": 763.96, "Breadth_Index_Raw": 0.6, "Breadth_Index_200MA": 0.6074373311330618, "Breadth_Index_8MA": 0.5498375387359107, "Breadth_200MA_Trend": -1, "Bearish_Signal": true, "Is_Peak": false, "Is_Trough": false, "Is_Trough_8MA_Below_04": false, "Breadth_50_Index_Raw": 0.614, "Breadth_50_Index_50MA": 0.43295693299961774, "Breadth_50_Index_8MA": 0.4917640305073345, "Breadth_50_MA_Trend": 1, "Bearish_Signal_50": false, "Is_Peak_50": false, "Is_Trough_50": false},
+    {"Date": "2026-10-23", "S&P500_Price": 759.97, "Breadth_Index_Raw": 0.586, "Breadth_Index_200MA": 0.6072240243556183, "Breadth_Index_8MA": 0.5578736412390416, "Breadth_200MA_Trend": -1, "Bearish_Signal": true, "Is_Peak": false, "Is_Trough": false, "Is_Trough_8MA_Below_04": false, "Breadth_50_Index_Raw": 0.59, "Breadth_50_Index_50MA": 0.43911548464669153, "Breadth_50_Index_8MA": 0.513594245950149, "Breadth_50_MA_Trend": 1, "Bearish_Signal_50": false, "Is_Peak_50": false, "Is_Trough_50": false}
+  ]
+}

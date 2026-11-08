@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "provider": "trader-monty",
+  "endpoint": "market-breadth-summary",
+  "path": "/market-breadth-analysis/market_breadth_summary.csv",
+  "format": "csv",
+  "url": "https://tradermonty.github.io/market-breadth-analysis/market_breadth_summary.csv",
+  "query": {},
+  "contract_version": 1,
+  "recorded_on": "2026-10-24",
+  "recording": "live public CSV read 2026-10-24 (Metric,Value); 7 of 12 metrics kept",
+  "owners": ["market-breadth-analyzer"],
+  "tier_notes": "public GitHub Pages file, no API key; Value mixes int, float and date strings",
+  "required_fields": {"Metric": {"types": ["str"], "nullable": false}, "Value": {"types": ["int", "float", "str"], "nullable": false}},
+  "required_values": {"Metric": ["Average Peaks (200MA)", "Average Troughs (8MA < 0.4)"]},
+  "optional_fields": [],
+  "legacy_aliases": {},
+  "known_gaps": [],
+  "non_empty": {"min_rows": 1, "reason": "the summary must never be empty"},
+  "fixture": [
+    {"Metric": "Average Peaks (200MA)", "Value": 0.703},
+    {"Metric": "Average Troughs (8MA < 0.4)", "Value": 0.227},
+    {"Metric": "Total Peaks Count", "Value": 7},
+    {"Metric": "Total Troughs Count", "Value": 6},
+    {"Metric": "Analysis Period Start", "Value": "2016-10-26"},
+    {"Metric": "Analysis Period End", "Value": "2026-10-23"},
+    {"Metric": "Total Trading Days", "Value": 2512}
+  ]
+}

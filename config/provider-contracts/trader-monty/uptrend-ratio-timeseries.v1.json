@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "provider": "trader-monty",
+  "endpoint": "uptrend-ratio-timeseries",
+  "path": "/tradermonty/uptrend-dashboard/main/data/uptrend_ratio_timeseries.csv",
+  "format": "csv",
+  "url": "https://raw.githubusercontent.com/tradermonty/uptrend-dashboard/main/data/uptrend_ratio_timeseries.csv",
+  "max_bytes": 16777216,
+  "query": {},
+  "contract_version": 1,
+  "recorded_on": "2026-10-24",
+  "recording": "live public CSV read 2026-10-24 (31,948 rows, 2.81 MB); 8 representative rows kept; ma_10 empty in 1,431 and slope in 1,590 live rows",
+  "owners": ["uptrend-analyzer", "sector-analyst", "breadth-chart-analyst", "theme-detector"],
+  "tier_notes": "raw.githubusercontent.com, no API key; grows ~14 KB per trading day; max_bytes 16 MiB leaves room for years of growth",
+  "required_fields": {"worksheet": {"types": ["str"], "nullable": false}, "date": {"types": ["str"], "nullable": false}, "count": {"types": ["int", "float"], "nullable": false}, "total": {"types": ["int", "float"], "nullable": false}, "ratio": {"types": ["float", "int"], "nullable": false, "reject_all_null": true}, "ma_10": {"types": ["float", "int"], "nullable": true}, "slope": {"types": ["float", "int"], "nullable": true}, "trend": {"types": ["str"], "nullable": true}},
+  "required_values": {"worksheet": ["all"]},
+  "optional_fields": [],
+  "legacy_aliases": {},
+  "known_gaps": [],
+  "non_empty": {"min_rows": 1, "reason": "the uptrend timeseries must never be empty"},
+  "fixture": [
+    {"worksheet": "all", "date": "2023-08-11", "count": 450, "total": 2560, "ratio": 0.17578125, "ma_10": null, "slope": null, "trend": "neutral"},
+    {"worksheet": "all", "date": "2023-08-29", "count": 428, "total": 2560, "ratio": 0.1671875, "ma_10": 0.1369140625, "slope": null, "trend": "neutral"},
+    {"worksheet": "all", "date": "2025-02-26", "count": 309, "total": 2607, "ratio": 0.11852704257767549, "ma_10": 0.18818862032163433, "slope": -0.014288848253647984, "trend": "down"},
+    {"worksheet": "all", "date": "2026-10-22", "count": 699, "total": 2760, "ratio": 0.2532608695652174, "ma_10": 0.1890536352473679, "slope": 0.009467213114754097, "trend": "up"},
+    {"worksheet": "all", "date": "2026-10-23", "count": 687, "total": 2765, "ratio": 0.2484629294755877, "ma_10": 0.19869964207189378, "slope": 0.009646006824525877, "trend": "up"},
+    {"worksheet": "sec_technology", "date": "2024-07-21", "count": 114, "total": 377, "ratio": 0.30238726790450926, "ma_10": null, "slope": null, "trend": "neutral"},
+    {"worksheet": "sec_energy", "date": "2026-10-23", "count": 74, "total": 158, "ratio": 0.46835443037974683, "ma_10": 0.34198484643348104, "slope": 0.03048324178011308, "trend": "up"},
+    {"worksheet": "ind_advertisingagencies", "date": "2026-02-16", "count": 0, "total": 8, "ratio": 0.0, "ma_10": null, "slope": null, "trend": "neutral"}
+  ]
+}

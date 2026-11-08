@@ -517,6 +517,7 @@ def validate_spec(repo_root: Path, spec_path: Path) -> dict[str, Any]:
             "market_top_risk_components",
         },
         "core_portfolio_snapshot": {"holdings_snapshot"},
+        "portfolio_holdings_review": {"holdings_csv", "review_context"},
         "core_portfolio_allocation": {"allocation_decision"},
         "core_portfolio_dividend": {"dividend_enrichment"},
         "core_portfolio_rebalance": {
@@ -2339,13 +2340,16 @@ def _market_composite(scorer: Any, kind: str, fixture: Mapping[str, Any]) -> dic
     return composite
 
 
+MARKET_PROVENANCE_RUN_ID = "fictional-market-regime-daily-run-001"
+
+
 def _market_analysis(
     scorer: Any,
     kind: str,
     fixture: Mapping[str, Any],
     fixed_timestamp: str,
 ) -> dict[str, Any]:
-    return {
+    result = {
         "schema_version": 1,
         "metadata": {
             "generated_at": fixed_timestamp,
@@ -2368,6 +2372,23 @@ def _market_analysis(
         },
     }
 
+    if kind in {"breadth", "uptrend"}:
+        contract = _load_module_from_path(
+            REPO_ROOT / "skills" / "exposure-coach" / "scripts" / "provenance_contract.py",
+            "market_provenance_contract",
+        )
+        result["data_provenance"] = contract.build_provenance(
+            provider="fictional-fixture",
+            endpoint=f"market-regime-{kind}-component-fixture",
+            retrieved_at=fixed_timestamp,
+            as_of=fixture["as_of"],
+            run_id=MARKET_PROVENANCE_RUN_ID,
+        )
+        result["data_provenance"]["scope"] = (
+            "fictional component fixture only; provider fetch not executed"
+        )
+    return result
+
 
 def _validate_market_report(
     payload: Any,
@@ -2379,7 +2400,8 @@ def _validate_market_report(
     payload = _require_mapping_keys(
         payload,
         label=f"{kind} market artifact",
-        required={"schema_version", "metadata", "composite", "components", "provenance"},
+        required={"schema_version", "metadata", "composite", "components", "provenance"}
+        | ({"data_provenance"} if kind in {"breadth", "uptrend"} else set()),
     )
     expected = _market_analysis(scorer, kind, fixture, fixed_timestamp)
     _assert_finite_json(payload, f"{kind} market artifact")
@@ -2457,7 +2479,7 @@ def _expected_exposure_decision(
     bias = module.determine_bias("Unknown", scores["theme"], None, None)
     participation = module.determine_participation(scores["uptrend"], scores["breadth"], None)
     confidence = module.determine_confidence(provided, missing)
-    return {
+    result = {
         "schema_version": "1.0",
         "generated_at": fixed_timestamp,
         "exposure_ceiling_pct": module.determine_exposure_ceiling(composite),
@@ -2475,6 +2497,15 @@ def _expected_exposure_decision(
             composite, recommendation, participation, bias, scores, missing
         ),
     }
+
+    result["input_lineage"] = module.validate_market_inputs(
+        consumed_payloads.get("market_breadth_report"),
+        consumed_payloads.get("uptrend_report"),
+        run_id=MARKET_PROVENANCE_RUN_ID,
+        evaluation=fixed_timestamp,
+        max_age_days=3,
+    )
+    return result
 
 
 def _market_regime_exposure(
@@ -2524,7 +2555,18 @@ def _market_regime_exposure(
     ]
     if "top_risk_report" in consumed:
         command.extend(["--top-risk", str(Path(consumed["top_risk_report"]["files"]["canonical"]))])
-    command.extend(["--output-dir", str(reports), "--json-only"])
+    command.extend(
+        [
+            "--output-dir",
+            str(reports),
+            "--json-only",
+            "--require-provenance",
+            "--run-id",
+            MARKET_PROVENANCE_RUN_ID,
+            "--as-of",
+            spec["fixed_timestamp"],
+        ]
+    )
     _run_cli(command, repo_root)
     source = _latest_report(reports, "exposure_posture_*.json")
     actual = _load_json(source, "exposure decision")
@@ -2603,6 +2645,39 @@ def _core_consumed_path(consumed: Mapping[str, dict[str, Any]], artifact_id: str
         return Path(consumed[artifact_id]["files"]["canonical"])
     except (KeyError, TypeError) as exc:
         raise ReplayError(f"missing canonical {artifact_id} handoff") from exc
+
+
+def _portfolio_holdings_review(repo_root, spec, step, inputs, consumed, work, stage):
+    """Execute the offline CSV analyzer; no broker or journal step is involved."""
+    if consumed:
+        raise ReplayError("offline holdings review must not consume prior artifacts")
+    context = _require_mapping_keys(
+        _load_json(inputs["review_context"], "holdings review context"),
+        label="holdings review context",
+        required={"fictional", "as_of"},
+    )
+    if context["fictional"] is not True:
+        raise ReplayError("holdings replay requires explicitly fictional input")
+    stamp = _require_non_empty_string(context["as_of"], "holdings source as_of")
+    reports = work / "reports"
+    _run_cli(
+        [
+            sys.executable,
+            str(repo_root / "skills/portfolio-manager/scripts/review_csv.py"),
+            "--input",
+            str(inputs["holdings_csv"]),
+            "--as-of",
+            stamp,
+            "--output-dir",
+            str(reports),
+        ],
+        repo_root,
+    )
+    artifacts = _artifact_paths(stage, step["output_files"])
+    roles = artifacts["holdings_allocation_report"]["files"]
+    for role, suffix in (("canonical", "json"), ("markdown", "md")):
+        Path(roles[role]).write_bytes((reports / f"portfolio_csv_review.{suffix}").read_bytes())
+    return artifacts
 
 
 def _core_portfolio_snapshot(
@@ -3306,6 +3381,54 @@ def _canonical_source_record(record: Any) -> Any:
     return record
 
 
+_MONTHLY_COACH_ARTIFACTS = {
+    "monthly_performance_coach_report",
+    "monthly_behavior_patterns",
+    "next_month_operating_rules",
+}
+
+
+def _validate_monthly_coach_decision(
+    payload: Any, coach: Mapping[str, Any], *, published: bool = False
+) -> dict[str, Any]:
+    decision = _require_mapping_keys(
+        payload,
+        label="coach decision",
+        required={"source_review_id", "action", "accepted_rules", "human_notes"}
+        | ({"schema_version"} if published else set()),
+    )
+    review_id = _require_non_empty_string(coach.get("review_id"), "coach review_id")
+    if decision["source_review_id"] != review_id:
+        raise ReplayError("coach decision source_review_id must match the coach report")
+    if published and decision["schema_version"] != 1:
+        raise ReplayError("coach decision schema_version must be 1")
+    action = decision["action"]
+    allowed_actions = {"accept_rules", "modify_rules", "defer", "journal_only"}
+    native_actions = (coach.get("human_decision_gate") or {}).get("allowed_actions") or []
+    if not isinstance(action, str) or action not in allowed_actions or action not in native_actions:
+        raise ReplayError("coach decision action not in coach allowed actions")
+    rules = decision["accepted_rules"]
+    if not isinstance(rules, list):
+        raise ReplayError("coach decision accepted_rules must be a list")
+    for rule in rules:
+        _require_non_empty_string(rule, "coach decision accepted_rule")
+    if len({rule.strip() for rule in rules}) != len(rules):
+        raise ReplayError("coach decision accepted_rules must be unique")
+    if action in {"accept_rules", "modify_rules"} and not rules:
+        raise ReplayError("coach decision accept/modify requires non-empty accepted_rules")
+    if action in {"defer", "journal_only"} and rules:
+        raise ReplayError("coach decision defer/journal_only cannot contain accepted_rules")
+    native_rules = {
+        row["rule"]
+        for row in coach.get("next_session_operating_rules", [])
+        if isinstance(row, dict) and isinstance(row.get("rule"), str)
+    }
+    if action == "accept_rules" and not set(rules).issubset(native_rules):
+        raise ReplayError("coach decision accept_rules must come from native coach proposals")
+    _require_non_empty_string(decision["human_notes"], "coach decision human_notes")
+    return dict(decision)
+
+
 def _monthly_coach(
     repo_root: Path,
     spec: Mapping[str, Any],
@@ -3342,24 +3465,7 @@ def _monthly_coach(
     if isinstance(source_records, list):
         coach["source_records"] = [_canonical_source_record(rec) for rec in source_records]
 
-    gate = coach.get("human_decision_gate") or {}
-    allowed_actions = gate.get("allowed_actions") or []
-    decision = _require_mapping_keys(
-        load_yaml(inputs["coach_decision"]),
-        label="coach decision",
-        required={"action", "accepted_rules", "human_notes"},
-    )
-    action = decision["action"]
-    if action not in allowed_actions:
-        raise ReplayError(
-            f"coach decision action {action!r} not in coach allowed actions {sorted(allowed_actions)}"
-        )
-    accepted = decision["accepted_rules"]
-    if not isinstance(accepted, list):
-        raise ReplayError("coach decision accepted_rules must be a list")
-    for rule in accepted:
-        _require_non_empty_string(rule, "coach decision accepted_rule")
-    _require_non_empty_string(decision["human_notes"], "coach decision human_notes")
+    decision = _validate_monthly_coach_decision(load_yaml(inputs["coach_decision"]), coach)
 
     artifacts = _artifact_paths(stage, step["output_files"])
     _write_json(Path(artifacts["monthly_performance_coach_report"]["files"]["canonical"]), coach)
@@ -3374,9 +3480,7 @@ def _monthly_coach(
         Path(artifacts["next_month_operating_rules"]["files"]["canonical"]),
         {
             "schema_version": 1,
-            "action": action,
-            "accepted_rules": accepted,
-            "human_notes": decision["human_notes"],
+            **decision,
         },
     )
     return artifacts
@@ -3525,6 +3629,10 @@ def _monthly_decision_log(
     stage: Path,
 ) -> dict[str, dict[str, Any]]:
     expected = {"aggregate_postmortem"}
+    coach_artifacts = set(consumed) & _MONTHLY_COACH_ARTIFACTS
+    if coach_artifacts and coach_artifacts != _MONTHLY_COACH_ARTIFACTS:
+        raise ReplayError("monthly decision log requires the complete coach artifact group")
+    expected.update(coach_artifacts)
     if "hypothesis_revalidation" in consumed:
         expected.add("hypothesis_revalidation")
     if "skill_review_findings" in consumed:
@@ -3547,15 +3655,38 @@ def _monthly_decision_log(
     for key in ("trade_rule_changes", "repo_improvements", "skill_improvement_backlog", "expected"):
         if not isinstance(decision[key], list):
             raise ReplayError(f"rule change decision {key} must be a list")
+    coach_decision = None
+    coach_hashes = dict.fromkeys(sorted(_MONTHLY_COACH_ARTIFACTS))
+    if coach_artifacts:
+        payloads = {}
+        for artifact_id in sorted(coach_artifacts):
+            path = Path(consumed[artifact_id]["files"]["canonical"])
+            payloads[artifact_id] = load_yaml(path)
+            coach_hashes[artifact_id] = _payload_sha256(
+                payloads[artifact_id], spec["fixed_timestamp"]
+            )
+        coach = payloads["monthly_performance_coach_report"]
+        if not isinstance(coach, dict):
+            raise ReplayError("monthly coach report must be a mapping")
+        coach_decision = _validate_monthly_coach_decision(
+            payloads["next_month_operating_rules"], coach, published=True
+        )
+        behavior = payloads["monthly_behavior_patterns"]
+        if not isinstance(behavior, dict) or behavior.get("review_id") != coach["review_id"]:
+            raise ReplayError("monthly behavior review_id must match the coach report")
+
     postmortem_path = Path(consumed["aggregate_postmortem"]["files"]["canonical"])
     postmortem = _load_json(postmortem_path, "aggregate postmortem")
 
     log_entry = {
         "schema_version": 1,
+        "coach_rule_decision": coach_decision,
+        "rule_activation": "not_performed",
         "monthly_aggregate_root_cause": postmortem.get("summary", "unknown"),
         "rule_changes": decision["trade_rule_changes"],
         "repo_improvements": decision["repo_improvements"],
         "provenance": {
+            **coach_hashes,
             "aggregate_postmortem": _payload_sha256(
                 _load_json(postmortem_path, "aggregate postmortem"), spec["fixed_timestamp"]
             ),
@@ -3594,6 +3725,8 @@ def _monthly_decision_log(
         Path(artifacts["rule_changes_for_next_month"]["files"]["canonical"]),
         {
             "schema_version": 1,
+            "coach_rule_decision": coach_decision,
+            "rule_activation": "not_performed",
             "trade_rule_changes": decision["trade_rule_changes"],
             "repo_improvements": decision["repo_improvements"],
         },
@@ -6294,6 +6427,7 @@ def _strategy_research_hold(
 
 
 EXECUTORS: dict[str, ExecutorRegistration] = {
+    "portfolio_holdings_review": ExecutorRegistration("native_cli", _portfolio_holdings_review),
     "strategy_research_detect_initial": ExecutorRegistration(
         "native_cli", _strategy_research_detect_initial
     ),
@@ -6449,6 +6583,8 @@ def _prompt_text(workflow: Mapping[str, Any], variant: str) -> str:
             "Include the optional news/catalyst brief while keeping every hypothesis "
             "card manual-review-gated and never wiring forex output to a broker."
         )
+    elif workflow["id"] == "portfolio-holdings-review":
+        optional_text = "This workflow has no optional steps; run its single required step."
     else:
         optional_text = (
             "Run the optional human-approved lessons step after reviewing the cohort evidence."

@@ -122,9 +122,9 @@ Implementation is incremental (see issue #297 acceptance criteria):
 - **Done here:** replay validation of present canonical provenance blocks,
   with optional declarations that require the block at every handoff.
 - **Follow-up slices:** every FMP-required skill emitting the block and opting
-  canonical workflow artifacts into mandatory replay validation. Existing
-  bundled workflows do not yet declare `required_provenance`; criterion 4 is
-  partially addressed by this gate infrastructure, not fully completed.
+  additional canonical workflow artifacts into mandatory replay validation.
+  The `market-regime-daily` breadth/uptrend handoffs now declare
+  `required_provenance`; the remaining workflows and FMP producers remain follow-up scope.
 
 
 ## Workflow replay handoff gate
@@ -174,3 +174,71 @@ does not independently verify a provider claim or temporal relationships.
 Keep unknown quality flags `false`, and quote YAML date/timestamp values as
 strings as required by the common contract. Do not add fictional metadata to
 real skill outputs merely to satisfy the gate.
+
+## Adopted workflow: market-regime-daily
+
+Breadth and uptrend producers emit schema 1.0 provenance for their primary
+CSV timeseries. Give both the same unique `--run-id`; unspecified IDs are unique
+per invocation. The business date comes from the data, retrieval from the actual
+UTC fetch clock. Unknown adjustment/PIT/survivorship/corporate-action flags are
+false. Auxiliary summaries have unverified dates and are explicitly outside the
+primary-timeseries freshness guarantee.
+
+For example, run both producers into separate directories for this run:
+
+```bash
+mkdir -p reports/daily-20261017-unique/breadth reports/daily-20261017-unique/uptrend
+python3 skills/market-breadth-analyzer/scripts/market_breadth_analyzer.py \
+  --run-id daily-20261017-unique --output-dir reports/daily-20261017-unique/breadth
+python3 skills/uptrend-analyzer/scripts/uptrend_analyzer.py \
+  --run-id daily-20261017-unique --output-dir reports/daily-20261017-unique/uptrend
+```
+
+Pass the exact JSON paths printed by these two invocations to Exposure Coach.
+Replace the example paths and evaluation timestamp below with this run's values:
+
+```bash
+python3 skills/exposure-coach/scripts/calculate_exposure.py \
+  --breadth reports/daily-20261017-unique/breadth/market_breadth_2026-10-17_125800.json \
+  --uptrend reports/daily-20261017-unique/uptrend/uptrend_analysis_2026-10-17_125900.json \
+  --require-provenance --run-id daily-20261017-unique \
+  --as-of 2026-10-17T13:00:00Z --max-age-days 3 \
+  --output-dir reports/daily-20261017-unique/exposure
+```
+
+Strict mode rejects missing or incompatible required provenance, wrong run IDs,
+future dates/retrievals and stale primary data before creating report output.
+`--as-of` is the aware evaluation instant; it never rewrites source dates.
+Three calendar days is the default policy, not an exchange holiday calendar.
+Date-only data is interpreted using its declared timezone; timestamp data uses
+its actual instant. Accepted input lineage and unverified boundaries accompany
+the strict decision. Legacy mode remains available for other integrations.
+Same-run IDs are caller-provided consistency checks, not signed authenticity or
+point-in-time guarantees. Optional top-risk and other inputs remain outside this
+strict gate; this slice does not claim full workflow provenance coverage.
+
+The canonical replay exercises native scorers/report writers and the strict
+Exposure Coach CLI with **fictional component fixtures**. Its blocks identify
+fixture sources, fixed retrieval and fixture as-of dates; they do not claim a
+live fetch. Separate mocked-fetch main tests verify actual producer adoption.
+The existing publication transaction preserves previously published output on
+provenance failure. No live trading or API operation is needed for these checks.
+
+## Adopted producer and replay boundary: COT crowding
+
+The COT screener now emits the common block in its JSON output. UTC retrieval
+completion is independent of a historical request cutoff; the oldest analyzed
+market date bounds the reported vintage, with each market date retained.
+Quality flags remain false because the provider's PIT, adjustment and universe
+properties have not been established. All-skipped output explicitly identifies
+its as-of date as a request cutoff with no analyzed observations. Invalid dates
+in analyzed rows fail before JSON output is replaced. See the skill's
+[output contract](https://github.com/tradermonty/claude-trading-skills/blob/main/skills/cot-contrarian-detector/references/output-contract.md).
+
+Shapiro's replay requires provenance on `cot_crowding_report` at every existing
+handoff/publication boundary. Its input metadata identifies an approved
+fictional fixture, and both replay variants retain manual-contract evidence for
+the crowding step. This is not a live API acceptance test or a new strict
+provenance gate in native downstream consumers. Existing detector vintage
+checks remain distinct from the common schema's shape validation. This slice
+advances #297; the other FMP producers and workflows remain follow-up work.

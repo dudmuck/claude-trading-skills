@@ -29,8 +29,7 @@ import math
 import os
 import re
 import sys
-import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import requests
@@ -110,140 +109,11 @@ class FINVIZClient:
             return set()
 
 
-# --- FMP endpoint fallback: stable (new users) -> v3 (legacy users) ---
-_FMP_HIST_ENDPOINTS = [
-    ("https://financialmodelingprep.com/stable/historical-price-eod/full", True),
-    ("https://financialmodelingprep.com/api/v3/historical-price-full", False),
-]
+from fmp_client import FMPClient as SharedFMPClient
 
 
-class FMPClient:
-    """Financial Modeling Prep API client with rate limiting."""
-
-    BASE_URL = "https://financialmodelingprep.com/api/v3"
-    STABLE_URL = "https://financialmodelingprep.com/stable"
-
-    _ENDPOINT_FAILURE_THRESHOLD = 3
-    # v3 path-style endpoints whose trailing symbol moves to a ?symbol= query
-    # on /stable (e.g. v3 income-statement/AAPL -> stable income-statement?symbol=AAPL)
-    _SYMBOL_QUERY_ENDPOINTS = (
-        "income-statement",
-        "balance-sheet-statement",
-        "cash-flow-statement",
-        "key-metrics",
-        "ratios",
-        "profile",
-        "quote",
-    )
-
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.session = requests.Session()
-        self.session.headers.update({"apikey": self.api_key})
-        self.rate_limit_reached = False
-        self.retry_count = 0
-        self._endpoint_failures: dict[str, int] = {}
-        self._disabled_endpoints: set[str] = set()
-
-    def _request(self, url: str, params: dict, quiet: bool = False) -> Optional[dict]:
-        """Single rate-limited GET. Returns parsed JSON, or None on failure.
-
-        Non-final endpoints pass quiet=True to suppress the expected 403 a new
-        key gets on the v3 fallback.
-        """
-        if self.rate_limit_reached:
-            return None
-        try:
-            response = self.session.get(url, params=params or {}, timeout=30)
-            if response.status_code == 200:
-                self.retry_count = 0
-                time.sleep(0.3)  # Rate limiting: 0.3s between requests
-                return response.json()
-            elif response.status_code == 429:
-                self.retry_count += 1
-                if self.retry_count <= 1:
-                    print("WARNING: Rate limit exceeded. Waiting 60 seconds...", file=sys.stderr)
-                    time.sleep(60)
-                    return self._request(url, params, quiet=quiet)
-                print("ERROR: Daily API rate limit reached. Stopping analysis.", file=sys.stderr)
-                self.rate_limit_reached = True
-                return None
-            else:
-                if not quiet:
-                    print(
-                        f"WARNING: API request failed ({response.status_code}): {url}",
-                        file=sys.stderr,
-                    )
-                return None
-        except Exception as e:
-            if not quiet:
-                print(f"ERROR: Request failed for {url}: {e}", file=sys.stderr)
-            return None
-
-    def _stable_spec(self, endpoint: str, params: dict) -> Optional[tuple]:
-        """Map a v3 path-style endpoint to its (stable_url, stable_params).
-
-        Returns None when there is no known /stable equivalent.
-        """
-        p = dict(params or {})
-        if endpoint == "stock-screener":
-            return f"{self.STABLE_URL}/company-screener", p
-        if endpoint.startswith("historical-price-full/stock_dividend/"):
-            p["symbol"] = endpoint.rsplit("/", 1)[-1]
-            return f"{self.STABLE_URL}/dividends", p
-        head, _, sym = endpoint.partition("/")
-        if sym and head in self._SYMBOL_QUERY_ENDPOINTS:
-            p["symbol"] = sym
-            return f"{self.STABLE_URL}/{head}", p
-        return None
-
-    @staticmethod
-    def _normalize(endpoint: str, data):
-        """Reshape /stable responses to match the v3 shapes callers expect."""
-        if data is None:
-            return None
-        # Dividends: /stable returns a flat list; v3 returned {"historical": [...]}.
-        if endpoint.startswith("historical-price-full/stock_dividend/"):
-            return {"historical": data} if isinstance(data, list) else data
-        # key-metrics: /stable renamed roe -> returnOnEquity (same ratio scale).
-        if endpoint.startswith("key-metrics/") and isinstance(data, list):
-            for rec in data:
-                if isinstance(rec, dict) and "roe" not in rec and "returnOnEquity" in rec:
-                    rec["roe"] = rec["returnOnEquity"]
-        # cash-flow: /stable renamed dividendsPaid -> netDividendsPaid (same
-        # negative-outflow value; callers take abs()).
-        if endpoint.startswith("cash-flow-statement/") and isinstance(data, list):
-            for rec in data:
-                if (
-                    isinstance(rec, dict)
-                    and "dividendsPaid" not in rec
-                    and "netDividendsPaid" in rec
-                ):
-                    rec["dividendsPaid"] = rec["netDividendsPaid"]
-        return data
-
-    def _get(self, endpoint: str, params: Optional[dict] = None) -> Optional[dict]:
-        """GET an FMP endpoint, preferring /stable with a v3 path-style fallback.
-
-        Callers still pass the legacy v3 path-style `endpoint` strings (e.g.
-        "income-statement/AAPL"); this routes them to the /stable query-style
-        equivalents and normalizes the response back to the v3 shape. Keys
-        issued after 2025-08-31 only work on /stable; legacy keys fall back to v3.
-        """
-        if self.rate_limit_reached:
-            return None
-        params = params or {}
-        attempts = []
-        spec = self._stable_spec(endpoint, params)
-        if spec:
-            attempts.append(spec)  # /stable first
-        attempts.append((f"{self.BASE_URL}/{endpoint}", dict(params)))  # v3 fallback
-        for i, (url, req_params) in enumerate(attempts):
-            quiet = i < len(attempts) - 1
-            data = self._request(url, req_params, quiet=quiet)
-            if data is not None:
-                return self._normalize(endpoint, data)
-        return None
+class FMPClient(SharedFMPClient):
+    """Domain adapters backed by the generated shared FMP transport."""
 
     def screen_stocks(self, min_market_cap: int = 2000000000, exchange: str = None) -> list[dict]:
         """Screen stocks by market cap and exchange."""
@@ -255,60 +125,8 @@ class FMPClient:
         return result if result else []
 
     def get_historical_prices(self, symbol: str, days: int = 30) -> Optional[list[dict]]:
-        """Get historical daily prices, most-recent-first (/stable, v3 fallback).
-
-        /stable/historical-price-eod/full returns a flat list of OHLCV bars and
-        is bounded with from/to; the v3 fallback returns {"historical": [...]}.
-        """
-        for base_url, is_stable in _FMP_HIST_ENDPOINTS:
-            if base_url in self._disabled_endpoints:
-                continue
-            if is_stable:
-                url = base_url
-                today = datetime.now().date()
-                params = {
-                    "symbol": symbol,
-                    # ~days trading days needs ~2x calendar days; +10 for slack.
-                    "from": (today - timedelta(days=days * 2 + 10)).isoformat(),
-                    "to": today.isoformat(),
-                }
-            else:
-                url = f"{base_url}/{symbol}"
-                params = {"timeseries": days}
-            try:
-                response = self.session.get(url, params=params, timeout=30)
-                time.sleep(0.3)
-                if response.status_code != 200:
-                    self._record_endpoint_failure(base_url)
-                    continue
-                data = response.json()
-                # /stable: flat list of bars (most-recent-first).
-                if isinstance(data, list):
-                    if data:
-                        self._endpoint_failures[base_url] = 0
-                        return data[:days]
-                    self._record_endpoint_failure(base_url)
-                    continue
-                # v3: {"symbol": ..., "historical": [...]}.
-                if isinstance(data, dict) and "historical" in data:
-                    self._endpoint_failures[base_url] = 0
-                    return data["historical"]
-                if isinstance(data, dict) and "historicalStockList" in data:
-                    for entry in data["historicalStockList"]:
-                        if entry.get("symbol", "").replace("-", ".") == symbol.replace("-", "."):
-                            self._endpoint_failures[base_url] = 0
-                            return entry.get("historical", [])
-                self._record_endpoint_failure(base_url)
-            except Exception:
-                self._record_endpoint_failure(base_url)
-        return None
-
-    def _record_endpoint_failure(self, base_url: str) -> None:
-        """Track consecutive failures and disable endpoint after threshold."""
-        failures = self._endpoint_failures.get(base_url, 0) + 1
-        self._endpoint_failures[base_url] = failures
-        if failures >= self._ENDPOINT_FAILURE_THRESHOLD:
-            self._disabled_endpoints.add(base_url)
+        data = self.get_dividend_prices(symbol, days)
+        return data if data is not None else None
 
     def get_dividend_history(self, symbol: str) -> Optional[dict]:
         """Get historical dividend payments."""
@@ -371,6 +189,15 @@ class FMPClient:
         return quote_data
 
 
+def _finite_number(value) -> bool:
+    if type(value) not in (int, float):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 class RSICalculator:
     """Calculate Relative Strength Index (RSI) from price data."""
 
@@ -386,6 +213,10 @@ class RSICalculator:
         Returns:
             RSI value (0-100) or None if insufficient data
         """
+        if type(period) is not int or period <= 0:
+            return None
+        if any(not _finite_number(price) for price in prices):
+            return None
         if len(prices) < period + 1:
             return None
 
@@ -421,6 +252,8 @@ class StockAnalyzer:
     @staticmethod
     def calculate_cagr(start_value: float, end_value: float, years: int) -> Optional[float]:
         """Calculate Compound Annual Growth Rate."""
+        if any(not _finite_number(value) for value in (start_value, end_value, years)):
+            return None
         if start_value <= 0 or end_value <= 0 or years <= 0:
             return None
         return round(((end_value / start_value) ** (1 / years) - 1) * 100, 2)
@@ -1140,7 +973,7 @@ def generate_markdown_report(results: list[dict], criteria: dict, output_path: s
 
     report = f"""# Dividend Growth Pullback Screening Report
 
-**Generated:** {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC
+**Generated:** {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")} UTC
 **Data Source:** Financial Modeling Prep API
 
 ## Executive Summary
@@ -1352,7 +1185,7 @@ High dividend growth stocks (12%+ CAGR) compound wealth through rising dividends
 
 **Disclaimer:** This report is for informational purposes only. Past dividend growth does not guarantee future performance. RSI oversold conditions do not guarantee price reversals. Conduct thorough due diligence and consult a financial advisor before making investment decisions.
 
-**Report Generated:** {datetime.utcnow().isoformat()}Z
+**Report Generated:** {datetime.now(timezone.utc).replace(tzinfo=None).isoformat()}Z
 """
 
     # Write report
@@ -1485,7 +1318,7 @@ Environment Variables:
     # JSON output
     json_output = {
         "metadata": {
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z",
             "criteria": criteria,
             "total_results": len(results),
         },

@@ -9,7 +9,7 @@ description: Comprehensive portfolio analysis using Alpaca MCP Server integratio
 
 Analyze and manage investment portfolios by integrating with Alpaca MCP Server to fetch real-time holdings data, then performing comprehensive analysis covering asset allocation, diversification, risk metrics, individual position evaluation, and rebalancing recommendations. Generate detailed portfolio reports with actionable insights.
 
-This skill leverages Alpaca's brokerage API through MCP (Model Context Protocol) to access live portfolio data, ensuring analysis is based on actual current positions rather than manually entered data.
+The full brokerage analysis uses Alpaca's API through MCP for live portfolio data. The `portfolio-holdings-review` workflow provides a limited offline allocation review from CSV or saved Alpaca positions JSON. It reports gross holdings weights and per-position unrealized P&L; account-wide risk analysis uses the full brokerage workflow.
 
 ## When to Use
 
@@ -26,9 +26,24 @@ Invoke this skill when the user requests:
 
 ## Prerequisites
 
-### Alpaca MCP Server Setup
+### Limited Offline CSV Review
 
-This skill requires Alpaca MCP Server to be configured and connected. The MCP server provides access to:
+For a local USD equity holdings snapshot without credentials, read
+`references/csv-holdings-review.md` and run `scripts/review_csv.py` with an explicit
+source timestamp. Use the bundled fictional CSV to verify offline execution.
+This produces gross allocation and per-position unrealized P&L only; it cannot
+measure account exposure, leverage or historical performance. Keep personal
+holdings and reports local. Do not fetch brokerage data or continue the full
+workflow for this limited mode. Ask Navigator for "review my portfolio from CSV"
+to select `portfolio-holdings-review`. The recommendation does not read the file:
+provide the real input path and source timestamp to the CLI before review.
+Saved Alpaca positions JSON can use `--input-format alpaca-json` for the same
+limited calculations; it does not fetch broker data. Both formats follow the
+shared output schema in `assets/holdings-review.schema.json`.
+
+### Alpaca MCP Server Setup (Full Brokerage Analysis)
+
+The full brokerage analysis requires Alpaca MCP Server to be configured and connected. The MCP server provides access to:
 - Current portfolio positions
 - Account equity and buying power
 - Historical positions and transactions
@@ -703,9 +718,11 @@ Load these references as needed during analysis:
 ## Error Handling
 
 **If Alpaca MCP Server is not connected:**
-1. Inform user that Alpaca integration is required
-2. Provide setup instructions from references/alpaca-mcp-setup.md
-3. Offer alternative: manual data entry (less ideal, user provides CSV of positions)
+1. For full brokerage analysis, explain the Alpaca requirement and provide
+   setup instructions from references/alpaca-mcp-setup.md.
+2. For a local holdings-only review, use `portfolio-holdings-review` and the
+   documented CSV or saved-position contract in references/csv-holdings-review.md.
+3. State its unavailable account-level analyses before interpreting results.
 
 **If API returns incomplete data:**
 - Proceed with available data

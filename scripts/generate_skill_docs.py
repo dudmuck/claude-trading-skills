@@ -277,6 +277,8 @@ def api_badges(api_info: dict | None) -> str:
     if "Required" in alpaca:
         badges.append('<span class="badge badge-api">Alpaca Required</span>')
         has_required = True
+    elif "Optional" in alpaca:
+        badges.append('<span class="badge badge-optional">Alpaca Optional</span>')
 
     if not badges:
         badges.append('<span class="badge badge-free">No API</span>')
@@ -312,6 +314,8 @@ def api_badges_ja(api_info: dict | None) -> str:
     if "Required" in alpaca:
         badges.append('<span class="badge badge-api">Alpaca必須</span>')
         has_required = True
+    elif "Optional" in alpaca:
+        badges.append('<span class="badge badge-optional">Alpaca任意</span>')
 
     if not badges:
         badges.append('<span class="badge badge-free">API不要</span>')
@@ -1213,7 +1217,7 @@ def update_catalog_api_matrix(
 
         # Collect new rows
         new_rows: list[str] = []
-        for skill_name, skill_data, api_info in all_skills:
+        for skill_name, _skill_data, api_info in all_skills:
             slug = _slugify(skill_name)
             if slug in existing_slugs:
                 continue
