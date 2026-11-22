@@ -2,6 +2,7 @@ schema_version: 1
 categories:
 - market-regime
 - core-portfolio
+- dividend-income
 - swing-opportunity
 - trade-planning
 - trade-memory
@@ -208,7 +209,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Detects crowded speculative (large-speculator) positioning in CFTC futures markets using
@@ -322,7 +323,7 @@ skills:
   workflows: []
 - id: dividend-growth-pullback-screener
   display_name: Dividend Growth Pullback Screener
-  category: core-portfolio
+  category: dividend-income
   status: production
   verification:
     instruction_contract: not_verified
@@ -376,10 +377,10 @@ skills:
   timeframe: research
   difficulty: intermediate
   integrations:
-  - id: local_calculation
-    type: calculation
-    requirement: not_required
-    note: Duration analysis from market data; pure calculation
+  - id: fmp
+    type: market_data
+    requirement: required
+    note: FMP stock universe and historical prices; an API key is required
   inputs:
   - historical_correction_data
   outputs:
@@ -417,6 +418,7 @@ skills:
   outputs:
   - circuit_breaker_decision
   workflows:
+  - earnings-weekly
   - stockbee-ep-daily
   - swing-opportunity-daily
 - id: dual-axis-skill-reviewer
@@ -461,7 +463,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_applicable
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: standalone
     rationale: "Fetches an earnings calendar as an independent event-planning utility."
@@ -492,7 +494,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Analyze recent post-earnings stocks using a 5-factor scoring system (Gap Size, Pre-Earnings
@@ -510,6 +512,7 @@ skills:
   - scored_candidates
   - five_factor_grades
   workflows:
+  - earnings-weekly
   - stockbee-ep-daily
 - id: econ-indicator-explainer
   display_name: Econ Indicator Explainer
@@ -555,7 +558,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_applicable
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: standalone
     rationale: "Fetches economic events as an independent planning utility."
@@ -606,7 +609,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Generate and prioritize US equity long-side edge research tickets from EOD observations, then
@@ -858,7 +861,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: standalone
     rationale: "Builds a screener URL directly from a user's standalone screening request."
@@ -888,7 +891,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: standalone
     rationale: "Runs an independent follow-through-day assessment when requested."
@@ -987,7 +990,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: standalone
     rationale: "Produces an independent institutional ownership and flow assessment on demand."
@@ -1008,7 +1011,7 @@ skills:
   workflows: []
 - id: kanchi-dividend-review-monitor
   display_name: Kanchi Dividend Review Monitor
-  category: core-portfolio
+  category: dividend-income
   status: production
   verification:
     instruction_contract: not_verified
@@ -1018,7 +1021,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Monitor dividend portfolios with Kanchi-style forced-review triggers (T1-T5) and convert anomalies
@@ -1040,7 +1043,7 @@ skills:
   - kanchi-dividend-weekly
 - id: kanchi-dividend-sop
   display_name: Kanchi Dividend SOP
-  category: core-portfolio
+  category: dividend-income
   status: production
   verification:
     instruction_contract: not_verified
@@ -1050,7 +1053,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Convert Kanchi-style dividend investing into a repeatable US-stock operating procedure.
@@ -1071,7 +1074,7 @@ skills:
   - kanchi-dividend-weekly
 - id: kanchi-dividend-us-tax-accounting
   display_name: Kanchi Dividend US Tax Accounting
-  category: core-portfolio
+  category: dividend-income
   status: production
   verification:
     instruction_contract: not_verified
@@ -1113,7 +1116,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Detect structural macro regime transitions (1-2 year horizon) using cross-asset ratio analysis.
@@ -1269,7 +1272,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Assesses heuristic market top risk using O'Neil Distribution Days, Minervini Leading Stock Deterioration,
@@ -1277,10 +1280,14 @@ skills:
   timeframe: daily
   difficulty: intermediate
   integrations:
+  - id: fmp
+    type: market_data
+    requirement: required
+    note: FMP index, ETF and stock data; an API key is required
   - id: public_csv
     type: web
-    requirement: required
-    note: Public market data CSVs; no API key required
+    requirement: optional
+    note: Public TraderMonty breadth CSV supplement; FMP credentials remain required
   inputs:
   - public_market_data_csv
   outputs:
@@ -1321,7 +1328,7 @@ skills:
   status: production
   verification:
     instruction_contract: not_verified
-    unit_tests: passed
+    unit_tests: not_verified
     workflow_contract: not_verified
     end_to_end_replay: not_verified
     data_provenance: not_verified
@@ -1397,7 +1404,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: standalone
     rationale: "Screens and analyzes pair-trade candidates as a self-contained tool."
@@ -1464,7 +1471,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Screen post-earnings gap-up stocks for PEAD (Post-Earnings Announcement Drift) patterns.
@@ -1482,6 +1489,7 @@ skills:
   - pead_signal_list
   - breakout_triggers
   workflows:
+  - earnings-weekly
   - stockbee-ep-daily
 - id: portfolio-manager
   display_name: Portfolio Manager
@@ -1495,7 +1503,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Comprehensive portfolio analysis using Alpaca MCP Server integration to fetch holdings and
@@ -1549,6 +1557,7 @@ skills:
   - share_count
   - risk_amount
   workflows:
+  - earnings-weekly
   - multi-asset-opportunity-daily
   - stockbee-ep-daily
   - swing-opportunity-daily
@@ -1584,6 +1593,7 @@ skills:
   outputs:
   - pre_trade_discipline_decision
   workflows:
+  - earnings-weekly
   - stockbee-ep-daily
   - swing-opportunity-daily
 - id: residual-edge-analyzer
@@ -1716,7 +1726,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Record and analyze post-trade outcomes for signals generated by edge pipeline and other skills.
@@ -1726,7 +1736,11 @@ skills:
   - id: local_calculation
     type: calculation
     requirement: not_required
-    note: Postmortem framework; pure calculation
+    note: Manual postmortem recording works offline
+  - id: fmp
+    type: market_data
+    requirement: optional
+    note: Optional FMP price enrichment; manual recording works without a key
   inputs:
   - closed_thesis_record
   outputs:
@@ -2083,7 +2097,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: This skill should be used when analyzing weekly price charts for stocks, stock indices, cryptocurrencies,
@@ -2105,6 +2119,7 @@ skills:
   - technical_assessment_report
   - price_action_confirmation_report
   workflows:
+  - earnings-weekly
   - shapiro-contrarian
   - stockbee-ep-daily
   - swing-opportunity-daily
@@ -2115,8 +2130,8 @@ skills:
   verification:
     instruction_contract: not_verified
     unit_tests: not_verified
-    workflow_contract: passed
-    end_to_end_replay: passed
+    workflow_contract: not_verified
+    end_to_end_replay: not_verified
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
@@ -2241,6 +2256,7 @@ skills:
   - journal_entry
   workflows:
   - core-portfolio-weekly
+  - earnings-weekly
   - kanchi-dividend-weekly
   - monthly-performance-review
   - multi-asset-opportunity-daily
@@ -2369,7 +2385,11 @@ skills:
   - id: user_input
     type: local_file
     requirement: required
-    note: User provides data
+    note: User provides the ticker or question, optionally own data
+  - id: websearch
+    type: web
+    requirement: required
+    note: Current market data via web search
   inputs:
   - ticker
   - fundamentals_data
@@ -2379,7 +2399,7 @@ skills:
   workflows: []
 - id: value-dividend-screener
   display_name: Value Dividend Screener
-  category: core-portfolio
+  category: dividend-income
   status: production
   verification:
     instruction_contract: not_verified
@@ -2426,7 +2446,7 @@ skills:
     data_provenance: not_verified
     financial_logic_review: not_verified
     empirical_validation: not_verified
-    security_review: not_verified
+    security_review: passed
   operational_role:
     type: workflow_step
   summary: Screen S&P 500 stocks for Mark Minervini's Volatility Contraction Pattern (VCP).

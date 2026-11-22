@@ -219,6 +219,8 @@ python3 skills/us-undervalued-growth-screener/scripts/manage_run_state.py save-c
   --stage verified
 ```
 
+While `candidate_pool_status` is `sufficient_pending_enrichment`, `--stage verified` is refused. Deep dives may proceed, but save them with `--stage draft`. Finish enrichment, rerun the broad screen, and reattach the resolved audit with `set-screening-audit`, then save each candidate as `verified`. A verified candidate cannot be downgraded to draft, and `set-screening-audit` is rejected once any candidate is verified.
+
 ### Step 5 — Complete and assemble
 
 ```bash
@@ -281,6 +283,7 @@ Both commands must exit `0`. Present the self-contained ZIP together with the re
 - `skills/us-undervalued-growth-screener/references/autonomous-execution.md`
 - `skills/us-undervalued-growth-screener/references/checkpointing.md`
 - `skills/us-undervalued-growth-screener/references/claude-code-execution.md`
+- `skills/us-undervalued-growth-screener/references/data-acquisition-layers.md`
 - `skills/us-undervalued-growth-screener/references/data-contract.md`
 - `skills/us-undervalued-growth-screener/references/full-universe-snapshot.md`
 - `skills/us-undervalued-growth-screener/references/methodology-ja.md`
@@ -300,6 +303,7 @@ Both commands must exit `0`. Present the self-contained ZIP together with the re
 - `skills/us-undervalued-growth-screener/references/review-regression-matrix.md`
 - `skills/us-undervalued-growth-screener/references/scoring-rubric.md`
 - `skills/us-undervalued-growth-screener/references/sector-kpis.md`
+- `skills/us-undervalued-growth-screener/references/source-evidence-and-financial-controls.md`
 
 **Scripts:**
 
@@ -309,9 +313,20 @@ Both commands must exit `0`. Present the self-contained ZIP together with the re
 - `skills/us-undervalued-growth-screener/scripts/coverage_semantics.py`
 - `skills/us-undervalued-growth-screener/scripts/estimate_snapshot.py`
 - `skills/us-undervalued-growth-screener/scripts/evaluate_candidates.py`
+- `skills/us-undervalued-growth-screener/scripts/evaluation_candidate.py`
+- `skills/us-undervalued-growth-screener/scripts/evaluation_common.py`
+- `skills/us-undervalued-growth-screener/scripts/evaluation_financials.py`
+- `skills/us-undervalued-growth-screener/scripts/evaluation_ranking.py`
+- `skills/us-undervalued-growth-screener/scripts/evaluation_report.py`
+- `skills/us-undervalued-growth-screener/scripts/evaluation_valuation.py`
 - `skills/us-undervalued-growth-screener/scripts/fmp_client.py`
 - `skills/us-undervalued-growth-screener/scripts/manage_run_state.py`
 - `skills/us-undervalued-growth-screener/scripts/normalize_estimates.py`
+- `skills/us-undervalued-growth-screener/scripts/pipeline_common.py`
+- `skills/us-undervalued-growth-screener/scripts/pipeline_discover.py`
+- `skills/us-undervalued-growth-screener/scripts/pipeline_enrichment.py`
+- `skills/us-undervalued-growth-screener/scripts/pipeline_snapshot.py`
+- `skills/us-undervalued-growth-screener/scripts/pipeline_universe.py`
 - `skills/us-undervalued-growth-screener/scripts/prepublish_audit.py`
 - `skills/us-undervalued-growth-screener/scripts/research_contract.py`
 - `skills/us-undervalued-growth-screener/scripts/run_pipeline.py`

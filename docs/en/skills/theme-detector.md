@@ -51,10 +51,10 @@ The Theme Detector identifies which market themes (AI & Semiconductors, Clean En
 
 ## 2. Prerequisites
 
-**Core functionality requires no API keys.** The skill uses FINVIZ public screener data and yfinance for ETF/stock metrics.
+Public FINVIZ operation requires Python 3.10+ and finvizfinance>=1.5.0; provider access can still be blocked. With a configured key, group performance prefers authenticated Elite export.
 
 **Python Dependencies:**
-- Python 3.9+
+- Python 3.9+ for core/Elite; Python 3.10+ for public FINVIZ
 - `requests`
 - `beautifulsoup4`
 - `lxml`
@@ -67,7 +67,7 @@ pip install requests beautifulsoup4 lxml pandas numpy yfinance
 ```
 
 **Optional Python packages:**
-- `finvizfinance` (for FINVIZ Elite mode)
+- `finvizfinance>=1.5.0` (public scraping on Python 3.10+; not needed for Elite groups)
 - `PyYAML` (for `--themes-config` custom themes)
 
 **Optional APIs for enhanced results:**
@@ -401,3 +401,59 @@ WebSearch-based narrative confirmation depends on internet connectivity and sear
 | Infrastructure | Engineering & Construction, Building Materials, Heavy Machinery, Steel | PAVE, IFRA |
 | Gold & Precious Metals | Gold, Silver, Mining | GLD, GDX, SIL |
 | Defense & Aerospace | Aerospace & Defense, Communication Equipment | ITA, XAR, PPA |
+
+## Group export reliability
+
+Install `skills/theme-detector/requirements.txt` to get the supported public
+scraper and pinned calendar. On Python 3.9 the optional scraper is skipped; use
+Elite or a modern Python interpreter for public data. Industry/sector group
+performance prefers the configured FINVIZ Elite key and falls back to the public
+scraper after a failed, empty or malformed CSV. `--finviz-mode public` disables
+Elite requests even if `FINVIZ_API_KEY` is present.
+
+Reports record the actual industry source in `metadata.finviz_mode` and
+`metadata.data_sources.finviz_industry_performance.source`; the requested mode
+is retained as `metadata.finviz_mode_requested`. `data_mode` reflects that
+industry source and FMP key availability, not confirmed FMP fetch success.
+An Elite failure adds a safe `fallback_reason` and a public-fallback quality
+flag to JSON and Markdown. Dynamic stock selection retains its independent
+source policy and per-stock provenance. `finviz_industries` remains a row count;
+it does not certify completeness. An Elite CSV with fewer than 11 sector rows
+or 100 industry rows is treated as truncated (`fallback_reason: too_few_rows`)
+and falls back to public data; exports at or above those floors are accepted.
+
+The client normalizes CSV percentage points to decimal ratios, including 0.12%
+and negative/zero values; the pipeline converts those ratios once. If both
+sources fail, the CLI exits 1 with upgrade/key/access guidance and writes no
+new report. Diagnostics contain no key, response body, request URL or raw
+exception. Overlapping proxy ETF holdings retain both reasons without a missing
+composite-score crash; unscored holdings use zero.
+
+Regression tests use synthetic CSV/ETF fixtures and mocked transport, not live
+FINVIZ acceptance or trading validation.
+
+
+## FINVIZ Elite representative-stock ranking
+
+Dynamic representative-stock selection now requests Volume explicitly with
+`c=1,6,66,67` (Ticker, Market Cap, Change, Volume). Filters are unchanged. The
+existing cap/change/volume rank weights are 40%/30%/30%, so adding Volume can
+change which stocks lead a theme's representative list. This does not change
+Theme Heat or stock-leadership weights. Elite Market Cap remains converted
+from millions to dollars; public parsing is unchanged.
+
+For example, a fictional $2B stock at +4% with 100,000 shares ranks first without
+Volume (0.7857), ahead of a $1B stock at +5% with 9,000,000 shares (0.7143).
+With Volume requested, their scores are 0.7000 and 0.8000, reversing the order.
+This is a synthetic regression example, not live performance evidence.
+
+Missing Volume columns or unusable row values produce warnings. Unknown row
+values remain `volume: null` in stock details and use the existing per-row
+weight re-normalization; a genuine zero stays available. The fallback chain is
+unchanged.
+
+## Generated FMP transport
+
+Quotes, full EOD history and ETF holdings now use the adjacent generated FMP client and stable endpoints with query authentication, a 15-second timeout and static-detail diagnostics. Legacy endpoint fallback and the scanner's endpoint-wide empty-result breaker are removed; a missing symbol cannot disable later symbols. Existing symbol aliases/cache, one-symbol requests, historical as-of filtering, yfinance fallback and selection/ranking policies remain in place.
+
+Each logical operation owns/closes a session. App-level pacing is retained across operations; generated pacing applies to bounded shared retries (one 429 retry and one malformed-JSON retry). Other HTTP/transport failures use the existing provider fallback. Backend fmp_calls/fmp_failures count logical stable operations, not underlying retry attempts. FMP is optional, and missing keys do not load the HTTP client or inherit ambient credentials through the adapter. FINVIZ behavior is unchanged. Offline tests do not establish live endpoint entitlement, adjustment accuracy or strategy performance.

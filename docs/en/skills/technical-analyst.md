@@ -181,6 +181,18 @@ Do not batch analyses. Complete and save each report before moving to the next c
 
 ## 5. Contrarian Confirmation Mode (Shapiro Step 3)
 
+Validate `run_context.data_date` and every supplied vintage for the selected market:
+`markets[].data_date` and `data_provenance.market_data_dates[symbol]`. Each must
+be nonempty, parseable, not after `--as-of`, and no older than
+`--max-detector-age-days` (the boundary itself is accepted). Use the oldest
+validated date for the audit age; keep the original run context unchanged.
+Legacy reports may omit row/map dates and fall back to the report date. A
+present invalid/null/empty date or malformed provenance/map container fails
+closed using the existing missing/invalid/future/stale reason codes. Other
+symbols' row/map dates do not replace the selected market's vintage. Existing
+first-10-character date parsing remains compatible; this is not a stricter
+full-timestamp or provenance-schema validator.
+
 This is an ADDITIVE mode, separate from the pure chart-analysis workflow above. It activates only on an explicit contrarian-confirmation request -- typically after `cot-contrarian-detector` (step 1) has flagged a market crowded and, optionally, `news-reaction-failure-analyzer` (step 2) has shown it failed to react to favorable news. A plain "analyze this chart" request still runs the original workflow (Steps 1-6 above) unchanged.
 
 ### Purpose
@@ -243,3 +255,22 @@ The script fetches weekly-resampled OHLC via a documented futures-to-ETF fallbac
 **Scripts:**
 
 - `skills/technical-analyst/scripts/check_weekly_price_action.py`
+
+
+### Generated FMP transport for weekly confirmation
+
+The data-driven CLI uses the bundled generated `scripts/fmp_client.py` with the
+stable full-OHLC endpoint and explicit `from`/`to` dates. Futures-to-ETF source
+order and the `--as-of` cutoff remain unchanged; no local legacy endpoint is used.
+The chart-image workflow still needs no API key. The data CLI requires an FMP key
+(`--api-key` takes precedence over `FMP_API_KEY`); whitespace-only explicit keys
+are rejected as missing. Manual/help paths do not import the optional transport.
+
+Transport follows the common client policy: one retry on 429 with a 60-second
+wait, then a client-wide daily-limit flag prevents further HTTP calls (including
+ETF fallbacks). Malformed JSON retries once. Other HTTP/connection failures are
+redacted and returned immediately, allowing the next configured source. This
+replaces the previous five-attempt exponential retry loop for 5xx/network errors.
+`--sleep-seconds` controls ordinary request pacing; response counts follow the
+common client's accounting. Empty lists still advance the source chain; malformed
+200 response shapes are explicit errors. No price is invented or defaulted here.

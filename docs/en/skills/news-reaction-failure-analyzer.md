@@ -84,6 +84,26 @@ never merely "didn't respond enough." See
 - **Optional:** a `cot-contrarian-detector` JSON report (`--detector-json`)
   to auto-resolve symbol + direction, or supply `--direction` explicitly.
 
+Validate `run_context.data_date` and every supplied vintage for the selected market:
+`markets[].data_date` and `data_provenance.market_data_dates[symbol]`. Each must
+be nonempty, parseable, not after `--as-of`, and no older than
+`--max-detector-age-days` (the boundary itself is accepted). Use the oldest
+validated date for the audit age; keep the original run context unchanged.
+Legacy reports may omit row/map dates and fall back to the report date. A
+present invalid/null/empty date or malformed provenance/map container fails
+closed using the existing missing/invalid/future/stale reason codes. Other
+symbols' row/map dates do not replace the selected market's vintage. Existing
+first-10-character date parsing remains compatible; this is not a stricter
+full-timestamp or provenance-schema validator.
+
+### Generated price transport
+
+`PriceClient` uses the adjacent generated FMP client for stable light EOD requests, preserving exact symbol/from/to ranges, the strict `price` boundary, source/proxy order and the information cutoff. There is no legacy endpoint fallback. CLI `--api-key` still takes priority over `FMP_API_KEY`. Endpoint entitlement depends on the provider plan; no new live endpoint verification is claimed.
+
+The shared transport now owns pacing (default 0.25 seconds; `--sleep-seconds` overrides it), the bounded 429 retry and one malformed-JSON retry. The former five-attempt exponential loop is removed: other HTTP or transport failures advance the source chain without local retries. Exhausted 429 retains the generated daily-limit stop state. `api_calls_made` now exposes the shared counter of received HTTP responses, including retry responses; transport exceptions are not counted by this version of the shared core. It is not a count of source probes.
+
+Diagnostics retain only fixed error markers/classifications, never provider body or exception details. Empty successful data, invalid schema, post-cutoff-only rows and HTTP failures remain distinct in `price_attempts`. The price field, proxy choice, event vintage rules and reaction formulas are unchanged. The CLI closes its owned session before reporting; Python callers should use `with PriceClient(...) as client:` or call `close()`. Injected replacement sessions become owned by that client.
+
 ---
 
 ## 4. Quick Start
@@ -162,4 +182,5 @@ Emit a handoff block for `contrarian-setup-gate` (#241, not yet built):
 **Scripts:**
 
 - `skills/news-reaction-failure-analyzer/scripts/analyze_news_reaction.py`
+- `skills/news-reaction-failure-analyzer/scripts/fmp_client.py`
 - `skills/news-reaction-failure-analyzer/scripts/reaction_math.py`

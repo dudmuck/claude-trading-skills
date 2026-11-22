@@ -14,7 +14,7 @@ permalink: /ja/skills/market-top-detector/
 オニールのディストリビューションデー、ミネルヴィニの先導株劣化、モンティのディフェンシブセクターローテーションを使用して市場天井のヒューリスティックなリスクを評価します。リスクゾーン分類付きの0-100コンポジットスコアを生成します。市場天井リスク、ディストリビューションデー、ディフェンシブローテーション、リーダーシップ崩壊、またはエクイティエクスポージャーを縮小すべきかについて聞かれた際に使用します。10-20%の調整に対する2〜8週間の戦術的タイミングシグナルに焦点を当てます。
 {: .fs-6 .fw-300 }
 
-<span class="badge badge-free">API不要</span>
+<span class="badge badge-api">FMP必須</span>
 
 [スキルパッケージをダウンロード (.skill)](https://github.com/tradermonty/claude-trading-skills/raw/main/skill-packages/market-top-detector.skill){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [GitHubでソースを見る](https://github.com/tradermonty/claude-trading-skills/tree/main/skills/market-top-detector){: .btn .fs-5 .mb-4 .mb-md-0 }
@@ -51,7 +51,7 @@ permalink: /ja/skills/market-top-detector/
 
 ## 3. 前提条件
 
-- **APIキー:** 不要
+- **APIキー:** FMP必須。`FMP_API_KEY`または`--api-key`で指定します。TraderMontyのブレッドスCSVは公開データですが、FMPの指数・ETF・株価データの代わりにはなりません。
 - **Python 3.9+** 推奨
 
 ---
@@ -192,3 +192,14 @@ python3 skills/market-top-detector/scripts/market_top_detector.py \
 - `skills/market-top-detector/scripts/scenario_engine.py`
 - `skills/market-top-detector/scripts/scorer.py`
 - `skills/market-top-detector/scripts/utils.py`
+
+## 価格データの欠損
+
+計算対象期間に欠損・非有限値・不正な価格があれば、そのコンポーネントは
+`data_gaps` の日付付き診断とともに利用不能になります。出来高0は有効ですが、
+価格0は無効です。既存のキー不在時のfallbackは維持し、不正な値を別のフィールドで
+救済しません。履歴を詰めたりゼロ補完したりせず、MarkdownではN/Aと表示し、
+合成スコアへの寄与を除外します。すべて利用不能ならJSONのスコアはnull、
+ゾーンはUnavailable、リスク予算はNot assessedです。Exposure Coachは欠損入力と
+扱い、戦略統合スキルは配分レポートを生成する前に停止します。正常データの
+採点式・予算の校正方針は変更していません。

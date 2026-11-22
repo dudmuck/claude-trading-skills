@@ -205,6 +205,7 @@ pre-commit install && pre-commit install --hook-type pre-push
 | no-absolute-paths | local | `/Users/username/` path leaks in public repo |
 | skill-frontmatter | local | SKILL.md `name` matches directory, `description` exists |
 | docs-completeness | local | Every `skills/*/SKILL.md` has EN + JA doc pages |
+| cli-error-conventions | local | Skill scripts print errors to stderr, exit 2 with a `requirements.txt` hint for a missing dependency, and set network timeouts (`scripts/check_cli_error_conventions.py`) |
 
 **Pre-push hook:**
 
@@ -241,7 +242,7 @@ The table below is **auto-generated** from `skills-index.yaml` by `scripts/gener
 | **Data Quality Checker** | ❌ Not used | ❌ Not used | ❌ Not used | Local markdown validation; works offline |
 | **Dealer Gamma Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | CBOE ~15-min delayed options JSON; free, no key, no paid options feed |
 | **Dividend Growth Pullback Screener** | ✅ Required | 🟡 Optional (Recommended) | ❌ Not used | Financial Modeling Prep API |
-| **Downtrend Duration Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Duration analysis from market data; pure calculation |
+| **Downtrend Duration Analyzer** | ✅ Required | ❌ Not used | ❌ Not used | FMP stock universe and historical prices; an API key is required |
 | **Drawdown Circuit Breaker** | ❌ Not used | ❌ Not used | ❌ Not used | Reads trader-memory-core thesis YAML files; pure calculation, works offline |
 | **Dual Axis Skill Reviewer** | ❌ Not used | ❌ Not used | ❌ Not used | Deterministic scoring + optional LLM review |
 | **Earnings Calendar** | ✅ Required | ❌ Not used | ❌ Not used | Financial Modeling Prep API |
@@ -270,7 +271,7 @@ The table below is **auto-generated** from `skills-index.yaml` by `scripts/gener
 | **Market Breadth Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | TraderMonty public CSV; no API key required |
 | **Market Environment Analysis** | ❌ Not used | ❌ Not used | ❌ Not used | Global market data via WebSearch / WebFetch; Optional chart image inputs for technical interpretation |
 | **Market News Analyst** | ❌ Not used | ❌ Not used | ❌ Not used | Web search / fetch |
-| **Market Top Detector** | ❌ Not used | ❌ Not used | ❌ Not used | Public market data CSVs; no API key required |
+| **Market Top Detector** | ✅ Required | ❌ Not used | ❌ Not used | FMP index, ETF and stock data; an API key is required |
 | **News Reaction Failure Analyzer** | ✅ Required | ❌ Not used | ❌ Not used | Historical EOD price data; per-symbol coverage varies (ETF proxy fallback documented) |
 | **Options Strategy Advisor** | 🟡 Optional | ❌ Not used | ❌ Not used | Financial Modeling Prep API |
 | **PEAD Screener** | ✅ Required | ❌ Not used | ❌ Not used | Financial Modeling Prep API |
@@ -283,7 +284,7 @@ The table below is **auto-generated** from `skills-index.yaml` by `scripts/gener
 | **Scenario Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Headline / news search via WebSearch |
 | **Sector Analyst** | ❌ Not used | ❌ Not used | ❌ Not used | Chart screenshot input |
 | **Short-Squeeze Radar** | ❌ Not used | ❌ Not used | ❌ Not used | FINRA Reg SHO daily short-volume + short-interest files; free, no auth |
-| **Signal Postmortem** | ❌ Not used | ❌ Not used | ❌ Not used | Postmortem framework; pure calculation |
+| **Signal Postmortem** | 🟡 Optional | ❌ Not used | ❌ Not used | Optional FMP price enrichment; manual recording works without a key |
 | **Skill Designer** | ❌ Not used | ❌ Not used | ❌ Not used | Generates skill scaffolding from idea specs |
 | **Skill Idea Miner** | ❌ Not used | ❌ Not used | ❌ Not used | Mines session logs for skill ideas |
 | **Skill Integration Tester** | ❌ Not used | ❌ Not used | ❌ Not used | Validates multi-skill workflow contracts |
@@ -301,7 +302,7 @@ The table below is **auto-generated** from `skills-index.yaml` by `scripts/gener
 | **Trader Memory Core** | 🟡 Optional | ❌ Not used | ❌ Not used | Financial Modeling Prep API |
 | **Trading Skills Navigator** | ❌ Not used | ❌ Not used | ❌ Not used | Reads local skills-index.yaml + workflows/*.yaml (or bundled snapshot); no network |
 | **US Market Bubble Detector** | ❌ Not used | ❌ Not used | ❌ Not used | User provides indicators |
-| **US Stock Analysis** | ❌ Not used | ❌ Not used | ❌ Not used | User provides data |
+| **US Stock Analysis** | ❌ Not used | ❌ Not used | ❌ Not used | User provides the ticker or question, optionally own data; Current market data via web search |
 | **US Undervalued Growth Screener** | 🟡 Optional (Recommended) | ❌ Not used | ❌ Not used | Claude Code-native direct REST path using FMP_API_KEY. Bulk responses are cached and written to local artifacts; only compact screening results are returned to the model. Plan-gated bulk endpoints use bounded per-symbol fallbacks. |
 | **Uptrend Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Monty Uptrend Ratio Dashboard CSV; no API key required |
 | **VCP Screener** | ✅ Required | ❌ Not used | ❌ Not used | S&P 500 OHLCV via FMP |
@@ -349,8 +350,7 @@ export ALPACA_PAPER="true"  # or "false" for live trading
 
 **Financial Modeling Prep (FMP):**
 - **Free Tier:** 250 API calls/day (sufficient for occasional use)
-- **Starter Tier:** $29.99/month - 750 calls/day
-- **Professional Tier:** $79.99/month - 2,000 calls/day
+- **Paid plans:** see the dated [FMP plans note](https://tradermonty.github.io/claude-trading-skills/en/getting-started/#fmp-plans) for current prices and rate limits (the only place prices are listed)
 - **Sign up:** https://site.financialmodelingprep.com/developer/docs
 
 **FINVIZ Elite:**
@@ -709,7 +709,8 @@ An automated pipeline that mines session logs for skill ideas (weekly) and desig
 - `skills/skill-idea-miner/` — mining and scoring scripts
 - `skills/skill-designer/` — design prompt builder with quality references
 - `skills/dual-axis-skill-reviewer/` — scoring engine (reused from improvement loop)
-- `scripts/run_skill_generation.sh` — thin shell wrapper for launchd
+- `scripts/run_skill_generation.sh` — isolated launchd entry point
+- `scripts/run_skill_generation_isolated.py` — dedicated clone validation, synchronization, shared outputs and inherited resource locks
 - `launchd/com.trade-analysis.skill-generation-weekly.plist` — weekly mining (Saturday 06:00)
 - `launchd/com.trade-analysis.skill-generation-daily.plist` — daily generation (07:00)
 
@@ -723,16 +724,25 @@ An automated pipeline that mines session logs for skill ideas (weekly) and desig
 - Atomic backlog updates via `tempfile` + `os.replace()`
 - `created_branch` flag prevents spurious `git checkout main` in finally block
 
-**Running manually:**
+**Running manually:** Use the wrapper; it never evaluates primary `.envrc`. Supply
+GitHub/SSH credentials in the inherited operator or LaunchAgent environment. The
+dedicated generation clone defaults to `~/.local/share/claude-trading-skills-generation-bot`
+(`SKILL_GENERATION_CHECKOUT` override), separate from improvement. Dirty/off-main
+checkouts and unpublished commits are preserved and refused, never reset/cleaned.
+Shared logs/reports retain state in the primary repo. Daily/weekly use shared-state
+and checkout locks inherited by the pipeline child. See the maintenance runbook
+for recovery and the required post-deployment launchd dry-run. Direct pipeline
+invocation is for an explicitly managed isolated `--project-root` only.
+
 ```bash
 # Weekly: mine ideas from session logs and score them
-python3 scripts/run_skill_generation_pipeline.py --mode weekly --dry-run
+bash scripts/run_skill_generation.sh --mode weekly --dry-run
 
 # Daily: design a skill from the highest-scoring backlog idea
-python3 scripts/run_skill_generation_pipeline.py --mode daily --dry-run
+bash scripts/run_skill_generation.sh --mode daily --dry-run
 
 # Full daily run (creates branch, designs skill, opens PR)
-python3 scripts/run_skill_generation_pipeline.py --mode daily
+bash scripts/run_skill_generation.sh --mode daily
 ```
 
 **State and output files:**
@@ -904,7 +914,7 @@ The blocks below are informal sketches kept for skills not yet covered by a YAML
 3. `generate_pre_market_plan.py` (Phase 2) → reads Phase 1 JSON, filters by `--tradable-min-grade B`, looks up Alpaca short inventory (or `ManualBrokerAdapter` when env vars missing), inherits `prior_close` for SSR Rule 201 evaluation, splits manual-confirmation reasons into blocking vs advisory, and emits three trigger plans per candidate (5-min ORL break, first red 5-min, VWAP fail).
 4. Trader confirms `blocking_manual_reasons` are cleared at the broker (HTB locate, premarket high/low resolved, etc.).
 5. `monitor_intraday_trigger.py` (Phase 3) → reads the Phase 2 plan, fetches 5-min bars (Alpaca live or fixture), walks each plan's FSM forward by one step (per-trigger evaluator: ORL break, first red, VWAP fail), and writes `parabolic_short_intraday_<date>.json` with `state` (armed/triggered/invalidated/...), bar-derived transition timestamps, and `size_recipe_resolved.shares_actual` when triggered. One-shot — wrap in `watch -n 60 'python3 ...'` or 5-min cron during market hours. Replay-deterministic: re-runs against the same `--now-et` produce byte-identical output.
-6. Optional: `trader-memory-core` `thesis_ingest.py --source parabolic-short-trade-planner --input reports/parabolic_short_plan_<date>.json` to register theses for postmortem tracking.
+Short-equity plans are not supported by trader-memory-core ingestion or accounting. Keep their journal outside this long-equity/USD-futures ledger until a dedicated short-equity contract exists; do not route these plans through the manual adapter.
 
 ## Important Conventions
 

@@ -193,6 +193,13 @@ Read and use as template: assets/analysis_template.md
 
 ## 6. 逆張り確認モード（Shapiroステップ3）
 
+COT入力では、レポート全体の`run_context.data_date`に加え、対象市場の
+`markets[].data_date`と`data_provenance.market_data_dates[symbol]`を、指定されている場合に検査します。
+各日付が未来・期限超過であれば拒否し、監査上の古さには有効な日付のうち最古のものを使います。
+元のrun contextは変更しません。旧形式で市場別日付の項目がない場合は全体日付へフォールバックしますが、
+明示されたnull・空・不正日付や不正なprovenance/mapは拒否します。他市場の日付は代用しません。
+既存の先頭10文字による日付解析と、期限ちょうどの日付を受理する仕様は維持します。
+
 このモードは既存の純粋チャート分析ワークフローに追加された機能です。逆張り確認を明示的に依頼された場合にのみ有効になります。通常はステップ1の`cot-contrarian-detector`が市場の偏りを検出し、ステップ2の`news-reaction-failure-analyzer`が好材料への無反応を確認した後に使用します。単に「このチャートを分析して」と依頼された場合は、上記のステップ1から6までの既存ワークフローがそのまま実行されます。
 
 ### 目的
@@ -255,3 +262,20 @@ python3 skills/technical-analyst/scripts/check_weekly_price_action.py \
 **スクリプト：**
 
 - `skills/technical-analyst/scripts/check_weekly_price_action.py`
+
+
+### 週足確認CLIの生成FMPクライアント
+
+データ取得CLIは、同梱の生成された `scripts/fmp_client.py` を使い、stableのfull OHLCを
+明示したfrom/to期間で取得します。先物からETFへの代替順序と `--as-of` の情報期限は不変で、
+ローカル独自のlegacyエンドポイントは使いません。画像分析はAPIキー不要です。
+データCLIはFMPキーが必要で、`--api-key` が `FMP_API_KEY` より優先されます。
+空白だけの明示キーは未指定として拒否します。手動・help経路では任意のtransportを読み込みません。
+
+通信規約は共通クライアントに従います。429は60秒待って1回再試行し、再度429なら
+クライアント全体の日次制限フラグにより、ETFへの代替も含め以後のHTTP通信を止めます。
+不正JSONは1回再試行します。その他のHTTP・接続エラーはキーを除去して直ちに返し、
+次の価格ソースへ進みます。従来の5xx・通信エラーに対する最大5回の指数バックオフとは異なります。
+通常の通信間隔は `--sleep-seconds`、応答のカウントは共通クライアントの規約に従います。
+空配列なら次のソースへ進み、200でも不正な応答形式なら明示したエラーになります。
+価格の捏造・ゼロ補完は追加しません。生成元の変更後は再生成し、同梱ファイルを手編集しないでください。

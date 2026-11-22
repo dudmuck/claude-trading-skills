@@ -80,7 +80,7 @@ Both `planned_risk_dollars` and `actual_risk_dollars` are required for actionabl
 | Decision | Meaning |
 |---|---|
 | `GO` | All actionable manual-order candidates passed |
-| `REVIEW_REQUIRED` | Missing, unknown, or failed journaling inputs need review |
+| `REVIEW_REQUIRED` | Missing, unknown, or failed journaling inputs need review; also a missing approved-rule acknowledgement, a recorded exception, or an unreadable rule ledger |
 | `NO_GO` | A discipline or upstream gate rule blocked an actionable order |
 | `NO_ACTIONABLE_ORDERS` | The file contains no broker order to place |
 
@@ -93,3 +93,67 @@ Use `--fail-on-non-go` when shell automation should return exit code `2` for non
 When a candidate has `thesis_id` and `--state-dir` is supplied, the generated JSON report is added to the thesis `linked_reports` list. The skill does not call `mark_reviewed`, so monitoring review dates are not advanced.
 
 The JSON report and JSONL journal keep each candidate's `checklist_answers`, including written-plan, stop, size, risk-dollar, and notes fields, so later reviews can audit what was answered before the order. Invalid risk values are stored as JSON `null`. Valid JSON decimals that cannot round-trip through a binary float are retained as numeric strings so their exact value reaches the comparison and audit record.
+
+---
+
+## 6. Approved Operating Rules (optional)
+
+Rules a human approved in the monthly review can be carried into the pre-trade check through a local ledger. Rules are free text: the gate lists each applicable rule and requires a recorded acknowledgement, but it does not verify compliance.
+
+```bash
+# Activate approved rules from the monthly rule-changes artifact (replay and sample shapes are both accepted)
+python3 skills/pre-trade-discipline-gate/scripts/manage_approved_rules.py activate \
+  --rule-changes reports/06_rule_changes_for_next_month.yaml \
+  --effective-date 2026-06-01 --review-after 2026-06-30 --confirm-activation
+
+# Show every rule with its computed state, then run the gate against the ledger
+python3 skills/pre-trade-discipline-gate/scripts/manage_approved_rules.py list --as-of 2026-06-15
+python3 skills/pre-trade-discipline-gate/scripts/check_pre_trade_discipline.py \
+  --answers-file state/manual-entry-checklist.json \
+  --approved-rules-ledger state/rules/approved_rules.json
+```
+
+Add one acknowledgement per applied rule to each actionable candidate:
+
+```json
+"approved_rule_checks": [{"rule_id": "rule_3f9a1c2b7d10", "status": "followed", "note": ""}]
+```
+
+| Answer | Effect |
+|---|---|
+| `followed`, `not_applicable` | none |
+| `exception` with a non-empty `note` | `REVIEW_REQUIRED` carrying the note |
+| missing entry, `exception` without a note, unknown status, or malformed value | `REVIEW_REQUIRED` |
+
+An `exception` is a terminal `REVIEW_REQUIRED` for that run, because the gate cannot approve an exception. Either do not place the order, or change the ledger (`retire`, `supersede`) and rerun. `NO_GO` still outranks it.
+
+Lifecycle commands are `activate`, `list`, `supersede`, `retire`, `extend`, and `restore`. A rule's ID comes from its normalized text, so approving the same rule again renews it, and re-running a file from the same review changes nothing. History is append-only. Computed state, using the America/New_York date, decides what the gate applies:
+
+| State | Applied |
+|---|---|
+| `effective` (through `review_after`, inclusive) | yes |
+| `review_due` (after `review_after`) | yes, with a warning |
+| `not_yet_effective`, `expired` (after `expires_on`), `superseded`, `retired` | no |
+
+`supersede` replaces the rule immediately. Its `--effective-date` must be today or earlier in America/New_York; a future date is refused without changing the ledger. Re-run on or after the intended effective date. Backdating does not reconstruct past state or rewrite earlier reports.
+
+The ledger is a single-user local file; concurrent writers are not supported. State is computed from the current stored status, so a past `--as-of` does not reconstruct an earlier ledger. If the ledger cannot be read, actionable candidates become `REVIEW_REQUIRED` and the report and journal are still written. Without `--approved-rules-ledger` the output is unchanged.
+
+## 7. Two-week rule experiment
+
+For one approved rule, use `review_rule_experiment.py start` to define a condition and plan for 14 calendar days. Record the confirmed `enter`, `wait`, or `pass` decision in a private JSON log along with the assessment and a local evidence reference. Review the log with `review_rule_experiment.py review`. A pass that follows the rule counts in the same denominator as any other applicable decision. A pre-trade acknowledgement can support a record, with the actual decision supplied separately.
+
+The report shows the sample size and groups exceptions by session. The rate appears after the window ends when at least 10 applicable occasions were assessed and none remain unassessed. If the approved ledger entry changes, start a new plan. Bring the summary to the monthly review as self-reported evidence and use the existing approval process to change the rule. See the [commands and fictional observation](https://github.com/tradermonty/claude-trading-skills/blob/main/skills/pre-trade-discipline-gate/references/rule_experiment.md).
+
+## 8. Monthly rule adherence review
+
+After a month ends, `review_rule_adherence.py` counts the gate acknowledgements of each approved rule in the journal and writes a local report for the monthly review. Review the month in which the rules were in force.
+
+```bash
+python3 skills/pre-trade-discipline-gate/scripts/review_rule_adherence.py \
+  --journal-dir state/journal/pre-trade-discipline \
+  --ledger state/rules/approved_rules.json --month 2026-06 \
+  --as-of 2026-07-05 --output-dir reports/pre-trade-discipline
+```
+
+For each rule the report shows followed, exception, not-applicable, and unacknowledged counts, the ledger state at the review date, and reasons to reconsider the rule, such as a passed review date or no applicable occasions. The followed rate appears only after the month ends, when at least 10 acknowledged occasions exist and none is unacknowledged. A rerun of the gate for the same candidate and day replaces the earlier row. The counts are self-reported gate answers, not proof of behavior. The report never changes the ledger; apply any decision with `manage_approved_rules.py`. The JSON and Markdown files are named `rule_adherence_<YYYY-MM>_as-of_<YYYY-MM-DD>`, so a mid-month check does not overwrite the month-end report. Warnings report a month with no gate runs (`no_gate_runs_in_window`), no rule in force (`no_rules_in_window`), or rows from another ledger path (`different_ledger_path`). See the [command, inputs, and output fields](https://github.com/tradermonty/claude-trading-skills/blob/main/skills/pre-trade-discipline-gate/references/rule_adherence.md).

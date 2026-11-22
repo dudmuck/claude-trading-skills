@@ -14,6 +14,10 @@ Related references (this runbook links rather than duplicates):
 - [`skill-automation.md`](skill-automation.md) ([日本語](skill-automation.ja.md))
   → maintainer quickstart, manual commands, scheduling, and the mode-by-mode
   side-effect boundary for the self-improvement and generation pipelines.
+- [`guided-market-regime-daily.md`](guided-market-regime-daily.md)
+  ([日本語](guided-market-regime-daily.ja.md)) → the guided fictional
+  market-regime run, its decision diff, current limits, and the maintainer
+  measurement routine.
 - `CLAUDE.md` → *Pre-commit Hooks*, *Creating a New Skill*, *Creating
   Documentation Site Pages*, *Skill Self-Improvement Loop*, and *Skill
   Auto-Generation Pipeline* implementation details and test commands.
@@ -43,6 +47,12 @@ uv run --extra dev --extra ci pytest -q              # full suite
 uv run --extra dev pytest <path>                     # a subset (dev extra is enough for most skills)
 bash scripts/run_all_tests.sh                        # per-skill isolation = the pre-push gate
 ```
+
+`run_all_tests.sh` runs every row with `--extra dev --extra ci`, like CI, so
+optional-dependency tests (for example the edge-candidate-agent pyarrow
+modules) run instead of skipping silently. It uses `install --check` as CI
+does. On an Intel Mac with macOS 13, the first sync may build opencv from
+source because its wheel needs macOS 14.
 
 For skills that are primarily instructions, references, image-input workflows,
 or agent orchestration, use
@@ -82,6 +92,7 @@ without writing.
 | `scripts/validate_skills_index.py` | `python3 scripts/validate_skills_index.py [--strict-workflows] [--strict-metadata]` | `skills-index.yaml` ↔ `skills/` bijection, enums, workflow artifact flow. Default = warn on best-effort fields; `--strict-metadata` requires `timeframe`/`difficulty`/`inputs`/`outputs`; `--strict-workflows` errors on workflow issues, including incomplete Japanese prose (`WF014`). |
 | `scripts/validate_skillsets.py` | `python3 scripts/validate_skillsets.py` | `skillsets/*.yaml` manifests (SK001–SK013) + `related_workflows` coherence. Always strict. |
 | `scripts/check_provider_contracts.py` | `python3 scripts/check_provider_contracts.py check` (offline, CI) · `canary` (live, weekly, report-only: `--provider fmp` via `.github/workflows/fmp-contract-canary.yml` needs `FMP_API_KEY`; `--provider trader-monty` via `.github/workflows/public-csv-contract-canary.yml` needs no key) | `config/provider-contracts/{fmp,trader-monty}/*.v*.json` structure + fixtures vs. `skills-index.yaml` owners (`check`); live response vs. contract, redacting any key (`canary`). See [`docs/dev/provider-contracts.md`](provider-contracts.md). |
+| `scripts/notify_provider_drift.py` | `python3 scripts/notify_provider_drift.py --report reports/fmp-canary-report.json` (offline/read-only); scheduled FMP canary uses explicit `--apply` after health succeeds | Persists HTTP 200 fatal drift to bot-authored assigned tracking issues; validates mixed HTTP/transport evidence without mislabeling it as drift. Apply requires the Actions bot token and repository/run identifiers; use `workflow_dispatch` for manual probes, not a local user PAT. Delivery remains unverified until a real scheduled notification. See [provider contracts](provider-contracts.md#persistent-fatal-drift-tracking-659). |
 
 ### Skill-doc ownership (the `generated:` marker)
 
@@ -126,11 +137,16 @@ drift `--check`) then `bash scripts/run_all_tests.sh`.
 **CI** (`.github/workflows/ci.yml`): `Lint`, `Test`, `Security`, and
 `Metadata + Workflow checks` (runs the validators + every drift `--check`).
 
-**Known test skips** (`scripts/run_all_tests.sh` `KNOWN_SKIP`): `theme-detector`
-(pre-existing failures) and `canslim-screener` (needs optional `bs4`). CI runs
-`theme-detector` as a non-blocking `continue-on-error` step; it does not run a
-`canslim-screener` test step today. A green local maintenance run reports
-`46/46 passed, 2 skipped`.
+**Non-blocking rows and skipped tests** (`scripts/run_all_tests.sh`): the
+script has no skip list. Rows that CI treats as non-blocking are reported as
+`KNOWN FAILURE` and do not fail the run (decided by
+`ci_test_matrix.py allowed-failure`, from `config/ci-test-policy.yaml`). Each
+row runs pytest with `-rfEs`; after `=== Summary: X/Y passed ===` the script
+prints `=== Skipped tests: N ===`, where N sums pytest's grouped `[n]` counts,
+followed by one `<row id>: SKIPPED [n] ...` line per skip group, including
+module-level `importorskip` skips. Skips are reported
+but never change the exit code. A skip that CI would not have is a sign the
+local environment is missing an extra.
 
 ### Clearing a failing gate
 
@@ -152,7 +168,7 @@ drift `--check`) then `bash scripts/run_all_tests.sh`.
 
 ## 5. Scheduled self-maintenance jobs
 
-Three shipped `launchd` **templates** under `launchd/` automate repo
+Four shipped `launchd` **templates** under `launchd/` automate repo
 self-maintenance. They are templates (paths use a `$PROJECT_DIR` placeholder);
 whether they are loaded is **local machine state**, so verify with `launchctl`
 rather than assuming.
@@ -162,6 +178,50 @@ rather than assuming.
 | `com.trade-analysis.skill-improvement.plist` | `com.trade-analysis.skill-improvement` | daily 05:00 | `scripts/run_skill_improvement.sh` → `run_skill_improvement_loop.py` |
 | `com.trade-analysis.skill-generation-daily.plist` | `com.trade-analysis.skill-generation-daily` | daily 07:00 | `scripts/run_skill_generation.sh` (daily) → `run_skill_generation_pipeline.py` |
 | `com.trade-analysis.skill-generation-weekly.plist` | `com.trade-analysis.skill-generation-weekly` | Saturday 06:00 | `scripts/run_skill_generation.sh` (weekly: mine + score) |
+| `com.trade-analysis.skill-heartbeat.plist` | `com.trade-analysis.skill-heartbeat` | daily 08:00 | `scripts/run_skill_heartbeat.sh` (independent success watchdog) |
+
+Install all four maintenance templates from the repository root with one command:
+
+```bash
+python3 scripts/install_launchd.py
+```
+
+The stdlib installer replaces `$HOME` and `$PROJECT_DIR` structurally, creates
+`logs/`, and writes the rendered plists to `~/Library/LaunchAgents`. It validates
+all four templates and existing destinations before writing anything. An
+identical installed plist is retained; a differing/customized plist is refused.
+Plain `cp` leaves literal placeholders and is not a supported installation.
+Use `--output-dir <temporary-directory>` to inspect rendered files without
+loading jobs (this also creates the repository's log directory).
+
+Activate all four schedules explicitly:
+
+```bash
+python3 scripts/install_launchd.py --load
+```
+
+`--load` bootstraps into the current user's GUI domain on macOS; it does not
+stop/restart existing services or run scoring immediately. It requires a logged-in
+GUI session. Already loaded services are skipped, so rerunning `--load` adds
+missing services without interrupting existing jobs. Some earlier services may
+have loaded before a later bootstrap failure; inspect `launchctl print` for each
+exact label.
+
+To reload changed service definitions, first check that no maintenance job is
+running, then unload the affected services before rerunning `--load`. To reload
+all four:
+
+```bash
+for job in skill-improvement skill-generation-daily skill-generation-weekly skill-heartbeat; do
+  launchctl bootout "gui/$(id -u)/com.trade-analysis.$job"
+done
+```
+
+A service not yet loaded can report an error. If the installer refuses an
+existing customized plist, move only that file to a backup outside
+`~/Library/LaunchAgents`, rerun the installer, and reapply intended local settings.
+Keep webhook URLs private. Never delete logs/state to fix installation conflicts.
+The installer does not automatically unload agents or overwrite customizations.
 
 For a concise explanation of what each mode reads and writes, including why
 `--dry-run` is not filesystem-read-only, see the
@@ -181,6 +241,68 @@ Pipeline*. State / logs:
 > is **not** repo maintenance — it is the user's personal example trading-app
 > routine. Keep it out of maintenance reasoning.
 
+### The generation pipeline runs in its own checkout
+
+`run_skill_generation.sh` delegates to `run_skill_generation_isolated.py`. Both
+daily and weekly modes use a dedicated standalone clone at
+`~/.local/share/claude-trading-skills-generation-bot`, overridden with
+`SKILL_GENERATION_CHECKOUT`. This is separate from the improvement clone. The
+helper reads the primary origin's Git config (including linked-worktree metadata)
+without running Git there. Primary `include`/`includeIf` or per-worktree config
+are refused rather than partially interpreted; use a self-contained origin
+configuration for this entry point. Effective origin URL mismatches from global
+configuration are refused too; ordinary consistent URL rewrites remain supported.
+Every authored Git command and the pipeline process
+uses the isolated cwd; caller `--project-root` overrides are rejected. Inherited
+`GIT_*` redirects are removed before Git/pipeline execution.
+
+**Credential migration:** generation no longer evaluates primary `.envrc` or
+runs direnv there. Inherit the correct `GH_TOKEN`, SSH-agent/SSH configuration,
+and optional notification settings from the operator or private installed
+LaunchAgent environment. Do not commit secrets or print their values. Existing
+credentials stored only in `.envrc` are not automatically loaded. Templates and
+live jobs are not changed by this source update; verify the active GitHub account
+and local environment before activation.
+
+The helper refuses checkout paths equal to, inside, or containing the primary or
+improvement checkout, including symlink aliases. Existing `.git` files/symlinks,
+common-directory redirects, mismatched Git roots/origins, nonempty non-repositories,
+dirty/off-main states and unpublished/diverged main commits require manual
+recovery. Synchronization is fetch plus fast-forward, with no reset, blanket clean,
+branch deletion or directory removal by the helper. Pipeline's existing generated-
+path rollback operations remain confined to the isolated project root.
+
+Only `logs/` and `reports/` are shared via validated symlinks to the primary ignored
+output directories. Unexpected files/directories/links are preserved and refused.
+Clone-local `.git/info/exclude` adds exactly `/logs` and `/reports`, retaining
+existing entries, so shared links do not trigger the untracked-file safety gate.
+Tracked output paths in the clone or fetched main are refused before synchronization.
+Generation backlog/history and heartbeat paths stay in the primary log directory.
+
+Nonblocking POSIX flocks protect both shared state (`logs/.skill_generation_launcher.lock`)
+and the canonical checkout (a sibling lock file). Daily/weekly contention skips
+without Git or pipeline operations. Both lock descriptors are inherited by the
+pipeline: killing only the helper cannot admit another run while its child is
+alive. Locks are released by descriptor closure; do not delete locks to force a
+run. Recovery must wait for all related processes to finish.
+
+For recovery, inspect the dedicated clone and save any work before changing it.
+Do not reset/clean/delete the primary or shared output state. After jobs stop,
+move a broken clone aside for inspection or select a fresh disjoint checkout path;
+do not overwrite unexpected shared-output data. Use the safe wrapper for manual tests:
+
+```bash
+bash scripts/run_skill_generation.sh --mode daily --dry-run
+```
+
+Dry-run still creates/synchronizes local clone metadata and writes local state or
+reports. Disposable local-repository tests do not prove maintainer launchd operation.
+After deployment and environment verification, an operator must run the exact daily
+LaunchAgent in dry-run mode and retain its logs before acceptance of #658. This change
+does not load jobs, edit installed plists, execute paid generation or claim that test.
+Direct `run_skill_generation_pipeline.py` users must supply their own isolated
+`--project-root`; use the wrapper as the default entry point.
+
 ### The improvement loop runs in its own checkout
 
 `scripts/run_skill_improvement.sh` does **not** run the loop against your
@@ -195,6 +317,14 @@ The launcher instead maintains a dedicated checkout at
 `clean` deliberately omits `-x` so gitignored paths survive, and `logs/` and
 `reports/` are symlinked back to the primary repo so round-robin state,
 run logs, and daily summaries stay in one place.
+
+The isolation fix on 2026-07-31 was followed by a second stall, observed from
+2026-08-01 through the 2026-11-07 audit (#652). Git's directory-only `logs/`
+and `reports/` ignore patterns did not cover the symlinks created by the wrapper;
+the safety check rejected them as untracked. Root-only `/logs` and `/reports`
+ignore entries now cover both directories and symlinks without relaxing source
+safety. Deployment and a subsequent real scheduled score must still be verified
+on the maintainer machine; local fixtures are not evidence of operational recovery.
 
 Consequences worth knowing:
 
@@ -273,8 +403,8 @@ re-run `pre-commit run --all-files`.
 ## Automation failure notifications and heartbeat
 
 Both `scripts/run_skill_improvement.sh` and `scripts/run_skill_generation.sh`
-notify on a nonzero exit when `SKILL_LOOP_NOTIFY` is configured. Default is a
-silent no-op. Notifications contain only the job name, exit code, and a prompt
+notify on a nonzero exit when `SKILL_LOOP_NOTIFY` is configured. Those immediate
+failure notifications remain opt-in. Notifications contain only the job name, exit code, and a prompt
 to read local logs; command output and exception text are never sent.
 
 - Set `SKILL_LOOP_NOTIFY=macos` for a local macOS notification (`osascript`).
@@ -282,9 +412,10 @@ to read local logs; command output and exception text are never sent.
   endpoint accepting JSON `{"text": "..."}`. Redirects and URL credentials are
   rejected. Keep the URL in a local, ignored environment file or launchd
   environment, never in a committed plist or shell command history.
-- These settings must reach the wrapper, for example via the existing trusted
-  `.envrc`/direnv setup or the installed LaunchAgent's local environment.
-  Setup failures before `.envrc` is loaded require the variables to be inherited.
+- These settings must reach the wrapper via its supported local environment.
+  The improvement wrapper can use its trusted `.envrc`/direnv setup. Generation
+  never evaluates primary `.envrc`; its credentials and notifications must be
+  inherited from the operator or private LaunchAgent environment.
 
 Notification is best effort: one request with a five-second socket timeout,
 no retry, or a five-second macOS subprocess timeout. An unavailable Python
@@ -314,10 +445,24 @@ lock skips, and failures do not refresh it. A failed improvement attempt returns
 nonzero even when scoring and the summary succeeded. Success is recorded after
 normal cleanup; it does not prove that a PR was merged or deployed.
 
-Schedule the checker independently (for example daily from a separate watchdog)
-and inspect its nonzero exit. Running it only inside the monitored agents will
-not detect agents that have stopped firing. No LaunchAgent is installed or
-notification enabled by this repository change.
+The fourth template schedules `run_skill_heartbeat.sh` independently at 08:00
+local time. It runs `job_monitor.py --notify-heartbeat`, checks the same success
+thresholds, and defaults to a local macOS notification without opt-in. Each
+unhealthy job produces one generic notification per watchdog invocation; healthy
+jobs do not notify. Missing, invalid and future timestamps also notify. Delivery
+failure remains best effort and never turns stale health into a successful exit.
+The ordinary `--check-heartbeat` command above stays silent and read-only.
+
+For an explicit opt-out, set `SKILL_LOOP_NOTIFY=off` in the installed heartbeat
+plist's `EnvironmentVariables`, then unload/reload that exact watchdog service.
+`macos` and `webhook` remain supported. The watchdog does not source `.envrc`, so
+webhook settings must reach its process through its private local LaunchAgent
+environment. It does not modify success state or start the monitored jobs.
+Do not put webhook secrets into committed templates. Local macOS delivery depends
+on OS notification permissions and the GUI session. A sleeping/offline machine or
+an unloaded watchdog cannot deliver a notification; verification requires checking
+its own `launchctl print`/logs as well. No agents are installed by merely checking
+out this change; activate them with the installer only when ready.
 
 
 ## Smoke evidence layers (issue #507)
@@ -325,7 +470,7 @@ notification enabled by this repository change.
 | Layer | Current evidence / remaining work |
 |---|---|
 | PR CI | Offline dependency declarations, table/runner regression tests, provider fixtures, and workflow replay; not proof of every CLI failure path |
-| Nightly | Packaged dependency runner records `pass`, `fail`, or `incomplete`; job remains report-only under #349. Keyless optional-provider coverage and actual archive execution remain follow-ups |
+| Nightly | Packaged dependency runner records `pass`, `fail`, or `incomplete`; the job is fail-closed since #349, so a `fail` turns the run red. Keyless optional-provider coverage and actual archive execution remain follow-ups |
 | Weekly sample | #506 tracks the separate live happy-path sample; it cannot establish fallback, personal-state, or failure-path coverage |
 | Monthly LLM sample | Instruction-only and model-driven checks remain planned under #507; they need separate runtime/cost authorization |
 
@@ -339,3 +484,16 @@ success.
 See [packaged smoke outcomes](packaged-deps-smoke.md#evidence-outcomes-issue-507-partial-implementation)
 for the schema and remaining acceptance gaps. Issue #507 remains open until
 its full set of layers and coverage requirements is met.
+
+## API metadata contract maintenance
+
+After changing a skill's credentials or API modes, update its `integrations`
+in `skills-index.yaml`, run `python3 scripts/check_api_requirements.py`, and
+regenerate with `python3 scripts/generate_catalog_from_index.py`. This also
+regenerates the required EN/JA README API-guidance blocks linking to the canonical
+matrices and individual guides. `--check` rejects edits or missing guidance
+sentinels, in addition to index-derived catalog drift. It also regenerates
+website category provider badges and API matrix cells while keeping
+localized descriptions/non-provider badges. Update any workflow profile and
+regenerate workflow docs and Navigator snapshot/package when inputs change.
+See [API declaration coverage and limits](metadata-and-workflow-schema.md#api-declarations-versus-credential-reads-653).

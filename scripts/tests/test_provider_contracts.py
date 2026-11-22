@@ -1139,7 +1139,11 @@ def test_economic_calendar_contract_matches_standalone_required_fields():
     for field in consumer.REQUIRED_TEXT_FIELDS:
         assert contract.required_fields[field] == {"types": ["str"], "nullable": False}
     for field in consumer.NULLABLE_NUMBER_FIELDS:
-        assert contract.required_fields[field] == {"types": ["int", "float"], "nullable": True}
+        assert contract.required_fields[field] == {
+            "types": ["int", "float"],
+            "nullable": True,
+            "finite": True,
+        }
 
 
 def test_economic_calendar_recording_reaches_consumer(monkeypatch):
@@ -1846,11 +1850,12 @@ def test_public_fetch_undecodable_body_is_decode_error(monkeypatch):
 
 
 def test_public_fetch_nul_byte_body_never_aborts(monkeypatch):
-    # Python >= 3.11 parses NUL; older csv raises. Either way no exception escapes.
+    # Reject NUL explicitly even when the Python CSV parser would accept it.
     _patch_get(monkeypatch, _FakeResponse(200, b"a,b\n1,\x002\n"))
     result = _public_fetch()
     assert result.status == 200
-    assert result.rows is not None or [a.code for a in result.extra_anomalies] == ["parse_error"]
+    assert result.rows is None
+    assert [a.code for a in result.extra_anomalies] == ["parse_error"]
 
 
 def test_public_fetch_oversized_field_is_parse_error(monkeypatch):
@@ -1901,3 +1906,29 @@ def test_public_fetch_extra_cells_reported(monkeypatch):
     result = _public_fetch()
     assert result.rows == [{"a": 1}]
     assert [a.code for a in result.extra_anomalies] == ["extra_cells"]
+
+
+@pytest.mark.parametrize("volume", [123, 123.5, 0.0])
+def test_quote_accepts_finite_numeric_volume(volume):
+    contract = CONTRACTS["quote"]
+    row = copy.deepcopy(contract.fixture[0])
+    row["volume"] = volume
+    assert validate_rows(contract, [row]).ok
+
+
+@pytest.mark.parametrize("volume", [True, "123", None, float("nan"), float("inf"), -float("inf")])
+def test_quote_rejects_invalid_volume(volume):
+    contract = CONTRACTS["quote"]
+    row = copy.deepcopy(contract.fixture[0])
+    row["volume"] = volume
+    assert not validate_rows(contract, [row]).ok
+
+
+@pytest.mark.parametrize("skill", QUOTE_CLIENTS)
+def test_quote_clients_preserve_float_volume(monkeypatch, skill):
+    mod = _load_client_module(f"skills/{skill}/scripts/fmp_client.py")
+    client = mod.FMPClient(api_key="test_key")  # pragma: allowlist secret
+    fixture = copy.deepcopy(QUOTE_FIXTURE)
+    fixture[0]["volume"] = 38272821.5
+    monkeypatch.setattr(client, "_rate_limited_get", lambda *a, **k: copy.deepcopy(fixture))
+    assert client.get_quote("AAPL")[0]["volume"] == 38272821.5

@@ -25,7 +25,7 @@ and first weekly review.
 
 ## Before You Start
 
-This guide needs a Claude plan that supports Skills, Python 3.11+, `git`, `uv`, and
+This guide needs a Claude plan that supports Skills, Python 3.11.5+, `git`, `uv`, and
 internet access to public CSV files. It needs **no paid market-data API** and no FMP,
 FINVIZ Elite, or broker credentials.
 
@@ -75,7 +75,7 @@ Confirm these fields in the JSON:
 
 ```text
 primary_workflow.id = market-regime-daily
-primary_workflow.api_profile = no-api-basic
+primary_workflow.api_profile = mixed
 no_api_path = true
 ```
 
@@ -108,7 +108,8 @@ test -n "$breadth_json" && test -f "$breadth_json"
 test -n "$uptrend_json" && test -f "$uptrend_json"
 ```
 
-The workflow's market-top step is optional, so the minimal path skips it. Pass only
+The profile is `mixed` because the optional market-top step requires an FMP key.
+The minimal three-skill path skips that step and still needs no paid key. Pass only
 the two available artifacts to Exposure Coach:
 
 ```bash

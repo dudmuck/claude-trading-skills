@@ -14,7 +14,7 @@ permalink: /en/skills/downtrend-duration-analyzer/
 Analyze historical downtrend durations and generate interactive HTML histograms showing typical correction lengths by sector and market cap.
 {: .fs-6 .fw-300 }
 
-<span class="badge badge-free">No API</span>
+<span class="badge badge-api">FMP Required</span>
 
 [View Source on GitHub](https://github.com/tradermonty/claude-trading-skills/tree/main/skills/downtrend-duration-analyzer){: .btn .fs-5 .mb-4 .mb-md-0 }
 
@@ -52,6 +52,26 @@ Analyze historical price data to identify downtrend periods (peak-to-trough) and
 ---
 
 ## 4. Quick Start
+
+The generated FMP client calls `/stable/company-screener` and
+`/stable/historical-price-eod/full` only. A legacy-only plan can no longer use
+the removed v3 fallback. The stock filters and explicit historical date range
+are unchanged; stable flat OHLCV rows are sorted oldest first without a row
+limit. Empty history stays empty, and malformed history is reported and skipped
+without filling missing prices. One HTTP session is reused for the run and
+closed on exit. Shared transport adds 0.3-second pacing, one 60-second retry on
+HTTP 429, and one retry on malformed JSON; credentials are redacted in errors.
+
+Reports carry the shared top-level `evaluation_coverage` block (#711). A symbol
+is evaluated when its history has enough bars for the peak/trough windows. Empty
+or short histories are `insufficient_history`, and failures are `rate_limited`,
+`plan_gated`, `provider_error` or `invalid_data`. A second HTTP 429 (daily
+limit) or an HTTP 401/402/403 on history stops the run at that symbol, and the
+symbols after it are `not_requested`. If nothing was evaluated by then, the run
+exits 1 without a report. Otherwise the report is written with verdict
+`partial`. Other failures are counted and the run goes on. Read the verdict
+before the statistics: exit 0 means the report was written, not that every
+symbol was evaluated.
 
 ```bash
 python3 skills/downtrend-duration-analyzer/scripts/analyze_downtrends.py \

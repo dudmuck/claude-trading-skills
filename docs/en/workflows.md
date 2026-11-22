@@ -21,8 +21,9 @@ Operational workflow manifests for the solo-trader OS. Each workflow names the e
 | Workflow | Cadence | Est. min | API profile | Difficulty |
 |---|---|---|---|---|
 | [`core-portfolio-weekly`](#core-portfolio-weekly) — Core Portfolio Weekly | weekly | 60 | alpaca-required | beginner |
+| [`earnings-weekly`](#earnings-weekly) — Earnings Momentum Weekly | weekly | 60 | fmp-required | intermediate |
 | [`kanchi-dividend-weekly`](#kanchi-dividend-weekly) — Kanchi Dividend Weekly | weekly | 60 | mixed | intermediate |
-| [`market-regime-daily`](#market-regime-daily) — Market Regime Daily | daily | 15 | no-api-basic | beginner |
+| [`market-regime-daily`](#market-regime-daily) — Market Regime Daily | daily | 15 | mixed | beginner |
 | [`monthly-performance-review`](#monthly-performance-review) — Monthly Performance Review | monthly | 90 | no-api-basic | intermediate |
 | [`multi-asset-opportunity-daily`](#multi-asset-opportunity-daily) — Multi-Asset Opportunity Daily | daily | 45 | mixed | intermediate |
 | [`portfolio-holdings-review`](#portfolio-holdings-review) — Offline Holdings Review | weekly | 15 | no-api-basic | beginner |
@@ -93,6 +94,97 @@ Operational workflow manifests for the solo-trader OS. Each workflow names the e
 - Confirm holdings snapshot reflects the actual brokerage state (Alpaca or CSV).
 - Confirm rebalance actions are entered manually at the broker, not auto-executed.
 - If dividend_review_findings flags T1-T5 issues, defer additional buys until resolved.
+
+**Journal destination:** `trader-memory-core`
+
+---
+
+## Earnings Momentum Weekly {#earnings-weekly}
+
+**`earnings-weekly`** · weekly · ~60 min · fmp-required · intermediate
+
+**When to run:** Weekly during earnings season, after market-regime-daily has produced a non-restrictive exposure decision. Score recent US earnings reactions across the PEAD watch window of about five weeks, screen the strongest names for post-earnings-drift (PEAD) weekly-candle setups, confirm the chart by hand, size the position, and journal the candidate before any manual order.
+
+**When NOT to run:** Do not run when the latest market-regime-daily exposure_decision is cash-priority or restrictive, or when the account circuit breaker is not clear. Do not use it to chase a Day 1 earnings gap; that is stockbee-ep-daily's job. It is not a standalone screener: a score or stage is never a buy signal, and no order is placed automatically.
+
+**Required skills:** `earnings-trade-analyzer`, `pead-screener`, `drawdown-circuit-breaker`, `technical-analyst`, `position-sizer`, `trader-memory-core`, `pre-trade-discipline-gate`
+
+**Optional skills:** (none)
+
+**Prerequisite workflows (informational):**
+
+- `market-regime-daily` expects `exposure_decision` — New earnings-momentum risk requires a non-restrictive exposure decision. Skip this workflow on cash-priority or restrictive days.
+
+**Manual input contracts:**
+
+| Input | Required | Used by steps | Schema reference | Description |
+|---|---|---|---|---|
+| `approved_rules_ledger` | no | 7 | `skills/pre-trade-discipline-gate/references/rule_adherence.md` | Optional local approved-rule ledger passed to the gate with --approved-rules-ledger. When supplied, each actionable candidate needs one acknowledgement per applied rule, and the gate journal rows feed the monthly adherence review. Without it the gate output is unchanged. |
+
+**Artifacts:**
+
+| Artifact | Produced by step | Required | Downstream hints |
+|---|---|---|---|
+| `circuit_breaker_decision` | 1 | yes | — |
+| `earnings_trade_analysis` | 2 | yes | — |
+| `pead_screen` | 3 | yes | — |
+| `validated_earnings_setups` | 4 | yes | — |
+| `earnings_position_sizing` | 5 | yes | — |
+| `earnings_journal_entry` | 6 | yes | `trade-memory-loop` |
+| `pre_trade_discipline_decision` | 7 | yes | — |
+
+**Steps:**
+
+**Step 1: Check account circuit breaker** (decision gate) → `drawdown-circuit-breaker`
+
+- produces: `circuit_breaker_decision`
+- **Decision:** Is the account circuit breaker clear (TRADING_ALLOWED) for new earnings-momentum risk this week?
+
+**Step 2: Score recent earnings reactions** → `earnings-trade-analyzer`
+
+- produces: `earnings_trade_analysis`
+
+**Step 3: Screen graded candidates for PEAD weekly setups** (decision gate) → `pead-screener`
+
+- consumes: `earnings_trade_analysis`
+- produces: `pead_screen`
+- **Decision:** Which graded names are in a BREAKOUT or SIGNAL_READY stage worth a chart review, and which MONITORING or EXPIRED names stay on the watchlist or are dropped? Was the screener run in Mode B on step 2's JSON with a minimum grade chosen on purpose?
+
+**Step 4: Confirm the weekly chart by hand** (decision gate) → `technical-analyst`
+
+- consumes: `pead_screen`
+- produces: `validated_earnings_setups`
+- **Decision:** Does the weekly chart confirm a clean post-earnings drift with the red candle low as a sensible stop, acceptable liquidity, and no thesis-breaking news? Reject any setup where the chart is unclear even if the stage and score look good.
+
+**Step 5: Calculate position size** → `position-sizer`
+
+- consumes: `validated_earnings_setups`
+- produces: `earnings_position_sizing`
+
+**Step 6: Register the earnings-drift thesis** (decision gate) → `trader-memory-core`
+
+- consumes: `pead_screen`, `validated_earnings_setups`, `earnings_position_sizing`
+- produces: `earnings_journal_entry`
+- **Decision:** Which validated names deserve a registered earnings-drift thesis with the written entry, stop, and size, and which stay on the watchlist? A registered thesis is IDEA only; it is not an order approval.
+
+**Step 7: Run manual execution discipline gate** (decision gate) → `pre-trade-discipline-gate`
+
+- consumes: `circuit_breaker_decision`, `earnings_position_sizing`, `earnings_journal_entry`
+- produces: `pre_trade_discipline_decision`
+- **Decision:** Before placing any manual broker order, does each actionable candidate pass the written-plan, predefined-stop, position-size, recent-loss, market-regime, and circuit-breaker discipline checks? Treat watchlist names as no-action journal entries, not order approvals.
+
+**Manual review:**
+
+- Confirm market-regime-daily exposure_decision allows new risk before acting.
+- Confirm circuit_breaker_decision is TRADING_ALLOWED before scoring or sizing new candidates.
+- Verify each earnings result and any guidance by hand; this workflow does not discover or validate the news itself.
+- Run earnings-trade-analyzer with a lookback long enough to cover the PEAD watch window (about 28 to 35 days); a one-week lookback only finds names too young to show a red candle. Set --max-api-calls explicitly, and consider --min-market-cap: the analyzer's default budget is 200 calls, its client spends one request per calendar day of the window plus one per reporting symbol before the market-cap filter, and PEAD spends one per candidate, so a long window can exhaust the default and exit with ZERO_RESULT_REASON=profiles_budget_exhausted. The call volume a live run needs, and whether your FMP plan quota covers it, are unmeasured here; check your plan.
+- Run pead-screener in Mode B on step 2's JSON. Mode A can spend the API budget on non-US listings and is not part of this routine.
+- Treat MONITORING and EXPIRED stages as watchlist or drop; only BREAKOUT and SIGNAL_READY names reach chart review.
+- Reject any candidate where the weekly chart is unclear, even if the earnings grade and PEAD stage passed.
+- Use the red candle low as the stop only when the distance is realistically sizeable; verify total portfolio heat before any order.
+- Confirm pre_trade_discipline_decision is GO before placing any manual broker order.
+- All orders are placed manually at the broker; no auto-execution.
 
 **Journal destination:** `trader-memory-core`
 
@@ -182,7 +274,7 @@ Operational workflow manifests for the solo-trader OS. Each workflow names the e
 
 ## Market Regime Daily {#market-regime-daily}
 
-**`market-regime-daily`** · daily · ~15 min · no-api-basic · beginner
+**`market-regime-daily`** · daily · ~15 min · mixed · beginner
 
 **When to run:** Before considering new swing-trade risk for the day. Run before market open or in the first 30 minutes after.
 
@@ -211,7 +303,7 @@ Operational workflow manifests for the solo-trader OS. Each workflow names the e
 
 - produces: `uptrend_report`
 
-**Step 3: Check market top risk** (optional) → `market-top-detector`
+**Step 3: Check market top risk (optional FMP key required)** (optional) → `market-top-detector`
 
 - produces: `top_risk_report`
 
@@ -242,6 +334,12 @@ Operational workflow manifests for the solo-trader OS. Each workflow names the e
 **Required skills:** `trader-memory-core`, `signal-postmortem`
 
 **Optional skills:** `trade-performance-coach`, `backtest-expert`, `dual-axis-skill-reviewer`
+
+**Manual input contracts:**
+
+| Input | Required | Used by steps | Schema reference | Description |
+|---|---|---|---|---|
+| `prior_rule_adherence` | no | 6 | `skills/pre-trade-discipline-gate/references/rule_adherence.md` | Optional local report from review_rule_adherence.py for the month that just ended, counting gate acknowledgements of each approved rule. The human reads it at step 6; trader-memory-core does not consume it and the replay does not validate it. |
 
 **Artifacts:**
 
@@ -298,6 +396,8 @@ Operational workflow manifests for the solo-trader OS. Each workflow names the e
 - Trade-side rule changes apply to the trader's behavior next month.
 - Skill-side improvements are repo-improvement candidates and may or may not be acted on.
 - Be willing to delete or downgrade rules that aren't working — not just add new ones.
+- The step-6 artifact does not activate rules; activation is the explicit `manage_approved_rules.py activate` follow-up in pre-trade-discipline-gate.
+- Before step 6, run `review_rule_adherence.py --month <month>` (pre-trade-discipline-gate) for the month that just ended, the month the approved rules were in force. For each rule with reconsider reasons, decide keep, extend, retire, or supersede, record it in the step-6 decision log, and apply it only with `manage_approved_rules.py`. The counts are self-reported gate acknowledgements, and a withheld rate is not by itself a reason to change a rule.
 
 **Final outputs:**
 
@@ -577,6 +677,12 @@ Operational workflow manifests for the solo-trader OS. Each workflow names the e
 
 - `market-regime-daily` expects `exposure_decision` — New EP trades should still respect the market-regime exposure gate.
 
+**Manual input contracts:**
+
+| Input | Required | Used by steps | Schema reference | Description |
+|---|---|---|---|---|
+| `approved_rules_ledger` | no | 9 | `skills/pre-trade-discipline-gate/references/rule_adherence.md` | Optional local approved-rule ledger passed to the gate with --approved-rules-ledger. When supplied, each actionable candidate needs one acknowledgement per applied rule, and the gate journal rows feed the monthly adherence review. Without it the gate output is unchanged. |
+
 **Artifacts:**
 
 | Artifact | Produced by step | Required | Downstream hints |
@@ -784,6 +890,12 @@ Operational workflow manifests for the solo-trader OS. Each workflow names the e
 **Prerequisite workflows (informational):**
 
 - `market-regime-daily` expects `exposure_decision` — New swing trade risk requires a non-restrictive exposure decision. Skip this workflow on cash-priority or restrictive days.
+
+**Manual input contracts:**
+
+| Input | Required | Used by steps | Schema reference | Description |
+|---|---|---|---|---|
+| `approved_rules_ledger` | no | 11 | `skills/pre-trade-discipline-gate/references/rule_adherence.md` | Optional local approved-rule ledger passed to the gate with --approved-rules-ledger. When supplied, each actionable candidate needs one acknowledgement per applied rule, and the gate journal rows feed the monthly adherence review. Without it the gate output is unchanged. |
 
 **Artifacts:**
 

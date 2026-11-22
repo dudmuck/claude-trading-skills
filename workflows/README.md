@@ -10,7 +10,7 @@ For the full schema, error codes, and validator rules, see [`docs/dev/metadata-a
 
 | Workflow | Cadence | API profile | Anchor skills |
 |---|---|---|---|
-| [`market-regime-daily.yaml`](market-regime-daily.yaml) | daily (~15 min) | no-api-basic | market-breadth-analyzer, uptrend-analyzer, exposure-coach |
+| [`market-regime-daily.yaml`](market-regime-daily.yaml) | daily (~15 min) | mixed (key-free base; optional FMP step) | market-breadth-analyzer, uptrend-analyzer, exposure-coach |
 | [`portfolio-holdings-review.yaml`](portfolio-holdings-review.yaml) | weekly (~15 min) | no-api-basic | portfolio-manager |
 | [`core-portfolio-weekly.yaml`](core-portfolio-weekly.yaml) | weekly (~60 min) | alpaca-required | portfolio-manager, kanchi-dividend-review-monitor, trader-memory-core |
 | [`swing-opportunity-daily.yaml`](swing-opportunity-daily.yaml) | daily (~40 min) | fmp-required | vcp-screener, drawdown-circuit-breaker, position-sizer, pre-trade-discipline-gate |
@@ -22,6 +22,7 @@ For the full schema, error codes, and validator rules, see [`docs/dev/metadata-a
 | [`monthly-performance-review.yaml`](monthly-performance-review.yaml) | monthly (~90 min) | no-api-basic | trader-memory-core, signal-postmortem, backtest-expert |
 | [`shapiro-contrarian.yaml`](shapiro-contrarian.yaml) | weekly (~60 min) | fmp-required | cot-contrarian-detector, news-reaction-failure-analyzer, technical-analyst, contrarian-setup-gate, futures-position-sizer, trader-memory-core |
 | [`kanchi-dividend-weekly.yaml`](kanchi-dividend-weekly.yaml) | weekly (~60 min) | mixed | kanchi-dividend-sop, value-dividend-screener, dividend-growth-pullback-screener, trader-memory-core |
+| [`earnings-weekly.yaml`](earnings-weekly.yaml) | weekly (~60 min) | fmp-required | earnings-trade-analyzer, pead-screener, drawdown-circuit-breaker, technical-analyst, position-sizer, trader-memory-core, pre-trade-discipline-gate |
 | [`strategy-research-pipeline.yaml`](strategy-research-pipeline.yaml) | ad-hoc (~60 min) | no-api-basic | edge-candidate-agent, edge-hint-extractor, backtest-expert |
 
 ## How to read a manifest
@@ -65,7 +66,7 @@ Running `market-regime-daily` looks like this in practice:
 [ Step 2 ] Run uptrend-analyzer
               → produces: uptrend_report
 
-[ Step 3 ] (optional) Run market-top-detector
+[ Step 3 ] (optional; FMP key required) Run market-top-detector
               → produces: top_risk_report
 
 [ Step 4 ] Run exposure-coach (decision gate)

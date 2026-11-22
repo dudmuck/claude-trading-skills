@@ -25,17 +25,17 @@ static rule for legacy field names is not viable. Contracts are per endpoint.
 ```
 config/provider-contracts/
   fmp/
-    company-screener.v1.json
+    company-screener.v2.json
     sp500-constituent.v1.json
-    profile.v1.json
-    quote.v1.json
-    historical-price-eod-full.v1.json
-    historical-price-eod-dividend-adjusted.v1.json
+    profile.v2.json
+    quote.v2.json
+    historical-price-eod-full.v2.json
+    historical-price-eod-dividend-adjusted.v2.json
     historical-price-eod-light.v1.json
-    earnings-calendar.v1.json
-    income-statement.v1.json
-    ratios.v1.json
-    economic-calendar.v1.json
+    earnings-calendar.v2.json
+    income-statement.v2.json
+    ratios.v2.json
+    economic-calendar.v2.json
   trader-monty/
     market-breadth-data.v1.json
     market-breadth-summary.v1.json
@@ -47,6 +47,30 @@ Location follows `config/ci-test-policy.yaml`'s convention: data lives under
 `config/`, the code that reads it lives under `scripts/` — see
 `scripts/provider_contracts.py` (loader/validator, stdlib-only at import time) and
 `scripts/check_provider_contracts.py` (the `check` / `canary` CLI).
+
+## FMP required numeric finiteness (Issue #332)
+
+All 39 numeric-only required fields across the ten numeric-bearing FMP contracts
+explicitly declare `finite: true`. This rejects NaN, positive/negative infinity,
+and integers outside finite float range with fatal
+`non_finite_required_field:<field>`, even when HTTP status is 200. A valid JSON
+number such as `1e400` can decode to infinity, so successful JSON decoding alone
+is insufficient. The canary still completes its remaining probes and records the
+fatal field reason without copying raw response values into the report.
+
+The nine contracts whose policy tightened are now `.v2.json` with
+`contract_version: 2`; the already-protected light EOD and nonnumeric SP500
+contracts remain v1. `schema_version` stays 1. There is one active file per
+endpoint; prior versions remain in Git history. Endpoint identifiers, queries,
+ownership, recorded fixtures and their capture dates are unchanged. Historical
+implementation plans may mention the original v1 filenames; operational readers
+should use `load_contracts()[endpoint]` rather than pinning a filename.
+
+The generic validator remains opt-in for other/custom contracts. This policy
+adds no positivity, financial-range or coercion rule: declared nullable values,
+valid zero/negative finite numbers, existing type checks and all-null policies
+keep their existing behavior. It is offline contract enforcement, not new live
+provider verification or a guarantee that a value is suitable for a signal.
 
 ## Public CSV contracts (trader-monty)
 
@@ -65,10 +89,27 @@ unchanged and default to `format: "json"`.
 
 `parse_csv_rows(text)` returns `(rows, parse_anomalies)` using the stdlib `csv` module:
 
-- A UTF-8 BOM is stripped and the first line is the header.
+- A UTF-8 BOM is stripped and the first CSV record is the header. Header names
+  retain their exact spelling and case; they are not stripped or case-folded.
+  An empty/whitespace-only name reports fatal `blank_header`; an exact duplicate
+  name reports fatal `duplicate_header`. Invalid headers return no rows rather
+  than allowing `DictReader` to silently overwrite columns. These fixed codes
+  never include provider header/cell contents. An otherwise valid header with no
+  rows still follows the existing `empty_response` rule.
+- CSV parsing uses the standard library's strict quoting checks. Unclosed quoted
+  fields and other syntax errors recognized by that parser raise `csv.Error`.
+  NUL input is explicitly rejected on all supported Python versions, including
+  in headers, so it cannot collide with the internal extra-cell marker. The
+  fetch wrapper reports fatal `parse_error` and discards the entire response,
+  including any valid rows before the error. It continues the remaining probes.
 - An empty cell becomes `None`.
 - `true` / `false` in any case becomes `bool`.
 - An integer literal becomes `int`; a decimal or exponent literal becomes `float`.
+  If integer conversion is rejected (for example, by Python's integer digit
+  safety limit), parsing raises a fixed-message `csv.Error`. The fetch wrapper
+  reports fatal `parse_error`, discards the whole response including valid prefix
+  rows, and continues the remaining probes. No cell contents or underlying
+  conversion exception are emitted, and the interpreter's limit is unchanged.
 - Everything else stays `str`, including dates, `nan` and `inf`. A numeric column holding
   `nan` therefore reports `wrong_type:<col>:str`. This is intentional, because the breadth
   consumer rejects non-finite numbers, and the live files contain none.
@@ -108,7 +149,9 @@ One GET per contract with no credentials, `allow_redirects=False`, a 30 s timeou
 | `transport_error` | the request failed. The redacted message goes to stderr only. It replaces `http_status:-1` for CSV. |
 | `body_too_large:<max_bytes>` | the body exceeded the cap. |
 | `decode_error` | the body is not valid UTF-8. |
-| `parse_error` | the stdlib `csv` parser rejected the body (a NUL byte, or a field over the size limit). Only that contract fails; the other contracts are still reported. |
+| `parse_error` | invalid quoting, a NUL byte, or a field over the CSV size limit. All partial rows are discarded. Only that contract fails; the other contracts are still reported. |
+| `blank_header` | a header name is empty or whitespace-only. No rows are accepted. |
+| `duplicate_header` | an exact header name appears more than once. No rows are accepted. |
 | `extra_cells` | a row had more cells than the header. |
 
 ### Deduplicated anomalies and `count`
@@ -128,14 +171,14 @@ Summary table cells render `code ×count` when the count is above 1.
   "endpoint": "profile",
   "path": "/stable/profile",
   "query": {"symbol": "AAPL"},
-  "contract_version": 1,
+  "contract_version": 2,
   "recorded_on": "2026-09-05",
   "recording": "live /stable response; description/website/image/... removed",
   "owners": ["earnings-trade-analyzer", "pead-screener", "..."],
   "tier_notes": "served on free tier; comma-batched symbol returns []",
   "required_fields": {
     "symbol": {"types": ["str"], "nullable": false},
-    "marketCap": {"types": ["int", "float"], "nullable": true, "reject_all_null": true},
+    "marketCap": {"types": ["int", "float"], "nullable": true, "reject_all_null": true, "finite": true},
     "exchange": {"types": ["str"], "nullable": false}
   },
   "optional_fields": ["beta", "lastDividend", "..."],
@@ -167,7 +210,8 @@ Field semantics:
   requires numeric-only `types` (`int`/`float`) and rejects NaN, infinity and
   integers outside finite float range. `iso_date: true` requires `types` to be
   exactly `["str"]` and rejects any value that is not a canonical `YYYY-MM-DD`
-  calendar date. Only the light EOD contract opts in. A malformed policy value
+  calendar date. All numeric-only required FMP fields opt in to `finite`; only
+  the light EOD date opts in to `iso_date`. A malformed policy value
   fails the offline fixture check and canary validation, including on empty
   responses.
 - **`optional_fields`** — every other field observed live but not read by any
@@ -225,7 +269,7 @@ deprecation-only result is still `ok`).
 
 ## Economic calendar contract (#332)
 
-`economic-calendar.v1.json` records three unmodified public macro-event rows
+`economic-calendar.v2.json` records three unmodified public macro-event rows
 from a 2026-10-17 HTTP 200 response (568 rows) for 2026-10-01 through 2026-10-07.
 The probe uses the singular `/stable/economic-calendar` endpoint and that known
 populated historical window. It joins the existing scheduled canary automatically,
@@ -278,7 +322,7 @@ the rest in `explain_empty_selection` in fixed order, first match wins):
 | `no_earnings_rows` | the calendar returned `[]` for an inclusive date window containing zero XNYS sessions, or a non-empty response had no row carrying a `symbol` | 0 |
 | `calendar_fetch_failed` | the calendar fetch returned no usable body (`None` on transport/HTTP/rate-limit failure, or a non-list body) | 1 |
 | `earnings_calendar_empty_with_market_sessions` | the calendar returned a clean `[]`, but the identical inclusive date window sent to FMP contains at least one XNYS session; possible silent provider drop | 1 |
-| `market_calendar_unavailable` | the shared XNYS calendar could not classify a clean `[]`; dependency/query failure is not treated as a quiet window | 1 |
+| `market_calendar_unavailable` | the shared XNYS calendar could not classify a clean `[]`; query failure is not treated as a quiet window (a missing `pandas-market-calendars` package is not a zero-result reason: it exits 2 with a requirements.txt hint) | 1 |
 | `profiles_budget_exhausted` | profile fetching raised `ApiCallBudgetExceeded` (including after partial retrieval), or profiles came back empty and the budget is exhausted (`api_stats["budget_remaining"] == 0` or `rate_limit_reached`) | 1 |
 | `no_profiles_returned` | ≥1 earnings symbol, but `get_company_profiles` returned nothing | 1 |
 | `profiles_missing_required_field:marketCap` | ≥1 profile came back, but none has a usable numeric `marketCap` (non-bool `int`/`float`, finite) | 1 |
@@ -301,6 +345,7 @@ when `candidates` is non-empty):
 |---|---|---|---|
 | `no_earnings_rows` | Mode A: the FMP earnings calendar returned no rows (or no rows carried a `symbol`) for the lookback window | 0 | WARNING |
 | `calendar_fetch_failed` | Mode A: the calendar fetch returned no usable body (`None` on transport/HTTP/rate-limit failure, or a non-list body); non-dict rows are ignored, never dereferenced | 1 | ERROR |
+| `calendar_budget_exhausted` | Mode A: the per-day calendar fetch (`lookback_days + 1` calls) raised `ApiCallBudgetExceeded`; raise `--max-api-calls` or lower `--lookback-days` | 1 | ERROR |
 | `profiles_budget_exhausted` | Mode A: profile fetching raised `ApiCallBudgetExceeded` (including after partial retrieval), or profiles came back empty and the budget is exhausted (`budget_remaining == 0` or `rate_limit_reached`) | 1 | ERROR |
 | `no_profiles_returned` | Mode A: ≥1 symbol, but `get_company_profiles` returned nothing and the budget is not exhausted | 1 | ERROR |
 | `profiles_missing_required_field:marketCap` | Mode A: no candidate passed the cap filter **and** no profile has a coercible `marketCap` *or* `mktCap` — see the value-based nuance below | 1 | ERROR |
@@ -335,7 +380,7 @@ signal above.
 | `sp500-constituent` | vcp-screener, parabolic-short-trade-planner |
 | `income-statement` | canslim-screener, dividend-growth-pullback-screener, value-dividend-screener — ad-hoc consumers (their own inline FMP fetch layer) |
 | `ratios` | value-dividend-screener — ad-hoc consumer |
-| `company-screener` (slice 2a) | dividend-growth-pullback-screener, downtrend-duration-analyzer, institutional-flow-tracker, pair-trade-screener, stockbee-20pct-study, stockbee-exhaustion-hammer-screener, stockbee-momentum-burst-screener, us-undervalued-growth-screener, value-dividend-screener — seven of these are generated-client consumers: dividend-growth-pullback-screener, institutional-flow-tracker, us-undervalued-growth-screener, value-dividend-screener and the three stockbee skills (stockbee-20pct-study, stockbee-exhaustion-hammer-screener, stockbee-momentum-burst-screener, via `fetch_screener_rows` on the stable-only client, #495 Batch C). Only downtrend-duration-analyzer and pair-trade-screener remain **ad-hoc consumers** with their own inline FMP fetch layer |
+| `company-screener` (slice 2a) | dividend-growth-pullback-screener, downtrend-duration-analyzer, institutional-flow-tracker, pair-trade-screener, stockbee-20pct-study, stockbee-exhaustion-hammer-screener, stockbee-momentum-burst-screener, us-undervalued-growth-screener, value-dividend-screener — all nine use generated clients after #495's downtrend slice. Downtrend uses stable-only screener and explicit-range EOD adapters; malformed symbol rows fail visibly. Its local v3 fallbacks are removed. |
 | `income-statement` (this slice) | canslim-screener, dividend-growth-pullback-screener, value-dividend-screener — ad-hoc consumers (their own inline FMP fetch layer) |
 | `ratios` (this slice) | value-dividend-screener — ad-hoc consumer |
 
@@ -363,7 +408,7 @@ response rows, per grep-verified call sites:
 | pair-trade-screener | `symbol`, `companyName`, `marketCap`, `sector`, `exchangeShortName`, `isActivelyTrading` |
 | stockbee-20pct-study | `symbol`, `exchangeShortName`, `type` (defaults to `"stock"` — a key `/stable` rows do not carry), `price`, `isEtf`, `isFund` |
 | stockbee-exhaustion-hammer-screener | `symbol`, `isEtf`, `isFund`, `marketCap` (defensive fallback `mktCap`) |
-| stockbee-momentum-burst-screener | `symbol`, `isEtf`, `isFund`, `marketCap` (defensive fallback `mktCap`) |
+| stockbee-momentum-burst-screener | `symbol`, `isEtf`, `isFund`, `isActivelyTrading` (requested as `isActivelyTrading=true` and re-checked client-side), `marketCap` (defensive fallback `mktCap`) |
 | us-undervalued-growth-screener | `symbol`, `companyName`, `exchange` OR `exchangeShortName`, `sector`, `industry`, `price`, `marketCap`, `volume`, `isEtf`, `isFund`, `isActivelyTrading` (client pins the three flags server-side; `normalize_listing` re-checks them client-side) |
 | value-dividend-screener | `symbol`, `price`, `lastAnnualDividend`, `marketCap`, `isEtf`, `isFund` |
 
@@ -389,7 +434,7 @@ calendar. For a clean HTTP 200 `[]`, it counts sessions over the exact same
 inclusive `from` / `to` dates sent to FMP. Zero sessions remains the benign
 `no_earnings_rows` result. One or more sessions is a fail-closed
 `earnings_calendar_empty_with_market_sessions` anomaly, while a calendar
-dependency or query failure is `market_calendar_unavailable`. This avoids the
+query failure is `market_calendar_unavailable` (a missing dependency exits 2 with a hint). This avoids the
 exchange-holiday false positives of a weekday approximation and keeps the
 standalone `.skill` install complete through the generated runtime and pinned
 requirement. Non-empty lists whose rows carry no symbol retain the pre-#356
@@ -414,7 +459,7 @@ With that parameter, `/stable/earnings-calendar` returns `time` as `"bmo"`,
 explicit `null` from the provider rather than an always-missing key.
 [Issue #352](https://github.com/tradermonty/claude-trading-skills/issues/352) is
 resolved: the client template requests `includeReportTimes=true`,
-`earnings-calendar.v1.json` requires `time` (nullable) with an empty
+`earnings-calendar.v2.json` requires `time` (nullable) with an empty
 `known_gaps`, and `earnings-trade-analyzer` / `pead-screener` report a
 `timing_unknown_count` alongside their results so the residual `null` rate is
 visible rather than silently assumed away.
@@ -458,7 +503,7 @@ On refresh, re-judge two required fields before lowering their guard rule:
 `sector` (nullable:false rests on the US-listed universe; FMP may legitimately
 null it for odd listings) and `lastAnnualDividend` (non-payers are observed to
 emit `0`, not `null` — a first-ever `null` should flip it to nullable:true with
-a re-recorded fixture). See `company-screener.v1.json`'s `tier_notes` for the
+a re-recorded fixture). See `company-screener.v2.json`'s `tier_notes` for the
 same triggers.
 
 Sanitization checklist before pasting the result into a `fixture` array:
@@ -616,15 +661,15 @@ endpoints, and are excluded.
 
 | `/stable/...` path | Recorded contract | Owners (grep-discovered) | Deferred to |
 |---|---|---|---|
-| `profile` | ✅ `profile.v1.json` | see ownership table above | — |
-| `quote` | ✅ `quote.v1.json` | see ownership table above | — |
-| `historical-price-eod/full` | ✅ `historical-price-eod-full.v1.json` | see ownership table above | — |
-| `historical-price-eod/dividend-adjusted` | ✅ `historical-price-eod-dividend-adjusted.v1.json` | pair-trade-screener (SPY fixture window 2026-10-26..2026-10-30; plan-tier availability unverified) | — |
-| `earnings-calendar` (v3 alias: `earning_calendar`) | ✅ `earnings-calendar.v1.json` | pead-screener, earnings-trade-analyzer, ibd-distribution-day-monitor call `get_earnings_calendar`; vcp-screener/parabolic-short-trade-planner vendor the same v3→stable compat rename but do not call it | — |
-| `company-screener` | ✅ `company-screener.v1.json` | dividend-growth-pullback-screener, downtrend-duration-analyzer, institutional-flow-tracker, pair-trade-screener, stockbee-20pct-study, stockbee-exhaustion-hammer-screener, stockbee-momentum-burst-screener, us-undervalued-growth-screener, value-dividend-screener — the stockbee three are generated-client consumers (`fetch_screener_rows`, stable-only, no v3 fallback) | consumer reason codes → slice 2b |
+| `profile` | ✅ `profile.v2.json` | see ownership table above | — |
+| `quote` | ✅ `quote.v2.json` | see ownership table above | — |
+| `historical-price-eod/full` | ✅ `historical-price-eod-full.v2.json` | see ownership table above | — |
+| `historical-price-eod/dividend-adjusted` | ✅ `historical-price-eod-dividend-adjusted.v2.json` | pair-trade-screener (SPY fixture window 2026-10-26..2026-10-30; plan-tier availability unverified) | — |
+| `earnings-calendar` (v3 alias: `earning_calendar`) | ✅ `earnings-calendar.v2.json` | pead-screener, earnings-trade-analyzer, ibd-distribution-day-monitor call `get_earnings_calendar`; vcp-screener/parabolic-short-trade-planner vendor the same v3→stable compat rename but do not call it | — |
+| `company-screener` | ✅ `company-screener.v2.json` | dividend-growth-pullback-screener, downtrend-duration-analyzer, institutional-flow-tracker, pair-trade-screener, stockbee-20pct-study, stockbee-exhaustion-hammer-screener, stockbee-momentum-burst-screener, us-undervalued-growth-screener, value-dividend-screener — the stockbee three are generated-client consumers (`fetch_screener_rows`, stable-only, no v3 fallback) | consumer reason codes → slice 2b |
 | `sp500-constituent` (v3 alias: `sp500_constituent`) | ✅ `sp500-constituent.v1.json` | vcp-screener, parabolic-short-trade-planner call `get_sp500_constituents`; pead-screener/earnings-trade-analyzer/ibd-distribution-day-monitor vendor the compat rename but do not call it | covered |
-| `income-statement` | ✅ `income-statement.v1.json` | canslim-screener, dividend-growth-pullback-screener, value-dividend-screener — ad-hoc consumers (their own inline FMP fetch layer) | — |
-| `ratios` | ✅ `ratios.v1.json` | value-dividend-screener — ad-hoc consumer | — |
+| `income-statement` | ✅ `income-statement.v2.json` | canslim-screener, dividend-growth-pullback-screener, value-dividend-screener — ad-hoc consumers (their own inline FMP fetch layer) | — |
+| `ratios` | ✅ `ratios.v2.json` | value-dividend-screener — ad-hoc consumer | — |
 | `profile-bulk` | ❌ | parabolic-short-trade-planner | slice 2 |
 | `aftermarket-quote` | ❌ | parabolic-short-trade-planner | slice 2 |
 | `institutional-ownership/symbol-positions-summary` | ❌ | canslim-screener | slice 2 |
@@ -799,3 +844,69 @@ unchanged. No workflow was dispatched or repository secret configured here.
 
 Issue #332 remains open for other uncovered endpoints/providers, broader
 consumer reason codes and remaining operational acceptance.
+
+
+## Persistent fatal-drift tracking (#659)
+
+`quote.v2` accepts finite `int` or `float` volume. FMP returned float volume in
+weekly canaries; the declared clients preserve numeric values. VCP's liquidity
+filter compares numeric volume with a threshold, and CANSLIM's new-high calculator
+uses a volume ratio. Exhaustion-hammer normalizes via `int(float(volume))`, and
+UGS normalizes the numeric value before filtering. These consumers accept float
+volume. Contract tests
+exercise float propagation through the shared quote clients. Booleans, strings,
+null, NaN and infinity remain fatal. The recorded fixture and `recorded_on` date
+are historical evidence and are unchanged; this is not a new live capture.
+
+After operational health succeeds, `notify_provider_drift.py --apply` records
+fatal anomalies from the canonical FMP report. Drift remains report-only at the
+probe step. Healthy/deprecation-only reports make no GitHub calls and do not close
+existing tickets. Notification or invalid-report failures fail the job visibly;
+the existing health gate fails when no contract returns usable response evidence.
+Mixed reports may contain HTTP or transport failures alongside actual drift. The
+notifier validates every entry (including status -1), but publishes anomalies only
+from HTTP 200 contracts; non-200 error-body shape errors are infrastructure
+evidence, not contract drift. Real canonical rename codes (`legacy->canonical`)
+are accepted without allowing arbitrary Markdown or workflow-command content.
+
+One tracking issue per `(contract, anomaly code)` is found by exact SHA256 managed
+markers, using paginated all-state issue listing (PRs excluded). Only issues
+authored by `github-actions[bot]` with user type `Bot` are trusted; copied markers
+in other users' issues cannot suppress or redirect notifications. New issues are
+assigned to the repository's User owner, so creating a report also notifies a
+maintainer. Organization-owned repositories require an explicit notification
+policy before this script can create tickets; it fails visibly rather than
+silently leaving an unassigned ticket. Repeated new runs add one observation
+comment and update the managed region. Maintainer notes outside that region,
+labels and assignees are preserved. A new fatal run reopens a closed issue;
+retrying the same or an older run preserves manual closure and newer evidence. Healthy runs never auto-close.
+
+Comments precede body updates. If a comment fails, retry can post it; if the body
+update fails after a successful comment, retry finds the bot-authored observation marker and
+updates without another comment. A failed create with an unknown response can be
+retried: the issue listing finds its managed marker. Duplicate tracking markers
+or damaged managed regions require manual reconciliation and fail visibly.
+Workflow concurrency serializes scheduled and manual runs without cancellation;
+do not run multiple manual `--apply` processes concurrently. GitHub may coalesce
+queued workflow runs; this is persistent triage, not a lossless event ledger.
+
+The workflow retains top-level `contents: read`; only the trusted canary job gets
+`issues: write`. Checkout sets `persist-credentials: false`; the workflow token
+is passed as `GH_TOKEN` only to the notification step. Fork guards and explicit
+disable behavior are unchanged. The script pins `gh api` to `github.com`, uses
+JSON stdin with no shell, and never prints raw API errors, rows or credentials.
+Only validated identifiers, counts and a repository-bound run link are published.
+
+Local validation is read-only by default, requires no token and calls no API:
+
+```bash
+python3 scripts/notify_provider_drift.py --report reports/fmp-canary-report.json
+```
+
+Applying is supported only in Actions with `--apply`, the `github-actions[bot]`
+workflow token as `GH_TOKEN`, and `GITHUB_REPOSITORY`/`GITHUB_RUN_ID` (or explicit
+`--repository`/`--run-url`). Run URLs must identify an Actions run in the target
+repository. For a manual probe, use `workflow_dispatch`; keep direct local runs
+read-only. User PATs create user-authored issues that the bot-only trust matcher
+intentionally ignores, so they are unsupported for apply and can cause duplicates. Tests use fake API/gh responses only; local green tests
+do not establish that a future scheduled notification reached a maintainer.

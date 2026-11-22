@@ -26,6 +26,10 @@ QQQ/SPY のIBD式 Distribution Day を検出し、25セッションでの失効�
 
 ---
 
+## Instrument identity (#765)
+
+QQQ is a Nasdaq-100 ETF proxy, not the Nasdaq Composite (`^IXIC`). SPY is an ETF proxy, not `^GSPC`. DD counts use the named symbol's own price and volume; ETF counts are not official index counts. Select explicit symbols with `--symbols`; missing data must not trigger substitution or a mixed series. The risk classes and TQQQ policy are this tool's separate heuristics, not a calibrated FTD success probability (calibration remains #676).
+
 ## 1. 概要
 
 IBD Distribution Day Monitor は、William O'Neil の CAN SLIM フレームワークの中で最も実践的なシグナル—機関投資家が静かに売り抜けている日の検出—を、再現可能な日次ワークフローとして自動化します。Distribution Day のクラスターは過去の主要な調整局面のほとんどに先行しており、本スキルはこのルールを厳密な手順に落とし込みます。
@@ -278,6 +282,16 @@ TQQQ のポジションサイズを再計算して。
 
 ## 9. トラブルシューティング
 
+### 設定ファイルのエラー
+
+`--config` には、読み取り可能なUTF-8のYAMLファイルを指定します。最上位はマッピングです。
+空・コメントのみ・`null` の文書は既定値を使います。`data` と `strategy_context` は
+マッピングまたは `null` を指定し、nullのセクションは既定値を使います。`indexes` は
+空でない文字列の `symbol` を持つマッピングのリスト、または既定値を使う `null` です。
+読み込み失敗・YAML構文エラー・上記の型エラーでは、プロバイダーへのアクセスや
+レポート出力の前にstderrへ `ERROR:` を表示し、終了コード1を返します。構文エラーは
+取得できる場合に行・列番号を示し、APIキーを含み得る入力行は表示しません。
+
 ### `FMP API key required` エラー
 
 **原因:** `--api-key`、`config.data.api_key`、`FMP_API_KEY` 環境変数のいずれも設定されていない。
@@ -364,3 +378,9 @@ TQQQ のポジションサイズを再計算して。
 |------|-------------|
 | `ibd_distribution_day_monitor_YYYY-MM-DD_HHMMSS.json` | 完全な構造化レポート（UTF-8、`ensure_ascii=False`、機微情報リダクション済み） |
 | `ibd_distribution_day_monitor_YYYY-MM-DD_HHMMSS.md` | active DD テーブル付きの人可読サマリ |
+
+## Close-price quality and incomplete evidence
+
+Accept finite positive numeric closes (including numeric strings). Treat missing/null, boolean, nonnumeric, non-finite, zero and negative closes as unavailable. Retain their dated session slots: never join sessions across a price gap for DD detection, age counting or moving averages. Audit skipped calculations by date. EMA requires valid closes throughout its input history; SMA requires a valid latest-period window. Unavailable or overflowed MA comparisons and the combined filter are null, not bearish signals.
+
+Historical `--as-of` reports audit only the effective history; future close defects do not affect historical exposure decisions. Overflowed price returns or DD invalidation thresholds are null with audit evidence; an unavailable threshold cannot invalidate a DD. Counts/risk from incomplete prices are observations, not evidence of safety. If either effective index has invalid closes or non-finite derived price arithmetic, block exposure increases (`AVOID_NEW_ADDS`, target capped at current exposure); preserve policy reductions and trailing stops. See `invalid_close_data`, `non_finite_price_arithmetic`, `non_finite_moving_average` and `incomplete_price_evidence_no_adds` in the audit. Repair/re-fetch the affected dates before using the report to increase exposure. This close-price guard does not validate every volume/high field or certify market-data completeness.

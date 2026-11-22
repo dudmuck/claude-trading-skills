@@ -1,0 +1,54 @@
+{
+  "_comment": "Ratchet allowlist for scripts/check_price_bar_defaults.py (issue #655). Each entry is keyed by path + scope (enclosing qualname or <module>) + field; count must equal the findings for that key. Migrate sites, then lower or remove the entry. Never add new entries.",
+  "entries": [
+    {
+      "path": "skills/edge-candidate-agent/scripts/auto_detect_candidates.py",
+      "scope": "build_ticket_payload",
+      "field": "close",
+      "count": 1,
+      "reason": "not a price bar (pending rewrite)"
+    },
+    {
+      "path": "skills/edge-candidate-agent/scripts/auto_detect_candidates.py",
+      "scope": "score_breakout_candidate",
+      "field": "close",
+      "count": 1,
+      "reason": "not a price bar (pending rewrite)"
+    },
+    {
+      "path": "skills/edge-candidate-agent/scripts/auto_detect_candidates.py",
+      "scope": "score_gap_candidate",
+      "field": "close",
+      "count": 1,
+      "reason": "not a price bar (pending rewrite)"
+    },
+    {
+      "path": "skills/edge-candidate-agent/scripts/auto_detect_candidates.py",
+      "scope": "score_reversal_candidate",
+      "field": "close",
+      "count": 1,
+      "reason": "not a price bar (pending rewrite)"
+    },
+    {
+      "path": "skills/macro-regime-detector/scripts/calculators/utils.py",
+      "scope": "downsample_to_monthly",
+      "field": "close",
+      "count": 1,
+      "reason": "pending #655 migration: macro-regime-detector"
+    },
+    {
+      "path": "skills/technical-analyst/scripts/weekly_price_action.py",
+      "scope": "build_sorted_daily_series",
+      "field": "volume",
+      "count": 1,
+      "reason": "pending #655 migration: technical-analyst"
+    },
+    {
+      "path": "skills/technical-analyst/scripts/weekly_price_action.py",
+      "scope": "resample_weekly",
+      "field": "volume",
+      "count": 1,
+      "reason": "pending #655 migration: technical-analyst"
+    }
+  ]
+}

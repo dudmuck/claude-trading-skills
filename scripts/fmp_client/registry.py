@@ -59,6 +59,7 @@ class SkillConfig:
     batch_quote_url: bool = False  # route multi-symbol quotes to /stable/batch-quote
     hist_normalize_list: bool = False  # coerce a bare stable EOD list to the v3 dict shape
     sp500_wikipedia: bool = False  # add the Wikipedia constituent scrape as a last resort
+    redaction_template: str = "redaction.py.tmpl"  # optional target-only diagnostic policy
 
 
 _FAMILY_A_FEATURES = (
@@ -380,4 +381,121 @@ SKILLS["pair-trade-screener"] = SkillConfig(
     feature_lines=("- Pair screener and unbounded historical transport adapters",),
     class_constants=(),
     extensions=("pair_trade",),
+)
+
+# ---- Issue #495 Batch D: signal-postmortem exact-range evidence ----
+SKILLS["signal-postmortem"] = SkillConfig(
+    skill="signal-postmortem",
+    title="FMP API Client for Signal Postmortem",
+    family="B",
+    has_quote=False,
+    budget=False,
+    hist_days=30,
+    hist_return_list=False,
+    has_compat=False,
+    query_auth=True,
+    feature_lines=("- Exact-range raw historical evidence for postmortems",),
+    class_constants=(),
+    extensions=("postmortem_history",),
+)
+
+# ---- Issue #495 Batch D: technical-analyst weekly confirmation ----
+SKILLS["technical-analyst"] = SkillConfig(
+    skill="technical-analyst",
+    title="FMP API Client for Technical Analyst",
+    family="B",
+    has_quote=False,
+    budget=False,
+    hist_days=365,
+    hist_return_list=True,
+    has_compat=False,
+    query_auth=True,
+    feature_lines=("- Stable-only explicit-range OHLC transport for weekly confirmation",),
+    class_constants=(),
+    extensions=("technical_eod",),
+)
+
+# ---- Issue #495 Batch D: downtrend exact-range screener/history adapters ----
+SKILLS["downtrend-duration-analyzer"] = SkillConfig(
+    skill="downtrend-duration-analyzer",
+    title="FMP API Client for Downtrend Duration Analyzer",
+    family="B",
+    has_quote=False,
+    budget=False,
+    hist_days=365,
+    hist_return_list=True,
+    has_compat=False,
+    query_auth=True,
+    feature_lines=("- Stable-only screener and explicit-range OHLCV transport",),
+    class_constants=(),
+    extensions=("downtrend",),
+)
+
+# ---- Issue #495 Batch D: trader-memory-core daily close evidence ----
+SKILLS["trader-memory-core"] = SkillConfig(
+    skill="trader-memory-core",
+    title="FMP API Client for Trader Memory Core",
+    family="B",
+    has_quote=False,
+    budget=False,
+    hist_days=365,
+    hist_return_list=True,
+    has_compat=False,
+    query_auth=True,
+    feature_lines=("- Exact-range raw price evidence for optional MAE/MFE",),
+    class_constants=(),
+    extensions=("memory_history",),
+)
+
+
+# Issue #495 Batch D: retain raw light-EOD evidence and static diagnostics.
+SKILLS["news-reaction-failure-analyzer"] = SkillConfig(
+    skill="news-reaction-failure-analyzer",
+    title="FMP API Client for News Reaction Failure Analyzer",
+    family="B",
+    has_quote=False,
+    budget=False,
+    hist_days=140,
+    hist_return_list=True,
+    has_compat=False,
+    query_auth=True,
+    feature_lines=("- Exact-range stable light-EOD evidence with static diagnostics",),
+    class_constants=(),
+    extensions=("news_light_history",),
+    redaction_template="static_redaction.py.tmpl",
+)
+
+# ---- Issue #495 Batch D: options pricing market-data helpers ----
+SKILLS["options-strategy-advisor"] = SkillConfig(
+    skill="options-strategy-advisor",
+    title="FMP API Client for Options Strategy Advisor",
+    family="B",
+    has_quote=False,
+    budget=False,
+    hist_days=90,
+    hist_return_list=True,
+    has_compat=False,
+    query_auth=True,
+    feature_lines=("- Stable quote/profile and raw EOD evidence for pricing helpers",),
+    class_constants=(),
+    extensions=("options_market",),
+)
+
+
+# Final original #495 target: theme detector's quote, history and holdings.
+SKILLS["theme-detector"] = SkillConfig(
+    skill="theme-detector",
+    title="FMP API Client for Theme Detector",
+    family="B",
+    has_quote=False,
+    budget=False,
+    hist_days=260,
+    hist_return_list=True,
+    has_compat=False,
+    query_auth=True,
+    configurable_timeout=True,
+    feature_lines=("- Stable quote/full-EOD/holdings for the theme detector",),
+    class_constants=(),
+    extensions=("theme_market",),
+    redaction_template="static_redaction.py.tmpl",
 )

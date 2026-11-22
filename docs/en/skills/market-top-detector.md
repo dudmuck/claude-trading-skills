@@ -14,7 +14,7 @@ permalink: /en/skills/market-top-detector/
 Assesses heuristic market top risk using O'Neil Distribution Days, Minervini Leading Stock Deterioration, and Monty Defensive Sector Rotation. Generates a 0-100 composite score with risk zone classification. Use when user asks about market top risk, distribution days, defensive rotation, leadership breakdown, or whether to reduce equity exposure. Focuses on 2-8 week tactical timing signals for 10-20% corrections.
 {: .fs-6 .fw-300 }
 
-<span class="badge badge-free">No API</span>
+<span class="badge badge-api">FMP Required</span>
 
 [Download Skill Package (.skill)](https://github.com/tradermonty/claude-trading-skills/raw/main/skill-packages/market-top-detector.skill){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [View Source on GitHub](https://github.com/tradermonty/claude-trading-skills/tree/main/skills/market-top-detector){: .btn .fs-5 .mb-4 .mb-md-0 }
@@ -53,7 +53,7 @@ The 0-100 score is a heuristic risk score, not an estimated event probability. R
 
 ## 3. Prerequisites
 
-- **API Key:** None required
+- **API Key:** FMP required; set `FMP_API_KEY` or pass `--api-key`. TraderMonty breadth CSV data is public and does not replace FMP index, ETF and stock data.
 - **Python 3.9+** recommended
 
 ---
@@ -194,3 +194,15 @@ Present the generated Markdown report to the user, highlighting:
 - `skills/market-top-detector/scripts/scenario_engine.py`
 - `skills/market-top-detector/scripts/scorer.py`
 - `skills/market-top-detector/scripts/utils.py`
+
+## Missing price bars
+
+A missing or invalid field in a used price window makes the component unavailable
+with dated `data_gaps` diagnostics. Zero volume is valid; zero prices are not.
+Existing missing-key fallbacks remain, but invalid primary values cannot be
+rescued by another field. No bars are dropped or replaced with zero. Markdown
+shows N/A and unavailable components contribute no weight. If every component
+is unavailable, the JSON score is null, zone is Unavailable, and risk budget is
+Not assessed. Exposure Coach treats this as missing input; the strategy
+synthesizer stops before producing allocations. This is missing-data handling,
+not a change to the valid-data risk scoring formula or policy calibration.

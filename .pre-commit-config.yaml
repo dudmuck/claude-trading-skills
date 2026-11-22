@@ -49,6 +49,13 @@ repos:
   # Project-specific pre-commit checks
   - repo: local
     hooks:
+      - id: private-data-paths
+        name: Reject canonical private paths in the active Git index
+        entry: python3 scripts/check_private_data_paths.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: no-absolute-paths
         name: Detect absolute paths with usernames
         entry: python3 scripts/hooks/check_no_absolute_paths.py
@@ -70,6 +77,20 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: cli-error-conventions
+        name: Check skill script CLI error conventions (stderr, exit 2, timeouts)
+        entry: python3 scripts/check_cli_error_conventions.py
+        language: system
+        files: '^(skills/[^/]+/scripts/.*\.py|config/cli-error-allowlist\.json|scripts/check_cli_error_conventions\.py|scripts/tests/test_check_cli_error_conventions\.py)$'
+        pass_filenames: false
+
+      - id: price-bar-defaults
+        name: Check skill scripts for zero defaults on price-bar fields (issue #655)
+        entry: python3 scripts/check_price_bar_defaults.py
+        language: system
+        files: '^(skills/[^/]+/scripts/.*\.py|config/price-bar-default-allowlist\.json|scripts/check_price_bar_defaults\.py|scripts/tests/test_check_price_bar_defaults\.py)$'
+        pass_filenames: false
+
       - id: docs-completeness
         name: Check all skills have doc pages
         entry: python3 scripts/hooks/check_docs_completeness.py
@@ -90,6 +111,13 @@ repos:
         language: system
         files: '^(config/docs-external-link-allowlist\.json|scripts/check_docs_site\.py|scripts/tests/test_check_docs_site\.py)$'
         pass_filenames: false
+
+      - id: api-requirements
+        name: Validate credential readers and no-API workflow declarations
+        entry: python3 scripts/check_api_requirements.py
+        language: system
+        pass_filenames: false
+        always_run: true
 
       - id: validate-skills-index
         name: Validate skills-index.yaml against skills/ folder
@@ -147,10 +175,10 @@ repos:
         entry: python3 scripts/check_doc_cli_examples.py validate
         language: system
         # Fire on the example-bearing docs (markdown targets of the gate,
-        # including every SKILL.md and EN/JA site page), the checker, and its tests. Always
+        # including SKILL.md, nested references and EN/JA site pages), the checker, and its tests. Always
         # validates every configured target (offline, deterministic,
         # stdlib-only).
-        files: '^(CLAUDE\.md|README\.md|README\.ja\.md|skills/[^/]+/SKILL\.md|docs/(en|ja)/.*\.md|scripts/check_doc_cli_examples\.py|scripts/tests/test_check_doc_cli_examples\.py)$'
+        files: '^(CLAUDE\.md|README\.md|README\.ja\.md|skills/[^/]+/(SKILL\.md|references/.*\.md)|docs/(en|ja)/.*\.md|scripts/check_doc_cli_examples\.py|scripts/tests/test_check_doc_cli_examples\.py)$'
         pass_filenames: false
 
       - id: catalog-drift
@@ -196,13 +224,20 @@ repos:
         files: '^(skills-index\.yaml|workflows/.*\.yaml|skillsets/.*\.yaml|skills/trading-skills-navigator/(assets/metadata_snapshot\.json|scripts/(build_snapshot|recommend)\.py))$'
         pass_filenames: false
 
+      - id: fmp-migration-acceptance
+        name: FMP migration inventory and legacy-reference acceptance
+        entry: python3 scripts/check_fmp_migration.py
+        language: system
+        files: '^(skills/.*\.py|scripts/.*\.py|examples/.*\.py|docs/dev/fmp-legacy-exceptions\.json)$'
+        pass_filenames: false
+
       - id: fmp-client-drift
         name: FMP client drift check (regenerate vendored fmp_client.py from canonical source)
         entry: python3 scripts/generate_fmp_client.py --check
         language: system
         # Fire on the canonical source, the generator, and every vendored copy
         # (catches a manual edit to a generated fmp_client.py / _fmp_compat.py).
-        files: '^(scripts/fmp_client/.*|scripts/generate_fmp_client\.py|skills/(pead-screener|earnings-trade-analyzer|ibd-distribution-day-monitor|vcp-screener|parabolic-short-trade-planner|ftd-detector|canslim-screener|macro-regime-detector|market-top-detector|us-undervalued-growth-screener|earnings-calendar|economic-calendar-fetcher|institutional-flow-tracker|cot-contrarian-detector|value-dividend-screener|dividend-growth-pullback-screener|kanchi-dividend-sop|stockbee-20pct-study|stockbee-episodic-pivot-analyzer|stockbee-exhaustion-hammer-screener|stockbee-momentum-burst-screener|stockbee-setup-fluency-trainer|pair-trade-screener)/scripts/(fmp_client|_fmp_compat)\.py)$'
+        files: '^(scripts/fmp_client/.*|scripts/generate_fmp_client\.py|skills/[^/]+/scripts/(fmp_client|_fmp_compat)\.py)$'
         pass_filenames: false
 
       - id: market-calendar-drift
@@ -210,6 +245,14 @@ repos:
         entry: python3 scripts/generate_market_calendar.py --check
         language: system
         files: '^(\.github/workflows/ci\.yml|config/(market-calendar-dependency|ci-test-policy)\.yaml|pyproject\.toml|scripts/(generate_market_calendar|smoke_market_calendar)\.py|scripts/market_calendar/.*|skills/(breakout-trade-planner|drawdown-circuit-breaker|market-environment-analysis|market-top-detector|parabolic-short-trade-planner|theme-detector)/(requirements\.txt|scripts/_market_calendar\.py|scripts/tests/test_market_calendar_contract\.py)|examples/weekly-trade-strategy/(\.claude/skills|skills)/market-environment-analysis/(requirements\.txt|scripts/(_market_calendar|market_utils)\.py))$'
+        pass_filenames: false
+
+      - id: price-bars-drift
+        name: Shared price-bar helper drift check (issue #655)
+        entry: python3 scripts/generate_price_bars.py --check
+        language: system
+        # Copies at any depth under skills/ and examples/ (matches the recursive stray check)
+        files: '^(scripts/price_bars/.*|scripts/generate_price_bars\.py|config/price-bars-consumers\.yaml|(skills|examples)/(.*/)?(_price_bars|test_price_bars_contract)\.py)$'
         pass_filenames: false
 
       - id: compat-matrix-drift
@@ -235,11 +278,11 @@ repos:
 
       - id: fmp-package-drift
         name: FMP skill package drift check (re-package after vendored client changes)
-        entry: python3 scripts/package_skills.py --check --skill pead-screener --skill earnings-trade-analyzer --skill ibd-distribution-day-monitor --skill vcp-screener --skill parabolic-short-trade-planner --skill ftd-detector --skill canslim-screener --skill macro-regime-detector --skill market-top-detector --skill us-undervalued-growth-screener --skill earnings-calendar --skill economic-calendar-fetcher --skill institutional-flow-tracker --skill cot-contrarian-detector --skill value-dividend-screener --skill dividend-growth-pullback-screener --skill kanchi-dividend-sop --skill stockbee-20pct-study --skill stockbee-episodic-pivot-analyzer --skill stockbee-exhaustion-hammer-screener --skill stockbee-momentum-burst-screener --skill stockbee-setup-fluency-trainer --skill pair-trade-screener
+        entry: python3 scripts/package_skills.py --check --skill pead-screener --skill earnings-trade-analyzer --skill ibd-distribution-day-monitor --skill vcp-screener --skill parabolic-short-trade-planner --skill ftd-detector --skill canslim-screener --skill macro-regime-detector --skill market-top-detector --skill us-undervalued-growth-screener --skill earnings-calendar --skill economic-calendar-fetcher --skill institutional-flow-tracker --skill cot-contrarian-detector --skill value-dividend-screener --skill dividend-growth-pullback-screener --skill kanchi-dividend-sop --skill stockbee-20pct-study --skill stockbee-episodic-pivot-analyzer --skill stockbee-exhaustion-hammer-screener --skill stockbee-momentum-burst-screener --skill stockbee-setup-fluency-trainer --skill pair-trade-screener --skill signal-postmortem --skill technical-analyst --skill downtrend-duration-analyzer --skill trader-memory-core --skill news-reaction-failure-analyzer --skill options-strategy-advisor --skill theme-detector
         language: system
         # The fmp-client-drift gate validates source; this validates the .skill
         # bundles so an edited client that was not re-packaged is caught.
-        files: '^(skills/(pead-screener|earnings-trade-analyzer|ibd-distribution-day-monitor|vcp-screener|parabolic-short-trade-planner|ftd-detector|canslim-screener|macro-regime-detector|market-top-detector|us-undervalued-growth-screener|earnings-calendar|economic-calendar-fetcher|institutional-flow-tracker|cot-contrarian-detector|value-dividend-screener|dividend-growth-pullback-screener|kanchi-dividend-sop|stockbee-20pct-study|stockbee-episodic-pivot-analyzer|stockbee-exhaustion-hammer-screener|stockbee-momentum-burst-screener|stockbee-setup-fluency-trainer|pair-trade-screener)/.*|skill-packages/(pead-screener|earnings-trade-analyzer|ibd-distribution-day-monitor|vcp-screener|parabolic-short-trade-planner|ftd-detector|canslim-screener|macro-regime-detector|market-top-detector|us-undervalued-growth-screener|earnings-calendar|economic-calendar-fetcher|institutional-flow-tracker|cot-contrarian-detector|value-dividend-screener|dividend-growth-pullback-screener|kanchi-dividend-sop|stockbee-20pct-study|stockbee-episodic-pivot-analyzer|stockbee-exhaustion-hammer-screener|stockbee-momentum-burst-screener|stockbee-setup-fluency-trainer|pair-trade-screener)\.skill)$'
+        files: '^(skills/[^/]+/.*|skill-packages/[^/]+\.skill)$'
         pass_filenames: false
 
       # Pre-push hook: run validator in --strict-workflows + --strict-metadata

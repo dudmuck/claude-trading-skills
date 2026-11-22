@@ -37,6 +37,7 @@ def test_authority_has_exact_supported_consumer_set(generator):
         "market-environment-analysis",
         "market-top-detector",
         "parabolic-short-trade-planner",
+        "stockbee-momentum-burst-screener",
         "theme-detector",
     }
     assert len(config["example_mirrors"]) == 2
@@ -47,13 +48,15 @@ def test_authority_has_exact_supported_consumer_set(generator):
         generator._split_entry("theme-detector", item)[0]
         for item in config["additional_requirements"]["theme-detector"]
     }
-    assert {"finvizfinance>=1.0.0", "yfinance>=0.2.0"}.issubset(theme_reqs)
+    assert {'finvizfinance>=1.5.0; python_version >= "3.10"', "yfinance>=0.2.0"}.issubset(
+        theme_reqs
+    )
 
 
 def test_targets_cover_runtime_tests_requirements_and_examples(generator):
     rendered = generator.targets(generator.load_config())
     paths = {path.relative_to(REPO_ROOT).as_posix() for path, _ in rendered}
-    assert len(paths) == 28
+    assert len(paths) == 31
     assert "scripts/market_calendar/consumers.txt" in paths
     for skill in generator.load_config()["consumers"]:
         assert f"skills/{skill}/scripts/_market_calendar.py" in paths
@@ -175,6 +178,6 @@ def test_optional_mapping_renders_check_skill_deps_marker(generator):
     rendered = dict(generator.targets(generator.load_config()))
     theme = rendered[REPO_ROOT / "skills" / "theme-detector" / "requirements.txt"]
     assert "yfinance>=0.2.0  # optional: ETF scanner falls back" in theme
-    assert "finvizfinance>=1.0.0  # optional: FINVIZ client degrades" in theme
+    assert 'finvizfinance>=1.5.0; python_version >= "3.10"  # optional: Public FINVIZ' in theme
     top = rendered[REPO_ROOT / "skills" / "market-top-detector" / "requirements.txt"]
     assert "yfinance>=0.2.0  # optional: FMP success path" in top

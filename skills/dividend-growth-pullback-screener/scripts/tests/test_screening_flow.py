@@ -94,7 +94,9 @@ class TestFinvizClient:
         client = mod.FINVIZClient("k")
         client.session = FakeSession([mod.requests.exceptions.ConnectionError("boom")])
         assert client.screen_stocks() == set()
-        assert "boom" in capsys.readouterr().err
+        output = capsys.readouterr().err
+        assert "ConnectionError" in output
+        assert "boom" not in output
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +260,289 @@ class TestFmpGetAndWrappers:
         assert client.get_quote_with_profile("A") is None
 
 
+class TestPlanGating:
+    def _client(self, mod, responses):
+        client = mod.FMPClient("test-key-123")
+        client.session = FakeSession(responses)
+        return client
+
+    def test_plan_restriction_raises(self, mod):
+        client = self._client(
+            mod,
+            [FakeResponse(402, content=b"not available under your current subscription")],
+        )
+        with pytest.raises(mod.FMPPlanRestrictedError, match="stock screener"):
+            client.screen_stocks()
+
+    def test_invalid_key_403_is_not_plan_restriction(self, mod):
+        client = self._client(mod, [FakeResponse(403, content=b"Invalid API KEY")])
+        assert client.screen_stocks() == []
+
+    def test_empty_200_is_not_plan_restriction(self, mod):
+        client = self._client(mod, [FakeResponse(200, [])])
+        assert client.screen_stocks() == []
+
+    def test_200_rows_are_returned(self, mod):
+        client = self._client(mod, [FakeResponse(200, [{"symbol": "AAA"}])])
+        assert client.screen_stocks() == [{"symbol": "AAA"}]
+
+    def test_finviz_all_quotes_plan_restricted_raises(self, mod, fake_fmp):
+        fake_fmp.registry = {
+            "quotes": {},
+            "last_error": "HTTP 402 - not available under your current subscription",
+        }
+        with pytest.raises(mod.FMPPlanRestrictedError, match="quote endpoint"):
+            mod.screen_dividend_growth_pullbacks("key", finviz_symbols={"AAA"})
+
+    def test_finviz_rate_limit_is_not_plan_restriction(self, mod, fake_fmp):
+        fake_fmp.registry = {
+            "quotes": {},
+            "last_error": "HTTP 429 (daily rate limit)",
+        }
+        assert mod.screen_dividend_growth_pullbacks("key", finviz_symbols={"AAA"}) == []
+
+    def test_legacy_endpoint_403_raises(self, mod):
+        client = self._client(
+            mod,
+            [FakeResponse(403, content=b"Legacy Endpoint: only legacy users have access")],
+        )
+        with pytest.raises(mod.FMPPlanRestrictedError, match="stock screener"):
+            client.screen_stocks()
+
+    def test_finviz_mixed_failures_still_raise_when_any_is_plan_restricted(self, mod, fake_fmp):
+        fake_fmp.registry = {
+            "quotes": {},
+            "last_error_by_symbol": {
+                "AAA": "HTTP 402 - not available under your current subscription",
+                "BBB": "HTTP 500 - server error",
+            },
+        }
+        with pytest.raises(mod.FMPPlanRestrictedError, match="quote endpoint"):
+            mod.screen_dividend_growth_pullbacks("key", finviz_symbols=["AAA", "BBB"])
+
+    def test_finviz_partial_success_does_not_raise(self, mod, fake_fmp):
+        fake_fmp.registry = {
+            "quotes": {"GOOD": {"symbol": "GOOD", "price": 20.0}},
+            "last_error_by_symbol": {
+                "BAD": "HTTP 402 - not available under your current subscription"
+            },
+        }
+        results = mod.screen_dividend_growth_pullbacks("key", finviz_symbols=["GOOD", "BAD"])
+        assert isinstance(results, list)
+
+    def test_finviz_double_without_last_error_is_safe(self, mod, monkeypatch):
+        class NoErrorAttr:
+            rate_limit_reached = False
+
+            def get_quote_with_profile(self, symbol):
+                return None
+
+        monkeypatch.setattr(mod, "FMPClient", lambda key: NoErrorAttr())
+
+    # -- Issue #777: plan gating in the per-symbol analysis stage --------
+
+    def test_analysis_stage_plan_restriction_raises_when_all_gated(self, mod, fake_fmp):
+        # FINVIZ path: quote/profile return 200, but the per-symbol analysis
+        # calls (dividends, prices, statements) return 402.
+        fake_fmp.registry = {
+            "quotes": {"AAA": {"symbol": "AAA", "price": 20.0}},
+            "div": {"AAA": None},
+            "prices": {"AAA": None},
+            "income": {"AAA": []},
+            "balance": {"AAA": []},
+            "cf": {"AAA": []},
+            "metrics": {"AAA": []},
+            "last_error_by_symbol": {
+                "AAA": "HTTP 402 - Premium Query Parameter ... not available "
+                "under your current subscription"
+            },
+        }
+        with pytest.raises(mod.FMPPlanRestrictedError, match="detailed analysis"):
+            mod.screen_dividend_growth_pullbacks("key", finviz_symbols={"AAA"})
+
+    def test_analysis_stage_partial_gating_returns_survivors_and_warns(self, mod, fake_fmp, capsys):
+        fake_fmp.registry = {
+            "quotes": {
+                "GOOD": {"symbol": "GOOD", "price": 20.0},
+                "BAD": {"symbol": "BAD", "price": 20.0},
+            },
+            "div": {"BAD": None},
+            "prices": {"BAD": None},
+            "income": {"BAD": []},
+            "balance": {"BAD": []},
+            "cf": {"BAD": []},
+            "metrics": {"BAD": []},
+            "last_error_by_symbol": {
+                "BAD": "HTTP 402 - Premium Query Parameter ... not available "
+                "under your current subscription"
+            },
+        }
+        stats = {}
+        results = mod.screen_dividend_growth_pullbacks(
+            "key", finviz_symbols=["GOOD", "BAD"], stats=stats
+        )
+        assert [r["symbol"] for r in results] == ["GOOD"]
+        assert stats["plan_gated_skipped"] == 1
+        err = capsys.readouterr().err
+        assert "1 candidate" in err
+        assert "plan" in err.lower()
+
+    def test_negative_equity_symbol_is_excluded_and_run_continues(self, mod, fake_fmp, capsys):
+        # Issue #842: a dividend grower with negative equity used to pass the
+        # health gate with D/E None and then crash the composite score.
+        fake_fmp.registry = {
+            "quotes": {
+                "NEG": {"symbol": "NEG", "price": 20.0},
+                "GOOD": {"symbol": "GOOD", "price": 20.0},
+            },
+            "balance": {
+                "NEG": [
+                    {
+                        "totalDebt": 100,
+                        "totalStockholdersEquity": -50,
+                        "totalCurrentAssets": 200,
+                        "totalCurrentLiabilities": 100,
+                    }
+                ]
+            },
+        }
+        stats = {}
+        results = mod.screen_dividend_growth_pullbacks(
+            "key", finviz_symbols=["NEG", "GOOD"], stats=stats
+        )
+        assert [r["symbol"] for r in results] == ["GOOD"]
+        assert stats["health_excluded"] == {"non_positive_equity": 1}
+        assert "Financial health concerns: non_positive_equity" in capsys.readouterr().err
+
+    def test_malformed_statement_payloads_do_not_abort_the_run(self, mod, fake_fmp):
+        # A 200 error dict or junk rows must not crash `[0]` / `.get` consumers.
+        fake_fmp.registry = {
+            "quotes": {
+                "BADBS": {"symbol": "BADBS", "price": 20.0},
+                "BADKM": {"symbol": "BADKM", "price": 20.0},
+                "GOOD": {"symbol": "GOOD", "price": 20.0},
+            },
+            "balance": {"BADBS": {"Error Message": "x"}},
+            "metrics": {"BADKM": [None, "x"]},
+            "income": {"BADKM": {"Error Message": "x"}},
+            "cf": {"BADKM": ["x"]},
+        }
+        stats = {}
+        results = mod.screen_dividend_growth_pullbacks(
+            "key", finviz_symbols=["BADBS", "BADKM", "GOOD"], stats=stats
+        )
+        assert sorted(r["symbol"] for r in results) == ["BADKM", "GOOD"]
+        assert stats["health_excluded"] == {"balance_sheet_unavailable": 1}
+        assert mod._dict_rows([{"a": 1}, None, "x"]) == [{"a": 1}]
+        assert mod._dict_rows({"Error Message": "x"}) == []
+
+    def test_low_current_ratio_is_counted(self, mod, fake_fmp, capsys):
+        fake_fmp.registry = {
+            "quotes": {"L": {"symbol": "L", "price": 20.0}},
+            "balance": {
+                "L": [
+                    {
+                        "totalDebt": 10,
+                        "totalStockholdersEquity": 100,
+                        "totalCurrentAssets": 50,
+                        "totalCurrentLiabilities": 100,
+                    }
+                ]
+            },
+        }
+        stats = {}
+        assert mod.screen_dividend_growth_pullbacks("key", finviz_symbols=["L"], stats=stats) == []
+        assert stats["health_excluded"] == {"low_current_ratio": 1}
+        assert "Financial health concerns: low_current_ratio" in capsys.readouterr().err
+
+    def test_gated_balance_sheet_counts_as_plan_gated_only(self, mod, fake_fmp):
+        fake_fmp.registry = {
+            "quotes": {
+                "GOOD": {"symbol": "GOOD", "price": 20.0},
+                "G": {"symbol": "G", "price": 20.0},
+            },
+            "balance": {"G": []},
+            "last_error_by_symbol": {
+                "G": "HTTP 402 - Premium Query Parameter ... not available "
+                "under your current subscription"
+            },
+        }
+        stats = {}
+        results = mod.screen_dividend_growth_pullbacks(
+            "key", finviz_symbols=["GOOD", "G"], stats=stats
+        )
+        assert [r["symbol"] for r in results] == ["GOOD"]
+        assert stats["plan_gated_skipped"] == 1
+        assert "health_excluded" not in stats
+
+    def test_unhealthy_symbol_with_other_gated_call_keeps_health_reason(self, mod, fake_fmp):
+        fake_fmp.registry = {
+            "quotes": {
+                "GOOD": {"symbol": "GOOD", "price": 20.0},
+                "N": {"symbol": "N", "price": 20.0},
+            },
+            "balance": {
+                "N": [
+                    {
+                        "totalDebt": 100,
+                        "totalStockholdersEquity": -50,
+                        "totalCurrentAssets": 200,
+                        "totalCurrentLiabilities": 100,
+                    }
+                ]
+            },
+            "metrics": {"N": []},
+            "last_error_by_symbol": {
+                "N": "HTTP 402 - Premium Query Parameter ... not available "
+                "under your current subscription"
+            },
+        }
+        stats = {}
+        results = mod.screen_dividend_growth_pullbacks(
+            "key", finviz_symbols=["GOOD", "N"], stats=stats
+        )
+        assert [r["symbol"] for r in results] == ["GOOD"]
+        assert stats["health_excluded"] == {"non_positive_equity": 1}
+
+    def test_unusable_key_metrics_are_stored_as_finite_numbers(self, mod, fake_fmp, tmp_path):
+        fake_fmp.registry = {
+            "quotes": {"M": {"symbol": "M", "price": 20.0}},
+            "metrics": {
+                "M": [
+                    {
+                        "roe": "n/a",
+                        "netProfitMargin": 1e308,
+                        "peRatio": "n/a",
+                        "pbRatio": float("inf"),
+                    }
+                ]
+            },
+        }
+        (r,) = mod.screen_dividend_growth_pullbacks("key", finviz_symbols=["M"])
+        assert (r["roe"], r["profit_margin"], r["pe_ratio"], r["pb_ratio"]) == (0, 0, None, None)
+        json.dumps(r, allow_nan=False)
+        # Unusable valuation data earns no valuation points.
+        assert r["composite_score"] == mod.StockAnalyzer.calculate_composite_score(
+            {**r, "pe_ratio": 999, "pb_ratio": 999}
+        )
+        mod.generate_markdown_report([r], CRITERIA, str(tmp_path / "report.md"))
+
+    def test_analysis_stage_genuine_empty_keeps_current_behavior(self, mod, fake_fmp):
+        # All 200s, no dividend data anywhere: a normal empty result, not a
+        # plan-gating error.
+        fake_fmp.registry = {
+            "quotes": {"AAA": {"symbol": "AAA", "price": 20.0}},
+            "div": {"AAA": None},
+            "prices": {"AAA": None},
+        }
+        stats = {}
+        assert (
+            mod.screen_dividend_growth_pullbacks("key", finviz_symbols={"AAA"}, stats=stats) == []
+        )
+        assert stats["plan_gated_skipped"] == 0
+        assert mod.screen_dividend_growth_pullbacks("key", finviz_symbols={"AAA"}) == []
+
+
 class TestHistoricalPrices:
     def _bars(self, n):
         return [{"close": 100.0 - i} for i in range(n)]
@@ -403,7 +688,12 @@ class TestAnalyzerHelpers:
 
     def test_financial_health(self, mod):
         h = mod.StockAnalyzer.analyze_financial_health
-        assert h([]) == {}
+        assert h([]) == {
+            "debt_to_equity": None,
+            "current_ratio": None,
+            "financially_healthy": False,
+            "health_issues": ["balance_sheet_unavailable"],
+        }
         good = h(
             [
                 {
@@ -414,7 +704,12 @@ class TestAnalyzerHelpers:
                 }
             ]
         )
-        assert good == {"debt_to_equity": 0.5, "current_ratio": 2.0, "financially_healthy": True}
+        assert good == {
+            "debt_to_equity": 0.5,
+            "current_ratio": 2.0,
+            "financially_healthy": True,
+            "health_issues": [],
+        }
         levered = h(
             [
                 {
@@ -426,6 +721,7 @@ class TestAnalyzerHelpers:
             ]
         )
         assert levered["financially_healthy"] is False
+        assert levered["health_issues"] == ["high_debt_to_equity"]
         illiquid = h(
             [
                 {
@@ -437,12 +733,128 @@ class TestAnalyzerHelpers:
             ]
         )
         assert illiquid["financially_healthy"] is False
-        # Zero equity / liabilities yield None ratios, which are not penalised.
+        assert illiquid["health_issues"] == ["low_current_ratio"]
+        # Leverage cannot be confirmed without debt and equity, so an empty
+        # row fails closed. A missing current-liability figure is not penalised.
         assert h([{}]) == {
             "debt_to_equity": None,
             "current_ratio": None,
-            "financially_healthy": True,
+            "financially_healthy": False,
+            "health_issues": ["leverage_unavailable"],
         }
+
+    _LIQUID = {"totalCurrentAssets": 200, "totalCurrentLiabilities": 100}
+
+    @pytest.mark.parametrize("equity", [-50, 0, -0.0])
+    def test_financial_health_non_positive_equity_fails(self, mod, equity):
+        row = {"totalDebt": 100, "totalStockholdersEquity": equity, **self._LIQUID}
+        h = mod.StockAnalyzer.analyze_financial_health([row])
+        assert h["debt_to_equity"] is None
+        assert h["financially_healthy"] is False
+        assert h["health_issues"] == ["non_positive_equity"]
+
+    def test_financial_health_non_positive_equity_wins_over_missing_debt(self, mod):
+        row = {"totalDebt": None, "totalStockholdersEquity": -50, **self._LIQUID}
+        h = mod.StockAnalyzer.analyze_financial_health([row])
+        assert h["health_issues"] == ["non_positive_equity"]
+
+    @pytest.mark.parametrize(
+        ("debt", "equity"),
+        [
+            (None, 100),
+            ("n/a", 100),
+            (True, 100),
+            (-10, 100),
+            (float("nan"), 100),
+            (100, None),
+            (100, "n/a"),
+            (100, float("inf")),
+            (1e308, 1e-300),  # ratio overflows to inf
+        ],
+    )
+    def test_financial_health_unusable_leverage_fails_closed(self, mod, debt, equity):
+        row = {"totalDebt": debt, "totalStockholdersEquity": equity, **self._LIQUID}
+        h = mod.StockAnalyzer.analyze_financial_health([row])
+        assert h["debt_to_equity"] is None
+        assert h["financially_healthy"] is False
+        assert h["health_issues"] == ["leverage_unavailable"]
+
+    def test_financial_health_rounded_boundary(self, mod):
+        row = {"totalDebt": 199.6, "totalStockholdersEquity": 100, **self._LIQUID}
+        h = mod.StockAnalyzer.analyze_financial_health([row])
+        assert h["debt_to_equity"] == 2.0
+        assert h["health_issues"] == ["high_debt_to_equity"]
+
+    @pytest.mark.parametrize(
+        ("assets", "liabilities", "ratio", "issues"),
+        [
+            (None, 100, None, ["current_ratio_unavailable"]),
+            ("n/a", 100, None, ["current_ratio_unavailable"]),
+            (1e308, 1e-300, None, ["current_ratio_unavailable"]),
+            (200, None, None, []),
+            (200, "n/a", None, []),
+            (200, 0, None, []),
+            (200, -5, None, []),
+        ],
+    )
+    def test_financial_health_current_ratio_inputs(self, mod, assets, liabilities, ratio, issues):
+        row = {
+            "totalDebt": 10,
+            "totalStockholdersEquity": 100,
+            "totalCurrentAssets": assets,
+            "totalCurrentLiabilities": liabilities,
+        }
+        h = mod.StockAnalyzer.analyze_financial_health([row])
+        assert h["current_ratio"] == ratio
+        assert h["health_issues"] == issues
+        assert h["financially_healthy"] is (not issues)
+        json.dumps(h, allow_nan=False)
+
+    @pytest.mark.parametrize("sheet", [{"Error Message": "x"}, ["x"], [None], "x"])
+    def test_financial_health_malformed_sheet(self, mod, sheet):
+        h = mod.StockAnalyzer.analyze_financial_health(sheet)
+        assert h["financially_healthy"] is False
+        assert h["health_issues"] == ["balance_sheet_unavailable"]
+
+    @pytest.mark.parametrize(
+        "over",
+        [
+            {"debt_to_equity": None},
+            {"pe_ratio": None, "pb_ratio": None},
+            {"roe": None, "profit_margin": None},
+            {"pe_ratio": "n/a", "pb_ratio": "n/a"},
+        ],
+    )
+    def test_composite_score_tolerates_unusable_values(self, mod, over):
+        base = {
+            "dividend_cagr_3y": 25,
+            "roe": 0,
+            "profit_margin": 0,
+            "debt_to_equity": 999,
+            "rsi": 99,
+            "pe_ratio": 999,
+            "pb_ratio": 999,
+        }
+        expected = mod.StockAnalyzer.calculate_composite_score(base)
+        assert mod.StockAnalyzer.calculate_composite_score({**base, **over}) == expected
+
+    def test_composite_score_nan_regression_guard(self, mod):
+        # Not a red test: NaN comparisons were already False. Kept as a guard.
+        base = {
+            "dividend_cagr_3y": 25,
+            "roe": 0,
+            "profit_margin": 0,
+            "debt_to_equity": 999,
+            "rsi": 99,
+            "pe_ratio": 999,
+            "pb_ratio": 999,
+        }
+        nan = float("nan")
+        expected = mod.StockAnalyzer.calculate_composite_score(base)
+        got = mod.StockAnalyzer.calculate_composite_score(
+            {**base, "debt_to_equity": nan, "pe_ratio": nan, "pb_ratio": nan}
+        )
+        assert got == expected
 
     def test_growth_metrics(self, mod):
         g = mod.StockAnalyzer.analyze_growth_metrics
@@ -626,6 +1038,7 @@ class FakeFMP:
     def __init__(self, api_key):
         self.api_key = api_key
         self.rate_limit_reached = False
+        self._last_error = None
         self.data = {}
         self.screen_result = []
         self.quote_calls = []
@@ -639,10 +1052,22 @@ class FakeFMP:
 
     def get_quote_with_profile(self, symbol):
         self.quote_calls.append(symbol)
-        return FakeFMP.registry.get("quotes", {}).get(symbol)
+        data = FakeFMP.registry.get("quotes", {}).get(symbol)
+        if data is None:
+            self._last_error = FakeFMP.registry.get("last_error_by_symbol", {}).get(
+                symbol, FakeFMP.registry.get("last_error")
+            )
+        return data
 
     def _per(self, key, symbol, default):
-        return FakeFMP.registry.get(key, {}).get(symbol, default)
+        value = FakeFMP.registry.get(key, {}).get(symbol, default)
+        # Mirror the real client's _last_error: cleared at the start of every
+        # fetch, set when the fetch returns nothing and a failure is configured.
+        error = FakeFMP.registry.get("last_error_by_symbol", {}).get(
+            symbol, FakeFMP.registry.get("last_error")
+        )
+        self._last_error = error if (not value and error) else None
+        return value
 
     def get_dividend_history(self, symbol):
         return self._per("div", symbol, GOOD_DIVIDENDS)
@@ -806,7 +1231,7 @@ class TestScreeningPipeline:
                         ]
                     }
                 },
-                "Financial health concerns",
+                "Financial health concerns: high_debt_to_equity",
             ),
         ],
     )
@@ -1042,6 +1467,56 @@ class TestMain:
         assert "FMP API key required" in capsys.readouterr().err
         assert not (cli_env / "logs").exists()
 
+    def test_plan_restriction_exits_1_before_output(self, mod, cli_env, monkeypatch, capsys):
+        def raise_plan(**kwargs):
+            raise mod.FMPPlanRestrictedError(
+                "FMP plan does not include the stock screener endpoint required: "
+                "synthetic-private-diagnostic-marker"
+            )
+
+        monkeypatch.setattr(mod, "screen_dividend_growth_pullbacks", raise_plan)
+        monkeypatch.setenv("FMP_API_KEY", "fmp")
+        with pytest.raises(SystemExit) as exc:
+            _run_main(mod, monkeypatch, [])
+        assert exc.value.code == 1
+        diagnostic = capsys.readouterr().err
+        assert "FMP plan does not include the stock screener endpoint" in diagnostic
+        assert "synthetic-private-diagnostic-marker" not in diagnostic
+        assert not (cli_env / "logs").exists()
+
+    def test_main_includes_plan_gated_skipped_in_metadata(self, mod, cli_env, monkeypatch):
+        def fake_screen(**kwargs):
+            stats = kwargs.get("stats")
+            if stats is not None:
+                stats["plan_gated_skipped"] = 2
+            return [_result()]
+
+        monkeypatch.setattr(mod, "screen_dividend_growth_pullbacks", fake_screen)
+        monkeypatch.setenv("FMP_API_KEY", "fmp")
+        _run_main(mod, monkeypatch, [])
+        logs = cli_env / "logs"
+        (json_path,) = logs.glob("dividend_growth_pullback_results_*.json")
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["metadata"]["plan_gated_skipped"] == 2
+
+    @pytest.mark.parametrize("excluded", [{"non_positive_equity": 2}, None])
+    def test_main_health_excluded_metadata(self, mod, cli_env, monkeypatch, excluded):
+        def fake_screen(**kwargs):
+            stats = kwargs.get("stats")
+            if stats is not None and excluded:
+                stats["health_excluded"] = dict(excluded)
+            return [_result()]
+
+        monkeypatch.setattr(mod, "screen_dividend_growth_pullbacks", fake_screen)
+        monkeypatch.setenv("FMP_API_KEY", "fmp")
+        _run_main(mod, monkeypatch, [])
+        (json_path,) = (cli_env / "logs").glob("dividend_growth_pullback_results_*.json")
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        if excluded:
+            assert payload["metadata"]["health_excluded"] == excluded
+        else:
+            assert "health_excluded" not in payload["metadata"]
+
     def test_finviz_flag_without_key_exits_1(self, mod, cli_env, monkeypatch, capsys):
         monkeypatch.setenv("FMP_API_KEY", "fmp")
         with pytest.raises(SystemExit) as exc:
@@ -1094,6 +1569,7 @@ class TestMain:
             "rsi_max": 35.0,
             "max_candidates": 7,
             "finviz_symbols": None,
+            "stats": {},
         }
         logs = cli_env / "logs"
         (json_path,) = logs.glob("dividend_growth_pullback_results_*.json")

@@ -28,6 +28,14 @@ Synthesize outputs from 8 upstream analysis skills (5 required + 3 optional) int
 
 ---
 
+## Prerequisites
+
+- **API keys:** None required. The skill is a meta-skill that reads JSON reports produced by upstream skills; those skills may need their own keys.
+- **Python:** 3.9+ with the standard library only (see `requirements.txt`).
+- **Inputs:** Recent JSON reports in `reports/` from the five required upstream skills listed under Input Requirements. The three optional skills improve the result when present.
+
+---
+
 ## Input Requirements
 
 ### Required Skills (5)
@@ -106,6 +114,8 @@ Load appropriate reference documents to provide philosophical context:
 | 5 | Theme Quality | **12%** | Theme Detector | Sector momentum health |
 | 6 | Setup Availability | **10%** | VCP + CANSLIM | Quality stock setups |
 | 7 | Signal Convergence | **12%** | All 5 required | Cross-skill agreement |
+
+**FTD data gaps:** when the ftd-detector report carries `data_gap: true` (top level or `market_state`) or a quality signal starting with `Unavailable`, the FTD state is read as `DATA_GAP` with quality 0. Bottom Confirmation scores it 10, the same as `RALLY_FAILED`; it never counts as a confirmed FTD, and in Signal Convergence it contributes quality 0, the same as a healed failed or no-FTD run.
 
 ## 4 Pattern Classifications
 

@@ -90,9 +90,10 @@ uv run skills/dual-axis-skill-reviewer/scripts/run_dual_axis_review.py \
 毎日05:00にmacOS `launchd`で自動実行します。
 
 ```bash
-# エージェントをインストール
-cp launchd/com.trade-analysis.skill-improvement.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.trade-analysis.skill-improvement.plist
+# 保守用エージェント4件を生成（まだ有効化しない）
+python3 scripts/install_launchd.py
+# 明示的に有効化
+python3 scripts/install_launchd.py --load
 
 # 確認
 launchctl list | grep skill-improvement
@@ -100,6 +101,14 @@ launchctl list | grep skill-improvement
 # 手動トリガー
 launchctl start com.trade-analysis.skill-improvement
 ```
+
+独立した08:00のハートビート監視も含みます。日次処理の最終成功から48時間超
+（週次生成は14日超）、成功時刻の欠落・不正・未来日時をmacOS通知で知らせます。
+明示的な無効化は、ローカルに導入した監視plistの環境変数へ`SKILL_LOOP_NOTIFY=off`
+を設定します。監視は`.envrc`を読みません。既存環境では`--load`の前に対象保守jobを
+unloadしてください。独自設定のplistは上書きせず拒否するため、必要な設定を保持して
+別の場所へ退避してから再導入します。詳細は[導入・更新手順](maintenance-runbook.md#5-scheduled-self-maintenance-jobs)
+を参照してください。checkoutだけではjobは導入されず、実機の定期実行成功も未検証です。
 
 ### 主要ファイル
 
@@ -131,15 +140,21 @@ launchctl start com.trade-analysis.skill-improvement
 
 ### 手動実行
 
+wrapperは生成専用cloneで実行し、primaryのdirtyな作業を保持します。
+primaryの`.envrc`は実行しません。GitHub/SSH資格情報と通知設定は起動環境または
+ローカルのLaunchAgent環境から継承させてください。`--project-root`の上書きは拒否します。
+[隔離・ロック・状態共有・復旧](maintenance-runbook.md#the-generation-pipeline-runs-in-its-own-checkout)
+を確認してください。dry-runでもfetchやローカル状態・出力の保存を行います。
+
 ```bash
 # 週次: セッションログからアイデアをマイニング・スコアリング
-python3 scripts/run_skill_generation_pipeline.py --mode weekly --dry-run
+bash scripts/run_skill_generation.sh --mode weekly --dry-run
 
 # 日次: バックログの最高スコアアイデアからスキルを設計
-python3 scripts/run_skill_generation_pipeline.py --mode daily --dry-run
+bash scripts/run_skill_generation.sh --mode daily --dry-run
 
 # フルラン（ブランチ作成、スキル設計、PR作成）
-python3 scripts/run_skill_generation_pipeline.py --mode daily
+bash scripts/run_skill_generation.sh --mode daily
 ```
 
 ### launchd設定 (macOS)
@@ -147,11 +162,10 @@ python3 scripts/run_skill_generation_pipeline.py --mode daily
 週次と日次の2つの`launchd`エージェントで自動実行します。
 
 ```bash
-# エージェントをインストール
-cp launchd/com.trade-analysis.skill-generation-weekly.plist ~/Library/LaunchAgents/
-cp launchd/com.trade-analysis.skill-generation-daily.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.trade-analysis.skill-generation-weekly.plist
-launchctl load ~/Library/LaunchAgents/com.trade-analysis.skill-generation-daily.plist
+# 保守用エージェント4件を生成（まだ有効化しない）
+python3 scripts/install_launchd.py
+# 明示的に有効化
+python3 scripts/install_launchd.py --load
 
 # 確認
 launchctl list | grep skill-generation
@@ -166,7 +180,8 @@ launchctl start com.trade-analysis.skill-generation-daily
 | ファイル | 用途 |
 | --- | --- |
 | `scripts/run_skill_generation_pipeline.py` | オーケストレーションスクリプト（マイニング、選択、設計、レビュー、PR） |
-| `scripts/run_skill_generation.sh` | launchd用シェルラッパー |
+| `scripts/run_skill_generation.sh` | launchd・手動実行の隔離エントリ |
+| `scripts/run_skill_generation_isolated.py` | 専用cloneの検証・同期・リソースロック |
 | `launchd/com.trade-analysis.skill-generation-weekly.plist` | 週次マイニングスケジュール（土曜06:00） |
 | `launchd/com.trade-analysis.skill-generation-daily.plist` | 日次生成スケジュール（07:00） |
 | `skills/skill-idea-miner/` | マイニング＆スコアリングスキル |

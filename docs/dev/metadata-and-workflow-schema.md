@@ -23,6 +23,7 @@ schema_version: 1
 categories:
   - market-regime
   - core-portfolio
+  - dividend-income
   - swing-opportunity
   - trade-planning
   - trade-memory
@@ -298,7 +299,7 @@ These are validated under `--strict-workflows`:
 | Every non-optional `step.skill` appears in `required_skills` | `WF010` |
 | Workflow file referenced by an index entry's `workflows:` exists | `WF001` |
 | Required artifact produced before the final step is not consumed by any later step | `WF013` |
-| Human-facing Japanese workflow prose is missing, empty, wrongly typed, or list-misaligned | `WF014` |
+| Human-facing Japanese workflow prose is missing, empty, wrongly typed, or list-misaligned; English `manual_review` items are not non-empty strings | `WF014` |
 
 ### 2.3 `consumes:` semantics — "use if available", not "required input"
 
@@ -502,7 +503,7 @@ python3 scripts/validate_skills_index.py --strict-metadata
 | `WF011` | `required_skills` / `optional_skills` entry not in `skills-index.yaml` |
 | `WF012` | `artifacts[].produced_by_step` does not match the corresponding step's `produces` (either direction) |
 | `WF013` | Required artifact produced before the final step is not consumed by any later step |
-| `WF014` | Required Japanese workflow prose is missing, empty, wrongly typed, or `manual_review_ja` is not aligned |
+| `WF014` | Required Japanese workflow prose is missing, empty, wrongly typed, `manual_review_ja` is not aligned, or English `manual_review` items are not non-empty strings |
 | `WF015` | `operational_role.type` is not `workflow_step` exactly when workflow forward references exist |
 | `WF016` | Index `workflows` is not a unique, non-empty `list[str]`, or its back-references do not exactly match manifest forward references |
 
@@ -535,3 +536,83 @@ python3 scripts/validate_skills_index.py --strict-metadata
 - Removed fields: marked `deprecated` in this doc for one cycle before deletion.
 
 See also: project memory `feedback_schema_evolution.md` — "Add new schema fields, never mutate existing ones for backward compat".
+
+## API declarations versus credential reads (#653)
+
+Run `python3 scripts/check_api_requirements.py` (also an always-run pre-commit
+hook and metadata CI step). The offline gate never imports or invokes skills,
+reads credential values, or contacts providers. It recursively parses non-test
+Python under each indexed, non-deprecated skill's `scripts/`, including vendored
+clients. Syntax/read failures fail closed (`API003`). Literal `os.getenv`,
+`os.environ.get` and `os.environ[...]` reads, including imported aliases, require
+a matching active `fmp`, `finviz` or `alpaca` integration (`API001`). Active means
+`required`, `recommended` or `optional`; absent/`not_required`/`unknown` fail.
+ALPACA/APCA credential names are explicitly listed in the checker; non-credential
+settings such as `ALPACA_PAPER` and string mentions in docs/regexes do not count.
+
+This is a bounded presence check, not data-flow analysis: computed environment
+keys, reassignment aliases, external packages, CLI-only keys and dynamically
+loaded code are not inferred. A read alone cannot establish required versus
+optional behavior. Executable no-network tests characterize the two required-key
+CLIs and the optional manual postmortem route; maintain equivalent behavioral
+tests when changing those declarations. The gate intentionally rejects any
+recognized credential reader declared `not_required`, including a CLI that would
+otherwise exit for a missing key. Do not run arbitrary skill CLIs from the gate.
+
+`no-api-basic` workflows may not contain any step (even optional) whose skill
+declares a paid integration as `required` (`API002`). Use `mixed` for a key-free
+base with an optional paid extension. `market-regime-daily` keeps its three
+required CSV/local skills and optional top-risk step; only that extension needs
+FMP. Its market-regime skillset also declares mixed because it recommends
+market-top and optionally includes downtrend; the three required skills remain
+key-free. Navigator inspects required skills for mixed profiles, so `--no-api` still
+selects the base path. Paid requirements remain documented on individual skills.
+
+The catalog generator now owns provider badges and API matrix values in both
+website catalogs, in addition to existing sentinel sections. Hand-written
+identity, description, ordering, Weekly Trade Strategy helper, and non-provider
+badges remain protected. It preflights all target identities/table shapes before
+writing; `--check` detects any generated-cell drift. The standalone catalog
+checker also rejects category/matrix disagreements and required-plus-No-API
+contradictions. Regenerate with `python3 scripts/generate_catalog_from_index.py`.
+
+## Theme-detector input contract (#673)
+
+Exposure-coach owns the consumer adapter; theme-detector does not emit a new
+financial score. A canonical input has `report_type: "theme_detector"`, a nonempty
+`themes.all` list, and `data_quality: {status: "ok"|"warning", flags: [string, ...]}`.
+Use `themes.all` once; `bullish`, `bearish`, and `match_ranked` duplicate those
+entries and must not be counted again. Each row requires `direction` equal to
+`bullish` or `bearish` and numeric finite non-boolean `heat` in [0,100]. Missing or
+invalid rows/quality metadata reject the whole theme input, without dropping bad
+rows or manufacturing zero heat. Extra flat score aliases do not override a
+canonical report.
+
+The version-one integration heuristic is:
+
+```text
+signed_heat = +heat for bullish, -heat for bearish
+score = round(50 + mean(signed_heat) / 2)
+```
+
+Rounding uses Python's nearest integer (ties to even). Bullish heat 80 gives 90;
+bearish heat 80 gives 10; equal opposing heat cancels to 50. All rows have equal
+weight. This is an uncalibrated adapter, not a validated forecast, breadth
+measure, freshness check or production financial verification. Existing 5% theme
+weight, renormalization, bias thresholds and critical-input controls are unchanged.
+Usable new theme evidence can therefore change the composite/bias recommendation.
+
+Valid legacy `theme_score` numeric values in [0,100] retain integer conversion;
+recognized `theme_strength` labels retain strong=85, stable=65, rotating=40,
+collapsing=20. Invalid scalar types/nonfinite/range/unknown labels are unparsable.
+
+An omitted `--theme` is in `inputs_missing`. A supplied unreadable, empty or
+unsupported file is excluded from scoring, warned on stderr and listed in
+`inputs_unparseable`, not `inputs_missing` or `inputs_provided`. Unusable inputs
+still count as unavailable internally for confidence/renormalization; diagnostics
+cannot improve confidence. Canonical nonempty upstream flags are preserved in
+`input_warnings.theme`, Markdown and stderr. A `warning` status is not itself a
+rejection: some flags concern unrelated enrichment. Confidence describes input
+completeness, not freshness, upstream verification or forecast accuracy. Diagnostic fields are emitted only when nonempty, preserving the established
+strict output shape for ordinary/legacy calls without diagnostics. Other
+input extractors retain their existing contracts in this change.

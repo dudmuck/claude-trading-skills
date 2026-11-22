@@ -38,7 +38,7 @@ Collect the most recent JSON outputs from integrated skills. Each file provides 
 | market-top-detector | `top_risk_*.json` | Distribution day count, top probability score |
 | ftd-detector | `ftd_*.json` | Follow-Through Day quality (market bottom confirmation) |
 | theme-detector | `theme_detector_*.json` or `theme_*.json` | Active investment themes and rotation |
-| sector-analyst | `sector_*.json` | Sector performance rankings |
+| sector-analyst | `sector_rotation_*.json` | Sector uptrend ratios and trend direction |
 | institutional-flow-tracker | `institutional_*.json` | Net institutional buying/selling |
 
 ### Step 2: Run Exposure Scoring Engine
@@ -60,6 +60,11 @@ python3 skills/exposure-coach/scripts/calculate_exposure.py \
 
 The script accepts partial inputs; missing files reduce confidence but do not block execution.
 
+When an input declares `evaluation_coverage`, require valid schema 1.0 counts and
+`verdict: complete`. Partial, not-evaluable or malformed coverage is excluded from
+scoring, with a stderr warning; never restore its score or bias manually.
+Legacy inputs without the block remain supported without a coverage guarantee.
+
 Canonical macro-regime reports must include nested `regime.confidence` and
 `composite.data_quality` with valid integer component counts. Missing or malformed
 availability metadata, `very_low` confidence, and zero usable components are
@@ -67,9 +72,60 @@ treated as missing critical input. They do not contribute a regime score or bias
 and the normal missing-input haircut and confidence cap apply. Never override this
 degradation by manually copying the report's regime label into the exposure decision.
 
-**Verification pitfall:** After each run, inspect the generated JSON fields `inputs_provided` and `inputs_missing`. If a file you passed on the CLI still appears in `inputs_missing` (for example a theme-detector JSON that the exposure engine did not recognize), report the affected dimension as degraded and keep confidence capped; do not assume the supplied input was incorporated just because the CLI argument was present.
+**Theme input contract:** Consume canonical `report_type: theme_detector` reports
+from `themes.all` once; ignore duplicate sorted groups. Require finite numeric
+non-boolean heat in [0,100], bullish/bearish direction, and `data_quality` with
+`ok`/`warning` status and string-list flags. The consumer maps to
+`round(50 + mean(signed_heat)/2)` (bullish positive, bearish negative; nearest
+integer, ties to even). This is an uncalibrated integration heuristic, not a
+forecast or freshness guarantee. Legacy numeric theme_score and recognized
+theme_strength labels remain supported; see references/exposure_framework.md.
 
-**Theme-detector ingestion caveat:** The theme detector commonly emits `theme_detector_YYYY-MM-DD_HHMMSS.json` with a `themes` object. If that file is not recognized by `calculate_exposure.py` and `theme` remains in `inputs_missing`, do not fold theme strength into the exposure ceiling manually. Instead, keep the Exposure Coach confidence capped, state that the theme dimension was not incorporated, and summarize theme/sector findings separately in the broader trading brief.
+**Sector input contract:** Pass the unchanged JSON from
+`analyze_sector_rotation.py --json --save` to `--sector`. Require all 11 known
+sectors exactly once in `ranking`, finite non-boolean `ratio` in [0,1], a `slope`
+that is null or in [-1,1], and a string trend label; a null slope or a label that
+disagrees with the slope gets no adjustment and a warning. Require
+`trends` counts and sector lists to match those rows, plus valid `meta` freshness
+metadata or unknown freshness. Reject the whole input on invalid required data;
+do not repair it by inserting legacy fields.
+
+Use the consumer-owned `sector_uptrend_health_v1` mapping: apply Uptrend Analyzer's
+absolute ratio bands, add +5 for Up with positive slope, -5 for Down with
+negative slope and 0 otherwise, clamp each
+unrounded value to [0,100], then average all 11 sectors equally and round once
+(nearest integer, ties to even). This uncalibrated heuristic uses neither
+`groups.score` nor a low-dispersion bonus. See the Sector Score section of
+`references/exposure_framework.md` for the bands and validation contract.
+Canonical sector input contributes to the composite score only; bias and
+participation use other accepted inputs. Supported legacy `sector_score` and
+`dispersion`/`leadership` inputs retain their scoring and validated context rules.
+
+Inspect `sector_integration` for the mapping version, per-sector calculation,
+and `source_freshness`. A producer's `is_fresh: true` is a recorded claim, not a
+current freshness check. Without `--as-of`, `freshness_verified` remains false
+and stale or unknown freshness produces warnings without excluding otherwise
+usable sector data.
+With `--as-of`, the sector source date (`meta.freshness.date`) is also
+age-gated: it is compared with the evaluation date in America/New_York, and a
+source date after that date or older than `--max-age-days` excludes sector as
+unusable. In `--require-provenance` mode, unknown freshness and undated legacy
+sector input are excluded too. An excluded sector never stops the run; it is
+reported in `inputs_unparseable`, `input_warnings`, Markdown and stderr. A
+passing check sets `freshness_verified: true` and records `freshness_check`.
+Outside strict mode, an `--as-of` that is not timezone-aware or a negative
+`--max-age-days` does not stop the run: the sector age gate is skipped with a
+sector warning.
+
+**Verification pitfall:** Inspect `inputs_provided`, `inputs_missing`,
+`inputs_unparseable` and `input_warnings` (diagnostic fields appear only when
+nonempty). Omitted theme or sector input is missing; a supplied but
+invalid/unreadable input is unparsable, excluded and warned on stderr. Never fold
+a rejected input into exposure manually. Upstream quality flags remain visible
+in JSON/Markdown/stderr. Confidence measures input completeness, not freshness,
+verified quality, independent evidence or prediction accuracy. Sector Analyst
+and Uptrend Analyzer share upstream data; counting both does not establish two
+independent confirmations.
 
 ### Step 3: Interpret the Market Posture Summary
 
@@ -114,8 +170,8 @@ Map the posture recommendation to portfolio actions:
     "sector_score": 70,
     "institutional_score": 75
   },
-  "inputs_provided": ["breadth", "uptrend", "regime", "top_risk"],
-  "inputs_missing": ["ftd", "theme", "sector", "institutional"],
+  "inputs_provided": ["breadth", "uptrend", "regime", "top_risk", "ftd", "theme", "sector", "institutional"],
+  "inputs_missing": [],
   "rationale": "Broad participation with low top risk supports elevated exposure."
 }
 ```
@@ -152,6 +208,7 @@ Reports are saved to `reports/` with filenames `exposure_posture_YYYY-MM-DD_HHMM
 ## Resources
 
 - `scripts/calculate_exposure.py` -- Main orchestrator that scores and synthesizes inputs
+- `scripts/sector_contract.py` -- Sector input validation and versioned score translation
 - `references/exposure_framework.md` -- Scoring rules and threshold definitions
 - `references/regime_exposure_map.md` -- Regime-to-exposure ceiling mappings
 

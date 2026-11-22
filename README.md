@@ -1,5 +1,7 @@
 # Claude Trading Skills
 
+**Data handling:** [Privacy policy](docs/en/privacy.md) · [Security policy](SECURITY.md)
+
 Claude Trading Skills started as a personal project to use AI to improve my own trading process.
 
 Claude Trading Skills is a Claude Skills-based trading workflow toolkit for time-constrained individual investors.
@@ -70,6 +72,8 @@ Select a preview to open the full-size SVG; on a phone, zoom after opening.
 
 **Learn from closed trades:** [Weekly Performance Digest](docs/en/skills/weekly-performance-digest.md) summarizes realized outcomes and process lessons.
 
+**Try it yourself:** [Offline Quick Start](docs/en/offline-quickstart.md) takes you from these previews to a fictional report and then the Navigator, without provider keys.
+
 ### What This Actually Costs
 
 Claude Web Skills are currently available on Free, Pro, Max, Team, and
@@ -104,7 +108,7 @@ This path lets you review market conditions, size trades, journal decisions, and
 - `skill-packages/` – Pre-built `.skill` archives ready to upload to Claude's web app **Skills** tab.
 - `docs/` – Documentation site content, generated skill pages, and `docs/dev/metadata-and-workflow-schema.md` (schema spec).
 - `scripts/` – Repository-level automation, including the schema validator and one-shot bootstrap helper.
-- `skillsets/` – Purpose-specific install bundles defining required / recommended / optional skills for major goals (5 skillsets shipped: market-regime, core-portfolio, swing-opportunity, trade-memory, strategy-research; consumed by the Navigator).
+- `skillsets/` – Purpose-specific install bundles defining required / recommended / optional skills for major goals (6 skillsets shipped: market-regime, core-portfolio, dividend-income, swing-opportunity, trade-memory, strategy-research; consumed by the Navigator).
 
 ## Getting Started
 
@@ -152,7 +156,8 @@ This repository contains skills across the following areas:
 | Area | Example Skills |
 | --- | --- |
 | Market Regime | `market-breadth-analyzer`, `uptrend-analyzer`, `exposure-coach` |
-| Core Portfolio | `portfolio-manager`, `value-dividend-screener`, `kanchi-dividend-sop` |
+| Core Portfolio | `portfolio-manager`, `us-undervalued-growth-screener` |
+| Dividend Income | `kanchi-dividend-sop`, `value-dividend-screener`, `dividend-growth-pullback-screener` |
 | Swing Opportunities | `vcp-screener`, `canslim-screener`, `breakout-trade-planner` |
 | Trade Planning | `position-sizer`, `technical-analyst`, `pre-trade-discipline-gate` |
 | Trade Memory | `trader-memory-core`, `signal-postmortem` |
@@ -174,7 +179,7 @@ The detailed catalog below is **auto-generated** from `skills-index.yaml` by `sc
 | **COT Contrarian Detector** (`cot-contrarian-detector`) | Detects crowded speculative (large-speculator) positioning in CFTC futures markets using Commitment of Traders data, implementing step 1 of Jason Shapiro's contrarian methodology. | `fmp` **required** | workflow_step | production |
 | **Crypto Regime Analyzer** (`crypto-regime-analyzer`) | Quantifies crypto market regime health (0-100 composite, 100 = risk-on) from six components using free keyless public data. | `coingecko` **required**, `binance_funding` _recommended_, `prices_json` optional | standalone | beta |
 | **Dealer Gamma Analyzer** (`dealer-gamma-analyzer`) | Quantify dealer options gamma (GEX) for an equity or index from FREE CBOE delayed options data. Renders gamma walls, the gamma flip, and max pain as explicit support/resistance price levels, and classifies the positive- (pin) vs negative-gamma (squeeze-prone) regime. | `cboe_delayed_options` — | standalone | production |
-| **Downtrend Duration Analyzer** (`downtrend-duration-analyzer`) | Analyze historical downtrend durations and generate interactive HTML histograms showing typical correction lengths by sector and market cap. | `local_calculation` — | research_only | production |
+| **Downtrend Duration Analyzer** (`downtrend-duration-analyzer`) | Analyze historical downtrend durations and generate interactive HTML histograms showing typical correction lengths by sector and market cap. | `fmp` **required** | research_only | production |
 | **Econ Indicator Explainer** (`econ-indicator-explainer`) | Look up the "why it matters" context for a US economic indicator — what it measures, why markets care, and the typical 60-minute SPY/TLT/DXY/VIX reaction. Pairs with economic-calendar-fetcher, which supplies the schedule and consensus. | `local_calculation` — | standalone | production |
 | **Exposure Coach** (`exposure-coach`) | Generate a one-page Market Posture summary with net exposure ceiling, growth-vs-value bias, participation breadth, and new-entry-allowed vs cash-priority recommendation by integrating signals from breadth, regime, and flow analysis skills. | `local_calculation` — | workflow_step | production |
 | **FTD Detector** (`ftd-detector`) | Detects Follow-Through Day (FTD) signals for market bottom confirmation using William O'Neil's methodology. | `fmp` **required** | standalone | production |
@@ -183,7 +188,7 @@ The detailed catalog below is **auto-generated** from `skills-index.yaml` by `sc
 | **Market Breadth Analyzer** (`market-breadth-analyzer`) | Quantifies market breadth health using TraderMonty's public CSV data. | `public_csv` **required** | workflow_step | production |
 | **Market Environment Analysis** (`market-environment-analysis`) | Comprehensive market environment analysis and reporting tool. | `websearch` **required**, `chart_image` optional | workflow_step | production |
 | **Market News Analyst** (`market-news-analyst`) | This skill should be used when analyzing recent market-moving news events and their impact on equity markets and commodities. | `websearch` **required** | workflow_step | production |
-| **Market Top Detector** (`market-top-detector`) | Assesses heuristic market top risk using O'Neil Distribution Days, Minervini Leading Stock Deterioration, and Monty Defensive Sector Rotation. | `public_csv` **required** | workflow_step | production |
+| **Market Top Detector** (`market-top-detector`) | Assesses heuristic market top risk using O'Neil Distribution Days, Minervini Leading Stock Deterioration, and Monty Defensive Sector Rotation. | `fmp` **required**, `public_csv` optional | workflow_step | production |
 | **News Reaction Failure Analyzer** (`news-reaction-failure-analyzer`) | Judges whether a market failed to react to news favorable to a crowded speculative position, implementing step 2 of Jason Shapiro's contrarian methodology with a Monte-Carlo-verified drift-significance verdict test. | `fmp` **required**, `websearch` **required** | workflow_step | production |
 | **Sector Analyst** (`sector-analyst`) | This skill should be used when analyzing sector rotation patterns and market cycle positioning. | `chart_image` **required** | workflow_step | production |
 | **Uptrend Analyzer** (`uptrend-analyzer`) | Analyzes market breadth using Monty's Uptrend Ratio Dashboard data to diagnose the current market environment. | `public_csv` **required** | workflow_step | production |
@@ -193,12 +198,17 @@ The detailed catalog below is **auto-generated** from `skills-index.yaml` by `sc
 
 | Skill | Summary | Integrations | Role | Status |
 |---|---|---|---|---|
+| **Portfolio Manager** (`portfolio-manager`) | Comprehensive portfolio analysis using Alpaca MCP Server integration to fetch holdings and positions, then analyze asset allocation, risk metrics, individual stock positions, diversification, and generate rebalancing recommendations. | `alpaca` optional | workflow_step | production |
+| **US Undervalued Growth Screener** (`us-undervalued-growth-screener`) | Screen and rank US-listed small- and mid-cap undervalued-growth stocks with a generated stable-first FMP client, persistent SQLite cache, adaptive listing enumeration, FY1 estimate normalization, verified 20-day liquidity, deterministic four-lane discovery, forward same-basis valuation, standard and SBC-adjusted FCF, dilution, peer, cycle and LOE controls, strict final evaluation, prepublication audit, and a self-contained evidence bundle. | `fmp` _recommended_, `alternate_market_data` optional, `sec_edgar` **required**, `company_ir` **required**, `official_macro` **required**, `local_calculation` — | standalone | beta |
+
+### Dividend Income
+
+| Skill | Summary | Integrations | Role | Status |
+|---|---|---|---|---|
 | **Dividend Growth Pullback Screener** (`dividend-growth-pullback-screener`) | Use this skill to find high-quality dividend growth stocks (12%+ annual dividend growth, 1.5%+ yield) that are experiencing temporary pullbacks, identified by RSI oversold conditions (RSI ≤40). | `fmp` **required**, `finviz` _recommended_ | workflow_step | production |
 | **Kanchi Dividend Review Monitor** (`kanchi-dividend-review-monitor`) | Monitor dividend portfolios with Kanchi-style forced-review triggers (T1-T5) and convert anomalies into OK/WARN/REVIEW states without auto-selling. | `fmp` _recommended_ | workflow_step | production |
 | **Kanchi Dividend SOP** (`kanchi-dividend-sop`) | Convert Kanchi-style dividend investing into a repeatable US-stock operating procedure. | `fmp` _recommended_ | workflow_step | production |
 | **Kanchi Dividend US Tax Accounting** (`kanchi-dividend-us-tax-accounting`) | Provide US dividend tax and account-location workflow for Kanchi-style income portfolios. | `local_calculation` — | workflow_step | production |
-| **Portfolio Manager** (`portfolio-manager`) | Comprehensive portfolio analysis using Alpaca MCP Server integration to fetch holdings and positions, then analyze asset allocation, risk metrics, individual stock positions, diversification, and generate rebalancing recommendations. | `alpaca` optional | workflow_step | production |
-| **US Undervalued Growth Screener** (`us-undervalued-growth-screener`) | Screen and rank US-listed small- and mid-cap undervalued-growth stocks with a generated stable-first FMP client, persistent SQLite cache, adaptive listing enumeration, FY1 estimate normalization, verified 20-day liquidity, deterministic four-lane discovery, forward same-basis valuation, standard and SBC-adjusted FCF, dilution, peer, cycle and LOE controls, strict final evaluation, prepublication audit, and a self-contained evidence bundle. | `fmp` _recommended_, `alternate_market_data` optional, `sec_edgar` **required**, `company_ir` **required**, `official_macro` **required**, `local_calculation` — | standalone | beta |
 | **Value Dividend Screener** (`value-dividend-screener`) | Screen US stocks for high-quality dividend opportunities combining value characteristics (P/E ratio under 20, P/B ratio under 2), attractive yields (3% or higher), and consistent growth (dividend/revenue/EPS trending up over 3 years). | `fmp` **required**, `finviz` _recommended_ | workflow_step | production |
 
 ### Swing Opportunity
@@ -225,13 +235,13 @@ The detailed catalog below is **auto-generated** from `skills-index.yaml` by `sc
 | **Position Sizer** (`position-sizer`) | Calculate risk-based position sizes for long stock trades. | `local_calculation` — | workflow_step | production |
 | **Pre-Trade Discipline Gate** (`pre-trade-discipline-gate`) | Offline manual-execution checklist gate that blocks planless, oversized, revenge-risk, market-regime-blocked, or circuit-breaker-blocked entries and journals the result. | `local_calculation` — | workflow_step | production |
 | **Technical Analyst** (`technical-analyst`) | This skill should be used when analyzing weekly price charts for stocks, stock indices, cryptocurrencies, or forex pairs. | `chart_image` **required**, `fmp` optional | workflow_step | production |
-| **US Stock Analysis** (`us-stock-analysis`) | Comprehensive US stock analysis including fundamental analysis (financial metrics, business quality, valuation), technical analysis (indicators, chart patterns, support/resistance), stock comparisons, and investment report generation. | `user_input` **required** | standalone | production |
+| **US Stock Analysis** (`us-stock-analysis`) | Comprehensive US stock analysis including fundamental analysis (financial metrics, business quality, valuation), technical analysis (indicators, chart patterns, support/resistance), stock comparisons, and investment report generation. | `user_input` **required**, `websearch` **required** | standalone | production |
 
 ### Trade Memory
 
 | Skill | Summary | Integrations | Role | Status |
 |---|---|---|---|---|
-| **Signal Postmortem** (`signal-postmortem`) | Record and analyze post-trade outcomes for signals generated by edge pipeline and other skills. | `local_calculation` — | workflow_step | production |
+| **Signal Postmortem** (`signal-postmortem`) | Record and analyze post-trade outcomes for signals generated by edge pipeline and other skills. | `local_calculation` —, `fmp` optional | workflow_step | production |
 | **Stockbee Setup Fluency Trainer** (`stockbee-setup-fluency-trainer`) | Build a Stockbee-style setup model book from momentum-burst screener candidates, then update 3-day and 5-day forward outcomes with MFE/MAE, stop-hit status, outcome tags, and cohort statistics. | `prices_json` optional, `fmp` optional, `local_calculation` — | workflow_step | beta |
 | **Trade Hypothesis Ideator** (`trade-hypothesis-ideator`) | Generate falsifiable trade strategy hypotheses from market data, trade logs, and journal snippets with ranked hypothesis cards and optional strategy.yaml export. | `local_calculation` — | workflow_step | production |
 | **Trade Performance Coach** (`trade-performance-coach`) | Review closed trades, partial exits, and monthly aggregates for process adherence, risk discipline, execution quality, and evidence-based trading behavior patterns, then produce next-session operating rules. | `local_calculation` — | workflow_step | beta |
@@ -403,39 +413,11 @@ Several skills require API keys for data access:
 
 ### Skills Requiring APIs
 
-| Skill | FMP API | FINVIZ Elite | Alpaca | Notes |
-|-------|---------|--------------|--------|-------|
-| **Economic Calendar Fetcher** | ✅ Required | ❌ Not used | ❌ Not used | Fetches economic events |
-| **Earnings Calendar** | ✅ Required | ❌ Not used | ❌ Not used | Fetches earnings dates |
-| **Institutional Flow Tracker** | ✅ Required | ❌ Not used | ❌ Not used | 13F filings analysis, free tier sufficient |
-| **Value Dividend Screener** | ✅ Required | 🟡 Optional | ❌ Not used | FINVIZ reduces execution time 70-80% |
-| **Dividend Growth Pullback Screener** | ✅ Required | 🟡 Optional | ❌ Not used | FINVIZ for RSI pre-screening |
-| **Kanchi Dividend SOP** | ❌ Not used | ❌ Not used | ❌ Not used | Knowledge workflow; uses outputs from other skills or manual lists |
-| **Kanchi Dividend Review Monitor** | ❌ Not used | ❌ Not used | ❌ Not used | Local rule engine; consumes normalized input JSON |
-| **Kanchi Dividend US Tax Accounting** | ❌ Not used | ❌ Not used | ❌ Not used | Knowledge workflow for classification/account location |
-| **Pair Trade Screener** | ✅ Required | ❌ Not used | ❌ Not used | Statistical arbitrage analysis |
-| **Options Strategy Advisor** | 🟡 Optional | ❌ Not used | ❌ Not used | FMP for stock data; theoretical pricing works without |
-| **Portfolio Manager** | ❌ Not used | ❌ Not used | 🟡 Optional | Alpaca MCP required for full brokerage analysis; local CSV or saved-positions review needs no credentials |
-| **CANSLIM Stock Screener** | ✅ Required | ❌ Not used | ❌ Not used | Phase 3.1 (7 components, multi-period RS); free tier sufficient for 35 stocks; Finviz web scraping for institutional data |
-| **VCP Screener** | ✅ Required | ❌ Not used | ❌ Not used | Stage 2 + VCP pattern screening; free tier sufficient |
-| **Parabolic Short Trade Planner** | ✅ Required | ❌ Not used | ✅ Phase 3 / 🟡 Phase 2 | FMP for Phase 1 screener; Alpaca required for Phase 3 intraday bars (paper feed OK), optional for Phase 2 borrow checks. No SDK — `requests` direct |
-| **FTD Detector** | ✅ Required | ❌ Not used | ❌ Not used | Index price data for rally/FTD detection |
-| **IBD Distribution Day Monitor** | ✅ Required | ❌ Not used | ❌ Not used | Daily QQQ/SPY OHLCV for Distribution Day detection |
-| **Macro Regime Detector** | 🟡 Optional | ❌ Not used | ❌ Not used | Keyless yfinance ETF history; optional FMP market and Treasury data |
-| **Market Breadth Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Uses free GitHub CSV data |
-| **Uptrend Analyzer** | ❌ Not used | ❌ Not used | ❌ Not used | Uses free GitHub CSV data |
-| **Sector Analyst** | ❌ Not used | ❌ Not used | ❌ Not used | Uses free GitHub CSV data; optional chart images |
-| **Theme Detector** | 🟡 Optional | 🟡 Optional | ❌ Not used | Core: FINVIZ public + yfinance (free). FMP for ETF holdings, FINVIZ Elite for stock lists |
-| **FinViz Screener** | ❌ Not used | 🟡 Optional | ❌ Not used | Public screener free; FINVIZ Elite auto-detected from `$FINVIZ_API_KEY` |
-| **Edge Candidate Agent** | ❌ Not used | ❌ Not used | ❌ Not used | Local YAML generation; validates against local pipeline repo |
-| **Trade Hypothesis Ideator** | ❌ Not used | ❌ Not used | ❌ Not used | Local JSON hypothesis pipeline with optional strategy export |
-| **Edge Strategy Reviewer** | ❌ Not used | ❌ Not used | ❌ Not used | Deterministic scoring on local YAML drafts |
-| **Edge Pipeline Orchestrator** | ❌ Not used | ❌ Not used | ❌ Not used | Orchestrates local edge skills via subprocess |
-| **Edge Signal Aggregator** | ❌ Not used | ❌ Not used | ❌ Not used | Aggregates local edge-skill JSON/YAML outputs into weighted ranked signals |
-| **Trader Memory Core** | 🟡 Optional | ❌ Not used | ❌ Not used | FMP only for MAE/MFE in postmortem; core features work offline |
-| **Exposure Coach** | 🟡 Optional | ❌ Not used | ❌ Not used | FMP only when institutional-flow-tracker data is included |
-| **Signal Postmortem** | 🟡 Optional | ❌ Not used | ❌ Not used | FMP for fetching realized returns; manual price entry also supported |
-| Dual-Axis Skill Reviewer | ❌ Not used | ❌ Not used | ❌ Not used | Deterministic scoring + optional LLM review |
+<!-- skills-index:start name="api-requirements-en" -->
+<!-- Generated by scripts/generate_catalog_from_index.py; do not edit by hand. -->
+
+For each skill's FMP, FINVIZ Elite and Alpaca requirements, see the [API Requirements Matrix](docs/en/skill-catalog.md#api-requirements-matrix), generated from [skills-index.yaml](skills-index.yaml). Check the [individual skill guides](docs/en/skills/index.md) for mode-specific prerequisites and offline alternatives before configuring credentials.
+<!-- skills-index:end name="api-requirements-en" -->
 
 ### API Setup
 

@@ -13,6 +13,7 @@ consumers:
   - market-environment-analysis
   - market-top-detector
   - parabolic-short-trade-planner
+  - stockbee-momentum-burst-screener
   - theme-detector
 
 # Existing imports needed for a true standalone ``--help`` smoke. The shared
@@ -30,11 +31,13 @@ additional_requirements:
       optional: FMP success path never depends on it; fallback returns None
   parabolic-short-trade-planner:
     - requests>=2.31.0
+  stockbee-momentum-burst-screener:
+    - requests>=2.31.0
   theme-detector:
     - requirement: curl-cffi>=0.7.0
       optional: yfinance transport exception support; FMP remains available without it
-    - requirement: finvizfinance>=1.0.0
-      optional: FINVIZ client degrades to static config (HAS_FINVIZFINANCE)
+    - requirement: 'finvizfinance>=1.5.0; python_version >= "3.10"'
+      optional: Public FINVIZ needs Python3.10+; Elite groups use requests
     - numpy>=1.26.0
     - pandas>=2.0.0
     - pyyaml>=6.0

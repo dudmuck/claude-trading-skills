@@ -11,7 +11,7 @@ permalink: /en/skills/kanchi-dividend-sop/
 # Kanchi Dividend SOP
 {: .no_toc }
 
-Convert Kanchi-style dividend investing into a repeatable US-stock operating procedure. Use when users ask for かんち式配当投資, dividend screening, dividend growth quality checks, PERxPBR adaptation for US sectors, pullback limit-order planning, or one-page stock memo creation. Covers screening, deep dive, entry planning, and post-purchase monitoring cadence.
+Convert Kanchi-style dividend investing into a repeatable US-stock operating procedure. Use when users ask for Kanchi-style dividend investing, dividend screening, dividend growth quality checks, PERxPBR adaptation for US sectors, pullback limit-order planning, or one-page stock memo creation. Covers screening, deep dive, entry planning, and post-purchase monitoring cadence.
 {: .fs-6 .fw-300 }
 
 <span class="badge badge-free">No API</span>
@@ -80,6 +80,56 @@ python3 skills/kanchi-dividend-sop/scripts/build_entry_signals.py \
 ```
 
 ---
+
+### Entry CLI options and input boundaries
+
+These options belong to `skills/kanchi-dividend-sop/scripts/build_entry_signals.py`.
+The entry CLI fetches current provider data; an evaluation date alone does not
+turn those downloads into a complete point-in-time data snapshot.
+
+| Option | Meaning |
+| --- | --- |
+| `--tickers` | Comma-separated symbols; a nonempty list takes precedence over `--input`. |
+| `--input` | JSON containing candidates/stocks/tickers. Only ticker identities are consumed; supplied screening prices or financial values do not replace provider data. |
+| `--alpha-pp` | Yield increment in percentage points; default `0.5`. |
+| `--yield-floor` | Explicit Step 1 yield floor in percent (for example `3.0`). Default is unset; enables the Step 1/Data Freshness assessment when supplied. |
+| `--financials-json` | Per-ticker sourced financial overrides, with units, source, as-of date and document reference; accepted values are recorded as MANUAL. Documents are not fetched or verified. |
+| `--yield-history-json` | Verified per-ticker dividend rows, daily closes and splits with a non-empty `source`; replaces the fetched rows for that ticker when rebuilding the regular-only 5-year average yield. Each ticker needs `price_basis: split_adjusted` and a `splits` list. A dividend row may carry `kind` (`special`, `exclude` or `combined` with `regular_amount`) with a non-empty `kind_source`; a Special row without `kind` is rejected. Supplied rows replace the fetched dividend history for that ticker, including the current numerator. Invalid input exits with code 2. A bare average number is never accepted. |
+| `--events-json` | Curated corporate-event evidence for the event scan. Missing file option yields SKIPPED; an absent ticker yields NO_EVENT_FOUND. These do not establish a completed clean event review. |
+| `--as-of` | Evaluation date `YYYY-MM-DD`; defaults to the local current date. |
+| `--profile` | Profile label such as income-now/balanced/growth-first, recorded in run context. Does not automatically set `--yield-floor` or other thresholds. |
+| `--safety-bias` | tight/medium label recorded in run context; does not itself change payout-safety rules. |
+| `--universe-source` | Universe-origin provenance label recorded in run context; does not select or fetch a universe. |
+| `--output-dir` | Output directory; default `reports`. |
+| `--filename-prefix` | Output filename prefix; default `kanchi_entry_signals`. |
+| `--sleep-seconds` | Provider-call pacing; default `0.15` seconds. |
+
+Choose thresholds explicitly and review the recorded evidence. Event evidence is
+curated input, not an automatic WebSearch performed by this CLI. The existing
+withheld-target restriction still applies: adding flags or labels does not make
+an unverifiable buy target actionable. Use the sourced-financial input contract with `--financials-json` for financial
+overrides rather than placing them in `--input`.
+
+### Regular-only 5-year average yield (issue #834)
+
+The buy target no longer relies on provider annual yield ratios, which include
+special dividends. For each ticker the CLI fetches daily closes and splits and
+rebuilds the average from dividend rows: `latest_declared_annualized` divided by
+the split-adjusted `close` at the last trading day of each of the 60 months ending
+with the last completed month (`month_end_60_regular_only_v1`). Months with an
+irregular cadence, a variable policy, an abnormal gap between the last two regular
+payments (frequency switches, prorated stubs) or a conflicting FMP `frequency` are
+dropped. The average is withheld when price or dividend history is shorter than
+5 years, when fewer than 90% of the months validate, or when a split falls inside
+the window and a dividend row has no `adjDividend`. Withheld rows keep the existing
+`regular_only_average_unavailable` behavior and list the reasons in `notes` with a
+`yield_history:` prefix. FMP rows with `frequency: Special` are treated as special
+dividends. Specials are classified once on the full history as of the run date, and the average is also withheld when the split history is unknown or a split is dated on or after the window start while a dividend row lacks `adjDividend`. Months with a stale pre-suspension amount are dropped. After a dividend cut the point-in-time declared rate is kept and `cut_in_window` is recorded without withholding the average. A regular payment more than 25% above the median of the regular payments before its run is unconfirmed until a second payment repeats the amount, so a genuine raise is confirmed at its second payment and a raise of 25% or less is never withheld. An observation whose latest used payment is unconfirmed is invalid. If the current latest regular payment is `Irregular` or unconfirmed, the target is withheld with `latest_dividend_unconfirmed`. Known limitation: a combined regular-plus-special row less than 25% above the regular level inside the history cannot be detected from data alone; correct it with `kind: combined`. JSON rows carry a `yield_history` summary; the CSV adds
+`yield_history_status`, `yield_window_start`, `yield_window_end`,
+`yield_coverage_ratio` and `yield_method`. The other order gates are unchanged:
+`order_ready` still needs a `CLEAN_CONFIRMED` event scan (`--events-json`) and
+sourced adjusted EPS or the sector metric (`--financials-json`).
+
 
 ## 4. Quick Start
 
@@ -167,6 +217,14 @@ Record one-line evidence for each `FAIL` to keep auditability.
 
 Set entry triggers mechanically:
 - Yield trigger: current yield above 5y average yield + alpha (default `+0.5pp`).
+- **Current CLI limitation (Issue #769)**: the provider's five-year average
+  includes an unverified regular/special mix. The CLI currently emits no buy
+  targets, including for issuers with no detected specials, until a matching
+  regular-only historical average is available. It emits
+  `ASSUMPTION-REQUIRED`, the withholding reason, and a non-actionable
+  `HOLD-REVIEW` cap with T1 blocked (stricter FAIL/recheck decisions remain).
+  Do not infer a replacement entry price from the provider diagnostic average
+  or register these rows as actionable theses.
 - Valuation trigger: target multiple reached (`P/E`, `P/FFO`, or `P/FCF`).
 
 Execution pattern:
@@ -194,3 +252,18 @@ Always produce three artifacts:
 
 - `skills/kanchi-dividend-sop/scripts/build_entry_signals.py`
 - `skills/kanchi-dividend-sop/scripts/build_sop_plan.py`
+
+## Sourced financial metrics
+
+Pass `--financials-json financials.json` to re-run with per-ticker adjusted EPS,
+FFO/debt, bank, insurer or REIT metrics. Each value needs a unit, source,
+`as_of` date and document reference. Accepted values are recorded as MANUAL;
+source documents are user assertions and are not fetched or verified. Invalid
+inputs keep HOLD-REVIEW with explicit reasons; existing FAIL stays FAIL.
+See the [complete schema, fictional example and metric table](https://github.com/tradermonty/claude-trading-skills/blob/main/skills/kanchi-dividend-sop/references/sourced-financials.md).
+
+Use `order_ready` in JSON/CSV/Markdown as the aggregate screening readiness flag.
+It requires TRIGGERED timing, CLEAN-PASS or CONDITIONAL-PASS, no final T1 block,
+and no pre-order blockers. PASS-CAUTION is false. `event_t1_blocked` is event-only;
+legacy `t1_blocked` is the final T1 restriction and may be false with open
+blockers. Screening readiness does not authorize a trade.

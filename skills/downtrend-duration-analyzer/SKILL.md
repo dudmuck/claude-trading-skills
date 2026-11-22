@@ -23,6 +23,26 @@ Analyze historical price data to identify downtrend periods (peak-to-trough) and
 - FMP API key (set `FMP_API_KEY` environment variable or use `--api-key`)
 - Required packages: `requests`, `pandas`, `numpy` (standard data analysis stack)
 
+The generated FMP client calls `/stable/company-screener` and
+`/stable/historical-price-eod/full` only. A legacy-only plan can no longer use
+the removed v3 fallback. The stock filters and explicit historical date range
+are unchanged; stable flat OHLCV rows are sorted oldest first without a row
+limit. Empty history stays empty, and malformed history is reported and skipped
+without filling missing prices. One HTTP session is reused for the run and
+closed on exit. Shared transport adds 0.3-second pacing, one 60-second retry on
+HTTP 429, and one retry on malformed JSON; credentials are redacted in errors.
+
+Reports carry the shared top-level `evaluation_coverage` block (#711). A symbol
+is evaluated when its history has enough bars for the peak/trough windows. Empty
+or short histories are `insufficient_history`, and failures are `rate_limited`,
+`plan_gated`, `provider_error` or `invalid_data`. A second HTTP 429 (daily
+limit) or an HTTP 401/402/403 on history stops the run at that symbol, and the
+symbols after it are `not_requested`. If nothing was evaluated by then, the run
+exits 1 without a report. Otherwise the report is written with verdict
+`partial`. Other failures are counted and the run goes on. Read the verdict
+before the statistics: exit 0 means the report was written, not that every
+symbol was evaluated.
+
 ## Workflow
 
 ### Step 1: Fetch Historical Price Data
@@ -86,6 +106,14 @@ Load the generated markdown report to interpret the findings:
     "p25_duration_days": 10,
     "p75_duration_days": 32,
     "p90_duration_days": 55
+  },
+  "evaluation_coverage": {
+    "schema_version": "1.0",
+    "universe_size": 100,
+    "evaluated": 97,
+    "not_evaluated": 3,
+    "not_evaluated_reasons": {"insufficient_history": 3},
+    "verdict": "partial"
   },
   "by_sector": {
     "Technology": {

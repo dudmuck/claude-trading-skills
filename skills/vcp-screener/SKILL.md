@@ -160,7 +160,57 @@ For each top candidate, present:
 2. **Trend Template** - 7-point Stage 2 filter with 260-day histories ~100 API calls
 3. **VCP Detection** - Pattern analysis, scoring, report generation (no additional API calls)
 
+### Consumed price-bar data quality
+
+VCP detection requires actual positive, finite, non-boolean high, low and close
+observations on every bar of its selected lookback window. Missing highs/lows
+are not synthesized from closes, and missing bars are not dropped or compressed.
+Invalid observations return `data_available: false`, dated `data_gaps`, and an
+error; the internal zero score is an unavailable placeholder, not a measured
+absence of a pattern. Such analyses do not enter composite ranking. The current
+screening pipeline records failed evaluation through its coverage reporting.
+
+Apply the same shared validation to RS return endpoints (stock and benchmark),
+Trend Template moving-average windows, consumed volume averages/contraction zones
+and price comparisons, and the stale-price window. Close-based components may use
+`adjClose` only when `close` is absent, never to replace an explicitly invalid
+close. Finite zero volume is valid; zero/negative prices are not. Quote liquidity
+keeps the existing `avgVolume`-or-session-`volume` selection (including the session
+fallback for zero average volume);
+missing or non-finite selected volume is unavailable, not an illiquid observation.
+Validate values only within each consumed window; preserve row positions and
+ignore unused older values. History dates must still be distinct and newest-first.
+
+Exclude affected candidates before composite/percentile ranking and report them
+under `metadata.price_bar_gap_exclusions` with symbol, dated reason and `data_gaps`.
+Markdown includes an incomplete-screening warning and reason list; the console
+prints the exclusion count. Quote gaps identify the quote and use its supplied
+date, or explicitly say `quote (date unavailable)`; never invent a session date.
+Insufficient-length returns retain their existing zero score/error without a
+price-gap flag, matching the pattern calculator. Direct analysis and historical
+scans retain this legacy behavior; cross-sectional screening still requires its
+existing minimum history. Candidate JSON excludes price-gap analyses, so downstream
+consumers do not receive gap-placeholder scores as valid candidates. Healthy candidate
+and report output is unchanged.
+
+Historical scans validate each as-of pattern window before quote synthesis.
+If any consumed window is invalid, the Python API raises `VCPPriceDataError`
+(a `ValueError` with dated `data_gaps`); the CLI exits 1 before writing reports,
+rather than presenting incomplete analysis as zero detections. More recent bars
+than the as-of date remain excluded. Synthetic quotes also require every high/low
+in the trailing year window, every volume in the trailing 50-bar window, and the
+as-of close. Invalid lows are not filtered out of the minimum. Component gaps,
+including benchmark RS gaps, abort the scan rather than being reported as no pattern.
+
 ## Output
+
+Read the top-level `evaluation_coverage` block before interpreting candidates.
+Reports show evaluated / total and `complete`, `partial` or `not_evaluable`.
+Incomplete coverage means a zero-candidate result is **undetermined**, not an
+absence of opportunities. Valid filter rejections count as evaluated; missing
+quotes, insufficient history, provider failures and candidate-cap exclusions do
+not. Candidate analysis requires 253 usable stock and benchmark sessions: each row needs a valid ISO date and finite positive prices, dates must be distinct and newest-first (duplicate, undated or out-of-order history is not evaluated).
+Do not treat successful report generation as complete evaluation.
 
 - `vcp_screener_YYYY-MM-DD_HHMMSS.json` - Structured results
 - `vcp_screener_YYYY-MM-DD_HHMMSS.md` - Human-readable report

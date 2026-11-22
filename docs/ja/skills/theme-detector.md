@@ -64,14 +64,14 @@ Theme Detectorは、FINVIZの業種・セクターパフォーマンスデータ
 
 | 項目 | 要否 | 説明 |
 |------|------|------|
-| Python 3.9+ | 必須 | スクリプト実行用 |
+| Python 3.9+ | 必須 | core/Elite経路。公開FINVIZはPython 3.10以上が必要 |
 | `requests` | 必須 | HTTP通信 |
 | `beautifulsoup4` | 必須 | FINVIZ HTMLスクレイピング |
 | `lxml` | 必須 | HTML解析 |
 | `pandas` | 必須 | データ集計・分析 |
 | `numpy` | 必須 | 数値計算 |
 | `yfinance` | 必須 | ETFデータ取得 |
-| `finvizfinance` | 任意 | FINVIZ Eliteモード用 |
+| `finvizfinance>=1.5.0` | 任意 | Python 3.10以上での公開スクレイピング用。Eliteの業種取得には不要 |
 | `PyYAML` | 任意 | `--themes-config` カスタムテーマ用 |
 | FINVIZ Elite APIキー | 任意 | 高速モード（2-3分 vs 5-8分）、全業種フルカバレッジ |
 | FMP APIキー | 任意 | P/Eバリュエーションデータの取得 |
@@ -516,3 +516,54 @@ python3 skills/theme-detector/scripts/theme_detector.py [OPTIONS]
 | `skills/theme-detector/scripts/theme_classifier.py` | テーマ分類エンジン |
 | `skills/theme-detector/scripts/finviz_industry_scanner.py` | FINVIZデータ収集 |
 | `skills/theme-detector/scripts/calculators/lifecycle_calculator.py` | ライフサイクル評価 |
+
+## 業種データ取得と失敗時の動作
+
+レポートの`metadata.finviz_mode`と
+`metadata.data_sources.finviz_industry_performance.source`には、実際に業種データを
+取得したソースを記録します。要求モードは`metadata.finviz_mode_requested`に残します。
+`data_mode`は業種ソースとFMPキーの有無を反映し、FMP取得の成功を保証しません。
+Eliteから公開データに切り替わった場合は、安全な`fallback_reason`と品質警告を
+JSON・Markdownに出力します。動的な代表銘柄選択は独立した取得方針と銘柄別ソースを維持します。
+`finviz_industries`は取得行数のままで、完全性を保証しません。Elite CSVのセクターが11行未満、
+業種が100行未満の場合は途中で切れたものとみなし（`fallback_reason: too_few_rows`）、公開データに切り替えます。
+
+`skills/theme-detector/requirements.txt`を使って対応依存と固定カレンダーを
+インストールしてください。公開FINVIZはPython 3.10以上とfinvizfinance>=1.5.0が必要です。
+Python 3.9ではこの任意依存を省略し、Elite経路を利用できます。古いライブラリが
+残っていても、Python 3.9の公開グループ取得は使用しません。
+
+キーが設定されていれば、業種・セクターのパフォーマンスは認証付きElite CSVを優先します。
+失敗・空データ・不正CSVは警告し、対応Python上の公開スクレイピングへ移ります。
+`--finviz-mode public`は、環境変数FINVIZ_API_KEYがあってもEliteへ送信しません。
+CSVの百分率は0.12%・負数・ゼロも含め比率へ正規化し、パイプラインで一度だけ百分率へ戻します。
+
+両方の取得元が失敗した場合は、依存更新・キー・アクセス確認を案内して終了1になります。
+新規レポートは作らず、診断にキー・応答本文・リクエストURL・例外原文は出しません。
+同じ銘柄を持つ複数のproxy ETFも、理由を両方保持して安全に統合します。
+未採点の保有銘柄はcomposite_scoreを0とし、存在する最大スコアは維持します。
+
+回帰検証は架空CSVとETF応答を使用し、ライブFINVIZへの接続成功や売買性能は保証しません。
+
+
+## FINVIZ Elite の代表銘柄ランキング
+
+動的な代表銘柄選択では `c=1,6,66,67` を指定し、Ticker・Market Cap・Change・Volume を
+取得します。銘柄フィルターは変えず、既存の時価総額40%・方向別騰落率30%・出来高30%の
+順位スコアに出来高が届くようにするため、代表銘柄の順位が変わる場合があります。
+Theme Heat や株式リーダーシップの重みは変わりません。Elite の時価総額は引き続き
+百万ドル単位からドルに変換し、公開データの解析は維持します。
+
+架空の2銘柄で、時価総額20億ドル・+4%・出来高10万株は、出来高未取得時には0.7857で先頭、
+10億ドル・+5%・出来高900万株は0.7143でした。出来高を取得すると、それぞれ0.7000と0.8000に
+なり順位が逆転します。これは回帰テスト用の例で、ライブの実績ではありません。
+
+Volume 列の欠損や行単位の不正値は警告します。不明な値は銘柄詳細に `volume: null` として
+残し、従来どおり残った要素で重みを再正規化します。有効なゼロ出来高は欠損扱いにしません。
+取得元のフォールバック順序は維持します。
+
+## 生成FMPクライアント
+
+株価・full EOD履歴・ETF構成銘柄は、同梱の生成クライアントからstable APIを利用します。クエリ認証・15秒timeout・固定分類の診断を使い、旧APIへの切替と、空データでエンドポイント全体を無効化する処理を廃止します。銘柄の別表記・cache・1銘柄ずつの取得・as-of制約・yfinanceへの切替・選定/ランキングは保持します。
+
+各論理操作でセッションを所有し、終了時に閉じます。操作間の待機は保持し、再試行には共通transportの待機を適用します（429と不正JSONの制限付き再試行）。その他の失敗では既存の代替データソースへ進みます。fmp_calls/fmp_failuresは論理的なstable操作の件数で、再試行のHTTP回数ではありません。キーなしでHTTPクライアントを読み込まず、FMPなしの経路を保持します。FINVIZの処理は変更しません。オフライン検証は実APIの契約可否・価格調整精度・戦略性能の証明ではありません。

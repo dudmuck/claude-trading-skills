@@ -35,7 +35,18 @@ When coaching is skipped, the coach decision and its source hashes are null.
 The replay decision fixtures are fictional human inputs. Final `human_approved`
 ratifies that recorded coach decision and the separate postmortem-driven
 `trade_rule_changes`; these suggestions are not automatically active rules.
-Both final artifacts report `rule_activation: not_performed`. The local approved
-rule ledger, effective dates, expiry/supersession, pre-trade integration, and next
-month's adherence review remain unimplemented under #514. Neither a successful
-replay nor its final approval places trades or writes broker state.
+Both final artifacts report `rule_activation: not_performed`. Activation is an
+explicit follow-up: `skills/pre-trade-discipline-gate/scripts/manage_approved_rules.py
+activate` reads either artifact shape (the replay shape `06_rule_changes_for_next_month.yaml`
+with `coach_rule_decision`, or the sample shape with `rules[]`) and writes a local
+approved-rule ledger with effective and review dates, expiry, supersession, and an
+append-only history. Pass `--effective-date` and `--confirm-activation`; the replay shape
+also needs `--review-after`, the sample shape needs `--source-review-id`, and
+`--include-trade-rule-changes` opts in to the postmortem-driven `trade_rule_changes`
+(the only path when the coach step was skipped). `check_pre_trade_discipline.py
+--approved-rules-ledger` then requires an acknowledgement for each applied rule. Adherence feedback is a manual input of step 6, not a replayed step: after a month ends,
+`skills/pre-trade-discipline-gate/scripts/review_rule_adherence.py --month <month>` counts the
+gate acknowledgements of each approved rule from the gate journal into a local report, and the
+human reads it at step 6. The replay does not consume or validate that report, and it never
+changes the ledger.
+Neither a successful replay nor its final approval places trades or writes broker state.

@@ -21,7 +21,8 @@ Purpose-specific skillset bundles for the solo-trader OS. A skillset is a catego
 | Skillset | Timeframe | API profile | Difficulty | Related workflows |
 |---|---|---|---|---|
 | [`core-portfolio`](#core-portfolio) — Core Portfolio | weekly | mixed | beginner | `core-portfolio-weekly` |
-| [`market-regime`](#market-regime) — Market Regime | daily | no-api-basic | beginner | `market-regime-daily` |
+| [`dividend-income`](#dividend-income) — Dividend Income | weekly | mixed | intermediate | `kanchi-dividend-weekly` |
+| [`market-regime`](#market-regime) — Market Regime | daily | mixed | beginner | `market-regime-daily` |
 | [`strategy-research`](#strategy-research) — Strategy Research | research | no-api-basic | advanced | `strategy-research-pipeline` |
 | [`swing-opportunity`](#swing-opportunity) — Swing Opportunity | daily | fmp-required | intermediate | `swing-opportunity-daily` |
 | [`trade-memory`](#trade-memory) — Trade Memory | event-driven | no-api-basic | beginner | `trade-memory-loop`, `monthly-performance-review` |
@@ -48,9 +49,29 @@ Purpose-specific skillset bundles for the solo-trader OS. A skillset is a catego
 
 ---
 
+## Dividend Income {#dividend-income}
+
+**`dividend-income`** · weekly · mixed · intermediate
+
+**When to use:** Source and underwrite new US-listed dividend candidates once a week with Kanchi's 5-step method: screen for yield and quality, deep-dive the strongest names, and register a fully documented candidate thesis before any entry. Operationalized by the kanchi-dividend-weekly workflow (v1 covers US-listed dividend stocks only).
+
+**When NOT to use:** Do not use this bundle for Japanese or other non-US-listed dividend stocks, and do not treat Kanchi-style screening as a buy signal or a claim of profitability. It is not for maintaining an existing holding; that is the core-portfolio sleeve. No order is placed automatically; every buy is entered manually at the broker.
+
+**Target users:** `long-term-investor`, `dividend-investor`
+
+**Required skills:** `kanchi-dividend-sop`, `trader-memory-core`
+
+**Recommended skills:** `value-dividend-screener`, `dividend-growth-pullback-screener`
+
+**Optional skills:** `kanchi-dividend-us-tax-accounting`, `kanchi-dividend-review-monitor`
+
+**Related workflows:** `kanchi-dividend-weekly`
+
+---
+
 ## Market Regime {#market-regime}
 
-**`market-regime`** · daily · no-api-basic · beginner
+**`market-regime`** · daily · mixed · beginner
 
 **When to use:** The shared risk layer for every trading day. Use before considering new swing-trade risk to decide today's exposure posture (allow / restrict / cash-priority) from breadth, uptrend participation, and top-risk signals. Operationalized daily by the market-regime-daily workflow.
 

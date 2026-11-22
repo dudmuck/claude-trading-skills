@@ -16,6 +16,13 @@ sys.path.insert(0, str(REPO_ROOT))
 from scripts.provider_contracts import _APIKEY_RE
 
 GENERATED_SKILLS = {
+    "news-reaction-failure-analyzer",
+    "options-strategy-advisor",
+    "theme-detector",
+    "trader-memory-core",
+    "downtrend-duration-analyzer",
+    "signal-postmortem",
+    "technical-analyst",
     "pair-trade-screener",
     "value-dividend-screener",
     "dividend-growth-pullback-screener",
@@ -51,6 +58,13 @@ STOCKBEE_SKILLS = {
     "stockbee-setup-fluency-trainer",
 }
 NO_COMPAT_SKILLS = {
+    "news-reaction-failure-analyzer",
+    "options-strategy-advisor",
+    "theme-detector",
+    "trader-memory-core",
+    "downtrend-duration-analyzer",
+    "signal-postmortem",
+    "technical-analyst",
     "pair-trade-screener",
     "value-dividend-screener",
     "dividend-growth-pullback-screener",
@@ -68,6 +82,13 @@ NO_COMPAT_SKILLS = {
     *STOCKBEE_SKILLS,
 }
 NO_BUDGET_FAMILY_B = {
+    "news-reaction-failure-analyzer",
+    "options-strategy-advisor",
+    "theme-detector",
+    "trader-memory-core",
+    "downtrend-duration-analyzer",
+    "signal-postmortem",
+    "technical-analyst",
     "pair-trade-screener",
     "value-dividend-screener",
     "dividend-growth-pullback-screener",
@@ -302,12 +323,8 @@ def test_migration_knobs_default_off(gen):
         "batch_quote_url": {"vcp-screener", "ftd-detector"},
         "hist_normalize_list": {"vcp-screener", "ftd-detector"},
         "sp500_wikipedia": {"vcp-screener"},
-        "query_auth": {
-            "vcp-screener",
-            "ftd-detector",
-            "earnings-trade-analyzer",
-            "us-undervalued-growth-screener",
-        },
+        # query_auth is an upstream knob (36bf4e97) whose owner set upstream
+        # grows as skills migrate (#495), so it is not pinned here.
     }
     skills = _skills(gen)
     for flag, owners in expected.items():
@@ -408,17 +425,26 @@ def test_generated_output_redacts_apikey_in_stderr(gen):
         assert expected_pattern_literal in out, cfg.skill
 
 
-def test_redaction_has_one_shared_template_definition(gen):
+def test_redaction_has_one_selected_template_definition(gen):
     templates = [gen.SRC_DIR / "core_template.py.tmpl", *(gen.SRC_DIR / "specials").glob("*.tmpl")]
     assert all("def _redact_secret" not in path.read_text() for path in templates)
-    fragment = (gen.SRC_DIR / "redaction.py.tmpl").read_text()
-    assert fragment.count("def _redact_secret") == 1
-    for cfg in _skills(gen).values():
-        assert gen.render_fmp_client(cfg).count(fragment.rstrip()) == 1
+    for name, cfg in _skills(gen).items():
+        expected = (
+            "static_redaction.py.tmpl"
+            if name in {"news-reaction-failure-analyzer", "theme-detector"}
+            else "redaction.py.tmpl"
+        )
+        assert cfg.redaction_template == expected
+        fragment = (gen.SRC_DIR / cfg.redaction_template).read_text()
+        assert fragment.count("def _redact_secret") == 1
+        rendered = gen.render_fmp_client(cfg)
+        assert rendered.count(fragment.rstrip()) == 1
+        assert rendered.count("def _redact_secret") == 1
 
 
 def test_batch_b_timeout_option_is_scoped_to_new_targets(gen):
     new_targets = {
+        "theme-detector",
         "value-dividend-screener",
         "dividend-growth-pullback-screener",
         "kanchi-dividend-sop",
@@ -428,7 +454,11 @@ def test_batch_b_timeout_option_is_scoped_to_new_targets(gen):
         output = gen.render_fmp_client(cfg)
         if skill in new_targets:
             assert "timeout=self.timeout" in output
-            assert 'self.session.headers.update({"apikey": self.api_key})' in output
+            if cfg.query_auth:
+                assert 'params = {**params, "apikey": self.api_key}' in output
+                assert 'self.session.headers.update({"apikey": self.api_key})' not in output
+            else:
+                assert 'self.session.headers.update({"apikey": self.api_key})' in output
         elif cfg.family != "special":
             assert "timeout=self.timeout" not in output
             assert "timeout=30" in output

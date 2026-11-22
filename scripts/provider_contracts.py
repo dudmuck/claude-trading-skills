@@ -487,7 +487,8 @@ def _coerce_cell(cell: str | None) -> Any:
 
     ``nan`` / ``inf`` / non-finite literals stay strings on purpose: the
     breadth consumer rejects them, so a numeric column holding one must show
-    up as ``wrong_type`` rather than pass as a float.
+    up as ``wrong_type`` rather than pass as a float. Rejected integer
+    conversions raise a fixed-message ``csv.Error`` for the fetch wrapper.
     """
     if cell is None:
         return None
@@ -500,7 +501,13 @@ def _coerce_cell(cell: str | None) -> Any:
     if lowered == "false":
         return False
     if _INT_RE.match(text):
-        return int(text)
+        try:
+            return int(text)
+        except ValueError:
+            # The interpreter's integer digit limit can reject a field smaller
+            # than CSV/body limits. Use the existing whole-response parse_error
+            # path without exposing the cell or changing process-wide limits.
+            raise csv.Error("Integer cell exceeds supported conversion limits") from None
     if _FLOAT_RE.match(text):
         value = float(text)
         return value if math.isfinite(value) else cell
@@ -510,15 +517,29 @@ def _coerce_cell(cell: str | None) -> Any:
 def parse_csv_rows(text: str) -> tuple[list[dict[str, Any]], list[Anomaly]]:
     """Parse CSV text into coerced rows plus parse-level anomalies (stdlib ``csv``).
 
-    Strips a UTF-8 BOM, reads the header, and coerces each cell with
-    ``_coerce_cell``. A short row maps its missing cells to ``None``. A row
+    Strips a UTF-8 BOM, rejects blank/duplicate header names, and coerces
+    each cell with ``_coerce_cell``. Integer conversion limits, NUL input and
+    malformed quoting raise ``csv.Error``; callers discard any valid
+    prefix. A short row maps its missing cells to ``None``. A row
     with extra cells yields one FATAL ``extra_cells`` anomaly and keeps only
     the header keys, so no ``None`` key ever reaches ``validate_rows``.
     A header-only (or empty) body returns ``[]``.
     """
     if text.startswith("\ufeff"):
         text = text[1:]
-    reader = csv.DictReader(io.StringIO(text), restkey=_CSV_EXTRA_KEY)
+    if "\x00" in text:
+        raise csv.Error("NUL byte in CSV input")
+    reader = csv.DictReader(io.StringIO(text), restkey=_CSV_EXTRA_KEY, strict=True)
+    # DictReader otherwise silently overwrites duplicate columns before any
+    # required-field/type check sees them. Keep field identity exact: neither
+    # strip nor casefold provider names to make a malformed header look valid.
+    header = reader.fieldnames
+    if header is None:
+        return [], []
+    if not header or any(not name.strip() for name in header):
+        return [], [Anomaly("blank_header", FATAL)]
+    if len(set(header)) != len(header):
+        return [], [Anomaly("duplicate_header", FATAL)]
     rows: list[dict[str, Any]] = []
     anomalies: list[Anomaly] = []
     for raw in reader:

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -120,6 +121,15 @@ def parse_occ(sym: str):
     return root, yymmdd, (cp == "C"), int(strike8) / 1000.0
 
 
+def _positive_price(value):
+    """A finite, positive price, or None when the field is missing or unusable."""
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    return price if math.isfinite(price) and price > 0 else None
+
+
 def extract_spot(data: dict, prefer_session_close: bool = False):
     """Pick a spot price from a CBOE payload. Returns (spot, source, candidates).
 
@@ -161,8 +171,8 @@ def extract_spot(data: dict, prefer_session_close: bool = False):
     Both candidates are returned so callers can record them and make a future
     divergence visible instead of silent.
     """
-    cur = float(data.get("current_price") or 0)
-    close = float(data.get("close") or 0)
+    cur = _positive_price(data.get("current_price")) or 0.0
+    close = _positive_price(data.get("close")) or 0.0
     candidates = {"current_price": cur or None, "close": close or None}
 
     if prefer_session_close and close > 0:

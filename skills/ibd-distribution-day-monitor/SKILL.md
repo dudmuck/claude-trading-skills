@@ -5,6 +5,10 @@ description: Detect IBD-style Distribution Days for QQQ/SPY (close down at least
 
 # IBD Distribution Day Monitor
 
+## Instrument identity (#765)
+
+QQQ is a Nasdaq-100 ETF proxy, not the Nasdaq Composite (`^IXIC`). SPY is an ETF proxy, not `^GSPC`. DD counts use the named symbol's own price and volume; ETF counts are not official index counts. Select explicit symbols with `--symbols`; missing data must not trigger substitution or a mixed series. The risk classes and TQQQ policy are this tool's separate heuristics, not a calibrated FTD success probability (calibration remains #676).
+
 ## Purpose
 Detect IBD-style Distribution Days for major market ETFs (QQQ as Nasdaq proxy, SPY as S&P 500 proxy) and produce a daily market deterioration signal plus a TQQQ/QQQ exposure recommendation. Designed for post-market review.
 
@@ -19,9 +23,16 @@ Do NOT use this skill to:
 - Execute trades or modify orders.
 - Generate discretionary market predictions outside of the IBD ruleset.
 
+## Prerequisites
+
+- **FMP API key:** Required. Pass `--api-key`, set `config.data.api_key`, or set the `FMP_API_KEY` environment variable, in that priority order.
+- **Other API keys:** None used.
+- **Python:** 3.9+ with `PyYAML>=6.0` and `requests>=2.31.0` (see `requirements.txt`).
+
 ## Inputs
 - Symbols (default: QQQ, SPY) and lookback (default 80 trading sessions).
 - Optional `--as-of YYYY-MM-DD` for backtesting against a historical session.
+- Optional `--config` for a readable UTF-8 YAML mapping. Empty/null documents use defaults. Configuration read/parse errors and invalid top-level, `data`, `strategy_context` or `indexes` shapes return exit 1 on stderr before provider access; correct the file/path and retry. YAML error diagnostics do not echo file contents.
 - Strategy context: instrument (TQQQ or QQQ), current exposure %, base trailing stop %.
 - FMP API key via `--api-key`, `config.data.api_key`, or `FMP_API_KEY` env var (in that priority order).
 
@@ -102,3 +113,9 @@ FMP API key required. Free tier (250 calls/day) is sufficient for daily QQQ + SP
 - `ftd-detector`: Bottom confirmation via Follow-Through Days (counterpart of this top-side signal).
 - `market-top-detector`: Composite 0-100 top probability score using O'Neil distribution + other components.
 - `position-sizer`: Convert risk-management recommendations into share counts.
+
+## Close-price quality and incomplete evidence
+
+Accept finite positive numeric closes (including numeric strings). Treat missing/null, boolean, nonnumeric, non-finite, zero and negative closes as unavailable. Retain their dated session slots: never join sessions across a price gap for DD detection, age counting or moving averages. Audit skipped calculations by date. EMA requires valid closes throughout its input history; SMA requires a valid latest-period window. Unavailable or overflowed MA comparisons and the combined filter are null, not bearish signals.
+
+Historical `--as-of` reports audit only the effective history; future close defects do not affect historical exposure decisions. Overflowed price returns or DD invalidation thresholds are null with audit evidence; an unavailable threshold cannot invalidate a DD. Counts/risk from incomplete prices are observations, not evidence of safety. If either effective index has invalid closes or non-finite derived price arithmetic, block exposure increases (`AVOID_NEW_ADDS`, target capped at current exposure); preserve policy reductions and trailing stops. See `invalid_close_data`, `non_finite_price_arithmetic`, `non_finite_moving_average` and `incomplete_price_evidence_no_adds` in the audit. Repair/re-fetch the affected dates before using the report to increase exposure. This close-price guard does not validate every volume/high field or certify market-data completeness.

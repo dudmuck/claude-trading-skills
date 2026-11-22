@@ -207,7 +207,7 @@
       "timeframe": "daily"
     },
     {
-      "category": "core-portfolio",
+      "category": "dividend-income",
       "difficulty": "intermediate",
       "display_name": "Dividend Growth Pullback Screener",
       "id": "dividend-growth-pullback-screener",
@@ -237,9 +237,9 @@
       "id": "downtrend-duration-analyzer",
       "integrations": [
         {
-          "id": "local_calculation",
-          "requirement": "not_required",
-          "type": "calculation"
+          "id": "fmp",
+          "requirement": "required",
+          "type": "market_data"
         }
       ],
       "operational_role": {
@@ -639,7 +639,7 @@
       "timeframe": "research"
     },
     {
-      "category": "core-portfolio",
+      "category": "dividend-income",
       "difficulty": "beginner",
       "display_name": "Kanchi Dividend Review Monitor",
       "id": "kanchi-dividend-review-monitor",
@@ -658,7 +658,7 @@
       "timeframe": "weekly"
     },
     {
-      "category": "core-portfolio",
+      "category": "dividend-income",
       "difficulty": "intermediate",
       "display_name": "Kanchi Dividend SOP",
       "id": "kanchi-dividend-sop",
@@ -677,7 +677,7 @@
       "timeframe": "weekly"
     },
     {
-      "category": "core-portfolio",
+      "category": "dividend-income",
       "difficulty": "intermediate",
       "display_name": "Kanchi Dividend US Tax Accounting",
       "id": "kanchi-dividend-us-tax-accounting",
@@ -812,8 +812,13 @@
       "id": "market-top-detector",
       "integrations": [
         {
-          "id": "public_csv",
+          "id": "fmp",
           "requirement": "required",
+          "type": "market_data"
+        },
+        {
+          "id": "public_csv",
+          "requirement": "optional",
           "type": "web"
         }
       ],
@@ -1100,6 +1105,11 @@
           "id": "local_calculation",
           "requirement": "not_required",
           "type": "calculation"
+        },
+        {
+          "id": "fmp",
+          "requirement": "optional",
+          "type": "market_data"
         }
       ],
       "operational_role": {
@@ -1539,6 +1549,11 @@
           "id": "user_input",
           "requirement": "required",
           "type": "local_file"
+        },
+        {
+          "id": "websearch",
+          "requirement": "required",
+          "type": "web"
         }
       ],
       "operational_role": {
@@ -1595,7 +1610,7 @@
       "timeframe": "weekly"
     },
     {
-      "category": "core-portfolio",
+      "category": "dividend-income",
       "difficulty": "intermediate",
       "display_name": "Value Dividend Screener",
       "id": "value-dividend-screener",
@@ -1688,7 +1703,34 @@
       "timeframe": "weekly"
     },
     {
-      "api_profile": "no-api-basic",
+      "api_profile": "mixed",
+      "category": "dividend-income",
+      "difficulty": "intermediate",
+      "display_name": "Dividend Income",
+      "id": "dividend-income",
+      "optional_skills": [
+        "kanchi-dividend-us-tax-accounting",
+        "kanchi-dividend-review-monitor"
+      ],
+      "recommended_skills": [
+        "value-dividend-screener",
+        "dividend-growth-pullback-screener"
+      ],
+      "related_workflows": [
+        "kanchi-dividend-weekly"
+      ],
+      "required_skills": [
+        "kanchi-dividend-sop",
+        "trader-memory-core"
+      ],
+      "target_users": [
+        "long-term-investor",
+        "dividend-investor"
+      ],
+      "timeframe": "weekly"
+    },
+    {
+      "api_profile": "mixed",
       "category": "market-regime",
       "difficulty": "beginner",
       "display_name": "Market Regime",
@@ -1827,6 +1869,31 @@
       ]
     },
     {
+      "api_profile": "fmp-required",
+      "cadence": "weekly",
+      "difficulty": "intermediate",
+      "display_name": "Earnings Momentum Weekly",
+      "estimated_minutes": 60,
+      "id": "earnings-weekly",
+      "optional_skills": [],
+      "prerequisite_workflows": [
+        "market-regime-daily"
+      ],
+      "required_skills": [
+        "earnings-trade-analyzer",
+        "pead-screener",
+        "drawdown-circuit-breaker",
+        "technical-analyst",
+        "position-sizer",
+        "trader-memory-core",
+        "pre-trade-discipline-gate"
+      ],
+      "target_users": [
+        "part-time-swing-trader",
+        "growth-investor"
+      ]
+    },
+    {
       "api_profile": "mixed",
       "cadence": "weekly",
       "difficulty": "intermediate",
@@ -1852,7 +1919,7 @@
       ]
     },
     {
-      "api_profile": "no-api-basic",
+      "api_profile": "mixed",
       "cadence": "daily",
       "difficulty": "beginner",
       "display_name": "Market Regime Daily",

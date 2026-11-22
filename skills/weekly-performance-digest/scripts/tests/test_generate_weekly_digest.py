@@ -195,6 +195,30 @@ class TestCalculateRMultiple:
         # risk=(200-190)*10=100, pnl=-50 -> R=-0.5
         assert gwd.calculate_r_multiple(loser) == -0.5
 
+    @pytest.mark.parametrize("stop", [88.0, 90.0, 92.0])
+    @pytest.mark.parametrize("exit_price, pnl", [(85.0, -30.0), (95.0, 70.0)])
+    def test_nonpositive_risk_omits_r_without_dropping_trade(self, winner, stop, exit_price, pnl):
+        trade = make_thesis(
+            entry={"actual_price": 88.0},
+            exit={"stop_loss": stop, "actual_price": exit_price},
+            outcome={"pnl_dollars": pnl, "pnl_pct": round(pnl / 880 * 100, 4)},
+        )
+        assert gwd.calculate_r_multiple(trade) is None
+        only_trade = gwd.calculate_metrics([trade])
+        assert only_trade["metrics"]["r_multiple_avg"] is None
+        assert only_trade["metrics"]["r_multiple_stdev"] is None
+        combined = gwd.calculate_metrics([winner, trade])
+        assert combined["metrics"]["r_multiple_avg"] == 1.0
+        assert combined["summary"]["total_trades"] == 2
+        assert combined["summary"]["total_realized_pnl"] == 100 + pnl
+        assert combined["summary"]["winners"] == (2 if pnl > 0 else 1)
+        assert combined["summary"]["losers"] == (1 if pnl < 0 else 0)
+        lessons = gwd.extract_lessons([trade])
+        rows = lessons["top_wins" if pnl > 0 else "top_losses"]
+        assert len(rows) == 1
+        assert rows[0]["pnl_dollars"] == pnl
+        assert rows[0]["r_multiple"] is None
+
     def test_missing_stop_loss(self):
         t = make_thesis()
         t["exit"].pop("stop_loss")
@@ -398,6 +422,82 @@ class TestMain:
     def test_missing_state_dir(self, tmp_path, capsys):
         rc = gwd.main(["--state-dir", str(tmp_path / "nope")])
         assert rc == 1
+
+    def test_inverted_date_range_exits_nonzero(self, tmp_path, capsys):
+        state = tmp_path / "theses"
+        state.mkdir()
+        out = tmp_path / "reports"
+        rc = gwd.main(
+            [
+                "--state-dir",
+                str(state),
+                "--from-date",
+                "2026-11-10",
+                "--to-date",
+                "2026-11-01",
+                "--output-dir",
+                str(out),
+            ]
+        )
+        assert rc == 1
+        err = capsys.readouterr().err
+        assert "--from-date 2026-11-10 is later than --to-date 2026-11-01" in err
+        assert not out.exists()
+
+    def test_from_date_after_default_to_date_exits_nonzero(self, tmp_path, monkeypatch):
+        state = tmp_path / "theses"
+        state.mkdir()
+        monkeypatch.setattr(gwd, "_today_str", lambda: "2026-11-01")
+        rc = gwd.main(
+            [
+                "--state-dir",
+                str(state),
+                "--from-date",
+                "2026-11-02",
+                "--output-dir",
+                str(tmp_path / "reports"),
+            ]
+        )
+        assert rc == 1
+
+    @pytest.mark.parametrize(
+        "date_args",
+        [
+            ["--from-date", "2026-13-01", "--to-date", "2026-11-01"],
+            ["--to-date", "not-a-date"],
+        ],
+    )
+    def test_invalid_date_exits_nonzero(self, tmp_path, capsys, date_args):
+        state = tmp_path / "theses"
+        state.mkdir()
+        out = tmp_path / "reports"
+        rc = gwd.main(["--state-dir", str(state), "--output-dir", str(out), *date_args])
+        assert rc == 1
+        assert "error: invalid date" in capsys.readouterr().err
+        assert not out.exists()
+
+    def test_same_day_range_is_accepted(self, tmp_path, winner):
+        state = tmp_path / "theses"
+        state.mkdir()
+        _write_theses(state, [winner])
+        exit_date = winner["exit"]["actual_date"][:10]
+        rc = gwd.main(
+            [
+                "--state-dir",
+                str(state),
+                "--from-date",
+                exit_date,
+                "--to-date",
+                exit_date,
+                "--output-dir",
+                str(tmp_path / "reports"),
+            ]
+        )
+        assert rc == 0
+        digest = json.loads(
+            (tmp_path / "reports" / f"weekly_digest_{exit_date}.json").read_text(encoding="utf-8")
+        )
+        assert digest["summary"]["total_trades"] == 1
 
     def test_end_to_end(self, tmp_path, winner):
         state = tmp_path / "theses"
