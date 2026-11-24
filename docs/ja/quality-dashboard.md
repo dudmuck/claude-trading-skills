@@ -13,7 +13,7 @@ generated: true
 
 > 本セクションは `scripts/generate_quality_dashboard.py` により自動生成されます。手動編集しないでください。
 
-スナップショット基準日: `2026-11-17T15:35:54Z`
+スナップショット基準日: `2026-11-24T17:15:11Z`
 
 ## ライフサイクル
 
@@ -64,83 +64,83 @@ generated: true
 | スキル | ステータス | 実行可能 | テスト | カバレッジ |
 |---|---|---|---|---|
 | **Adversarial Trade Debate** (`adversarial-trade-debate`) | ベータ | はい | はい | not yet measured |
-| **Backtest Expert** (`backtest-expert`) | 本番 | はい | はい | 87.4% |
-| **Breadth Chart Analyst** (`breadth-chart-analyst`) | 本番 | はい | はい | 99.2% |
-| **Breakout Trade Planner** (`breakout-trade-planner`) | 本番 | はい | はい | 83.2% |
-| **CANSLIM Screener** (`canslim-screener`) | 本番 | はい | はい | 98.9% |
-| **Contrarian Setup Gate** (`contrarian-setup-gate`) | 本番 | はい | はい | 98.2% |
-| **COT Contrarian Detector** (`cot-contrarian-detector`) | 本番 | はい | はい | 86.9% |
-| **Crypto Regime Analyzer** (`crypto-regime-analyzer`) | ベータ | はい | はい | 91.9% |
-| **Data Quality Checker** (`data-quality-checker`) | 本番 | はい | はい | 81.9% |
+| **Backtest Expert** (`backtest-expert`) | 本番 | はい | はい | not yet measured |
+| **Breadth Chart Analyst** (`breadth-chart-analyst`) | 本番 | はい | はい | not yet measured |
+| **Breakout Trade Planner** (`breakout-trade-planner`) | 本番 | はい | はい | not yet measured |
+| **CANSLIM Screener** (`canslim-screener`) | 本番 | はい | はい | not yet measured |
+| **Contrarian Setup Gate** (`contrarian-setup-gate`) | 本番 | はい | はい | not yet measured |
+| **COT Contrarian Detector** (`cot-contrarian-detector`) | 本番 | はい | はい | not yet measured |
+| **Crypto Regime Analyzer** (`crypto-regime-analyzer`) | ベータ | はい | はい | not yet measured |
+| **Data Quality Checker** (`data-quality-checker`) | 本番 | はい | はい | not yet measured |
 | **Dealer Gamma Analyzer** (`dealer-gamma-analyzer`) | 本番 | はい | はい | not yet measured |
-| **Dividend Growth Pullback Screener** (`dividend-growth-pullback-screener`) | 本番 | はい | はい | 86.9% |
-| **Downtrend Duration Analyzer** (`downtrend-duration-analyzer`) | 本番 | はい | はい | 86.4% |
-| **Drawdown Circuit Breaker** (`drawdown-circuit-breaker`) | 本番 | はい | はい | 90.0% |
-| **Dual Axis Skill Reviewer** (`dual-axis-skill-reviewer`) | 本番 | はい | はい | 73.2% |
-| **Earnings Calendar** (`earnings-calendar`) | 本番 | はい | はい | 75.4% |
-| **Earnings Trade Analyzer** (`earnings-trade-analyzer`) | 本番 | はい | はい | 85.0% |
+| **Dividend Growth Pullback Screener** (`dividend-growth-pullback-screener`) | 本番 | はい | はい | not yet measured |
+| **Downtrend Duration Analyzer** (`downtrend-duration-analyzer`) | 本番 | はい | はい | not yet measured |
+| **Drawdown Circuit Breaker** (`drawdown-circuit-breaker`) | 本番 | はい | はい | not yet measured |
+| **Dual Axis Skill Reviewer** (`dual-axis-skill-reviewer`) | 本番 | はい | はい | not yet measured |
+| **Earnings Calendar** (`earnings-calendar`) | 本番 | はい | はい | not yet measured |
+| **Earnings Trade Analyzer** (`earnings-trade-analyzer`) | 本番 | はい | はい | not yet measured |
 | **Econ Indicator Explainer** (`econ-indicator-explainer`) | 本番 | はい | はい | not yet measured |
-| **Economic Calendar Fetcher** (`economic-calendar-fetcher`) | 本番 | はい | はい | 87.6% |
-| **Edge Candidate Agent** (`edge-candidate-agent`) | 本番 | はい | はい | 99.3% |
-| **Edge Concept Synthesizer** (`edge-concept-synthesizer`) | 本番 | はい | はい | 91.9% |
-| **Edge Hint Extractor** (`edge-hint-extractor`) | 本番 | はい | はい | 74.3% |
-| **Edge Pipeline Orchestrator** (`edge-pipeline-orchestrator`) | 本番 | はい | はい | 91.8% |
-| **Edge Signal Aggregator** (`edge-signal-aggregator`) | 本番 | はい | はい | 79.3% |
-| **Edge Strategy Designer** (`edge-strategy-designer`) | 本番 | はい | はい | 99.3% |
-| **Edge Strategy Reviewer** (`edge-strategy-reviewer`) | 本番 | はい | はい | 92.0% |
-| **Exposure Coach** (`exposure-coach`) | 本番 | はい | はい | 86.8% |
-| **Finviz Screener** (`finviz-screener`) | 本番 | はい | はい | 97.7% |
-| **FTD Detector** (`ftd-detector`) | 本番 | はい | はい | 91.6% |
-| **Futures Position Sizer** (`futures-position-sizer`) | 本番 | はい | はい | 93.5% |
-| **FXMacroData Calendar** (`fxmacrodata-calendar`) | ベータ | はい | はい | 96.0% |
-| **IBD Distribution Day Monitor** (`ibd-distribution-day-monitor`) | 本番 | はい | はい | 97.1% |
-| **Institutional Flow Tracker** (`institutional-flow-tracker`) | 本番 | はい | はい | 78.5% |
-| **Kanchi Dividend Review Monitor** (`kanchi-dividend-review-monitor`) | 本番 | はい | はい | 82.2% |
-| **Kanchi Dividend SOP** (`kanchi-dividend-sop`) | 本番 | はい | はい | 84.4% |
-| **Kanchi Dividend US Tax Accounting** (`kanchi-dividend-us-tax-accounting`) | 本番 | はい | はい | 100.0% |
-| **Macro Regime Detector** (`macro-regime-detector`) | 本番 | はい | はい | 86.0% |
-| **manifoldbt Backtester** (`manifoldbt-backtester`) | ベータ | はい | はい | 87.8% |
-| **Market Breadth Analyzer** (`market-breadth-analyzer`) | 本番 | はい | はい | 95.7% |
-| **Market Environment Analysis** (`market-environment-analysis`) | 本番 | はい | はい | 88.2% |
+| **Economic Calendar Fetcher** (`economic-calendar-fetcher`) | 本番 | はい | はい | not yet measured |
+| **Edge Candidate Agent** (`edge-candidate-agent`) | 本番 | はい | はい | not yet measured |
+| **Edge Concept Synthesizer** (`edge-concept-synthesizer`) | 本番 | はい | はい | not yet measured |
+| **Edge Hint Extractor** (`edge-hint-extractor`) | 本番 | はい | はい | not yet measured |
+| **Edge Pipeline Orchestrator** (`edge-pipeline-orchestrator`) | 本番 | はい | はい | not yet measured |
+| **Edge Signal Aggregator** (`edge-signal-aggregator`) | 本番 | はい | はい | not yet measured |
+| **Edge Strategy Designer** (`edge-strategy-designer`) | 本番 | はい | はい | not yet measured |
+| **Edge Strategy Reviewer** (`edge-strategy-reviewer`) | 本番 | はい | はい | not yet measured |
+| **Exposure Coach** (`exposure-coach`) | 本番 | はい | はい | not yet measured |
+| **Finviz Screener** (`finviz-screener`) | 本番 | はい | はい | not yet measured |
+| **FTD Detector** (`ftd-detector`) | 本番 | はい | はい | not yet measured |
+| **Futures Position Sizer** (`futures-position-sizer`) | 本番 | はい | はい | not yet measured |
+| **FXMacroData Calendar** (`fxmacrodata-calendar`) | ベータ | はい | はい | not yet measured |
+| **IBD Distribution Day Monitor** (`ibd-distribution-day-monitor`) | 本番 | はい | はい | not yet measured |
+| **Institutional Flow Tracker** (`institutional-flow-tracker`) | 本番 | はい | はい | not yet measured |
+| **Kanchi Dividend Review Monitor** (`kanchi-dividend-review-monitor`) | 本番 | はい | はい | not yet measured |
+| **Kanchi Dividend SOP** (`kanchi-dividend-sop`) | 本番 | はい | はい | not yet measured |
+| **Kanchi Dividend US Tax Accounting** (`kanchi-dividend-us-tax-accounting`) | 本番 | はい | はい | not yet measured |
+| **Macro Regime Detector** (`macro-regime-detector`) | 本番 | はい | はい | not yet measured |
+| **manifoldbt Backtester** (`manifoldbt-backtester`) | ベータ | はい | はい | not yet measured |
+| **Market Breadth Analyzer** (`market-breadth-analyzer`) | 本番 | はい | はい | not yet measured |
+| **Market Environment Analysis** (`market-environment-analysis`) | 本番 | はい | はい | not yet measured |
 | **Market News Analyst** (`market-news-analyst`) | 本番 | いいえ | いいえ | not yet measured |
-| **Market Top Detector** (`market-top-detector`) | 本番 | はい | はい | 88.9% |
-| **MT5 Robot Tester** (`mt5-robot-tester`) | ベータ | はい | はい | 79.0% |
-| **News Reaction Failure Analyzer** (`news-reaction-failure-analyzer`) | 本番 | はい | はい | 92.7% |
-| **Options Strategy Advisor** (`options-strategy-advisor`) | 本番 | はい | はい | 80.2% |
-| **Pair Trade Screener** (`pair-trade-screener`) | 本番 | はい | はい | 94.8% |
-| **Parabolic Short Trade Planner** (`parabolic-short-trade-planner`) | 本番 | はい | はい | 79.1% |
-| **PEAD Screener** (`pead-screener`) | 本番 | はい | はい | 88.3% |
-| **Portfolio Manager** (`portfolio-manager`) | 本番 | はい | はい | 97.9% |
-| **Position Sizer** (`position-sizer`) | 本番 | はい | はい | 89.0% |
-| **Pre-Trade Discipline Gate** (`pre-trade-discipline-gate`) | 本番 | はい | はい | 92.5% |
-| **Residual Edge Analyzer** (`residual-edge-analyzer`) | ベータ | はい | はい | 82.4% |
+| **Market Top Detector** (`market-top-detector`) | 本番 | はい | はい | not yet measured |
+| **MT5 Robot Tester** (`mt5-robot-tester`) | ベータ | はい | はい | not yet measured |
+| **News Reaction Failure Analyzer** (`news-reaction-failure-analyzer`) | 本番 | はい | はい | not yet measured |
+| **Options Strategy Advisor** (`options-strategy-advisor`) | 本番 | はい | はい | not yet measured |
+| **Pair Trade Screener** (`pair-trade-screener`) | 本番 | はい | はい | not yet measured |
+| **Parabolic Short Trade Planner** (`parabolic-short-trade-planner`) | 本番 | はい | はい | not yet measured |
+| **PEAD Screener** (`pead-screener`) | 本番 | はい | はい | not yet measured |
+| **Portfolio Manager** (`portfolio-manager`) | 本番 | はい | はい | not yet measured |
+| **Position Sizer** (`position-sizer`) | 本番 | はい | はい | not yet measured |
+| **Pre-Trade Discipline Gate** (`pre-trade-discipline-gate`) | 本番 | はい | はい | not yet measured |
+| **Residual Edge Analyzer** (`residual-edge-analyzer`) | ベータ | はい | はい | not yet measured |
 | **Scenario Analyzer** (`scenario-analyzer`) | 本番 | いいえ | いいえ | not yet measured |
-| **Sector Analyst** (`sector-analyst`) | 本番 | はい | はい | 81.6% |
+| **Sector Analyst** (`sector-analyst`) | 本番 | はい | はい | not yet measured |
 | **Short-Squeeze Radar** (`short-squeeze-radar`) | 本番 | はい | はい | not yet measured |
-| **Signal Postmortem** (`signal-postmortem`) | 本番 | はい | はい | 81.3% |
-| **Skill Designer** (`skill-designer`) | 本番 | はい | はい | 100.0% |
-| **Skill Idea Miner** (`skill-idea-miner`) | 本番 | はい | はい | 85.5% |
-| **Skill Integration Tester** (`skill-integration-tester`) | 本番 | はい | はい | 70.5% |
-| **Stanley Druckenmiller Investment** (`stanley-druckenmiller-investment`) | 本番 | はい | はい | 88.6% |
-| **Stockbee 20% Study** (`stockbee-20pct-study`) | ベータ | はい | はい | 77.5% |
-| **Stockbee Episodic Pivot Analyzer** (`stockbee-episodic-pivot-analyzer`) | ベータ | はい | はい | 86.4% |
-| **Stockbee Exhaustion Hammer Screener** (`stockbee-exhaustion-hammer-screener`) | ベータ | はい | はい | 88.4% |
-| **Stockbee Momentum Burst Screener** (`stockbee-momentum-burst-screener`) | ベータ | はい | はい | 86.5% |
-| **Stockbee Setup Fluency Trainer** (`stockbee-setup-fluency-trainer`) | ベータ | はい | はい | 90.0% |
-| **Strategy Pivot Designer** (`strategy-pivot-designer`) | 本番 | はい | はい | 95.9% |
-| **Technical Analyst** (`technical-analyst`) | 本番 | はい | はい | 79.9% |
-| **Theme Detector** (`theme-detector`) | 本番 | はい | はい | 89.0% |
-| **Trade Hypothesis Ideator** (`trade-hypothesis-ideator`) | 本番 | はい | はい | 73.6% |
-| **Trade Performance Coach** (`trade-performance-coach`) | ベータ | はい | はい | 96.2% |
-| **Trader Memory Core** (`trader-memory-core`) | 本番 | はい | はい | 89.0% |
-| **Trading Skills Navigator** (`trading-skills-navigator`) | 本番 | はい | はい | 86.1% |
-| **Uptrend Analyzer** (`uptrend-analyzer`) | 本番 | はい | はい | 93.9% |
-| **US Market Bubble Detector** (`us-market-bubble-detector`) | 本番 | はい | はい | 96.2% |
+| **Signal Postmortem** (`signal-postmortem`) | 本番 | はい | はい | not yet measured |
+| **Skill Designer** (`skill-designer`) | 本番 | はい | はい | not yet measured |
+| **Skill Idea Miner** (`skill-idea-miner`) | 本番 | はい | はい | not yet measured |
+| **Skill Integration Tester** (`skill-integration-tester`) | 本番 | はい | はい | not yet measured |
+| **Stanley Druckenmiller Investment** (`stanley-druckenmiller-investment`) | 本番 | はい | はい | not yet measured |
+| **Stockbee 20% Study** (`stockbee-20pct-study`) | ベータ | はい | はい | not yet measured |
+| **Stockbee Episodic Pivot Analyzer** (`stockbee-episodic-pivot-analyzer`) | ベータ | はい | はい | not yet measured |
+| **Stockbee Exhaustion Hammer Screener** (`stockbee-exhaustion-hammer-screener`) | ベータ | はい | はい | not yet measured |
+| **Stockbee Momentum Burst Screener** (`stockbee-momentum-burst-screener`) | ベータ | はい | はい | not yet measured |
+| **Stockbee Setup Fluency Trainer** (`stockbee-setup-fluency-trainer`) | ベータ | はい | はい | not yet measured |
+| **Strategy Pivot Designer** (`strategy-pivot-designer`) | 本番 | はい | はい | not yet measured |
+| **Technical Analyst** (`technical-analyst`) | 本番 | はい | はい | not yet measured |
+| **Theme Detector** (`theme-detector`) | 本番 | はい | はい | not yet measured |
+| **Trade Hypothesis Ideator** (`trade-hypothesis-ideator`) | 本番 | はい | はい | not yet measured |
+| **Trade Performance Coach** (`trade-performance-coach`) | ベータ | はい | はい | not yet measured |
+| **Trader Memory Core** (`trader-memory-core`) | 本番 | はい | はい | not yet measured |
+| **Trading Skills Navigator** (`trading-skills-navigator`) | 本番 | はい | はい | not yet measured |
+| **Uptrend Analyzer** (`uptrend-analyzer`) | 本番 | はい | はい | not yet measured |
+| **US Market Bubble Detector** (`us-market-bubble-detector`) | 本番 | はい | はい | not yet measured |
 | **US Stock Analysis** (`us-stock-analysis`) | 本番 | いいえ | いいえ | not yet measured |
-| **US Undervalued Growth Screener** (`us-undervalued-growth-screener`) | ベータ | はい | はい | 81.0% |
-| **Value Dividend Screener** (`value-dividend-screener`) | 本番 | はい | はい | 88.1% |
-| **VCP Screener** (`vcp-screener`) | 本番 | はい | はい | 84.0% |
-| **Weekly Performance Digest** (`weekly-performance-digest`) | 本番 | はい | はい | 94.6% |
+| **US Undervalued Growth Screener** (`us-undervalued-growth-screener`) | ベータ | はい | はい | not yet measured |
+| **Value Dividend Screener** (`value-dividend-screener`) | 本番 | はい | はい | not yet measured |
+| **VCP Screener** (`vcp-screener`) | 本番 | はい | はい | not yet measured |
+| **Weekly Performance Digest** (`weekly-performance-digest`) | 本番 | はい | はい | not yet measured |
 
 ## 入力証跡
 
@@ -148,14 +148,14 @@ generated: true
 
 | 入力 | 測定コミット | 測定 / 実行更新日時 | 出典 |
 |---|---|---|---|
-| catalog | not-yet-measured | not-yet-measured | not-yet-measured |
-| per\_skill\_coverage\_pct | a627d17dd1d8fde1c8fa73b3cc69ffe83b33cb71 | 2026-11-17T14:45:44Z | https://github.com/tradermonty/claude-trading-skills/actions/runs/44104530531/artifacts/14338356752 |
+| catalog | d263565175fd67f78c780698ca13d24331a16f38 | 2026-11-24T17:15:11Z | skills-index.yaml; config/ci-test-policy.yaml; examples/workflows/replay-coverage.yaml |
+| per\_skill\_coverage\_pct | not-yet-measured | not-yet-measured | not-yet-measured |
 | beta\_since | not-yet-measured | not-yet-measured | not-yet-measured |
 | dual\_axis\_score\_distribution | not-yet-measured | not-yet-measured | not-yet-measured |
-| open\_high\_severity\_issues | not applicable (live issue state) | 2026-11-17T15:35:54Z | https://github.com/tradermonty/claude-trading-skills/issues |
-| last\_successful\_ci\_timestamp | a627d17dd1d8fde1c8fa73b3cc69ffe83b33cb71 | 2026-11-17T14:45:44Z | https://github.com/tradermonty/claude-trading-skills/actions/runs/44104530531 |
+| open\_high\_severity\_issues | not applicable (live issue state) | 2026-11-24T17:15:11Z | https://github.com/dudmuck/claude-trading-skills/issues |
+| last\_successful\_ci\_timestamp | not-yet-measured | not-yet-measured | not-yet-measured |
 | drift\_status | not-yet-measured | not-yet-measured | not-yet-measured |
-| production\_verification\_declarations | a627d17dd1d8fde1c8fa73b3cc69ffe83b33cb71 | 2026-11-17T15:35:54Z | skills-index.yaml; config/ci-test-policy.yaml; examples/workflows/replay-coverage.yaml |
+| production\_verification\_declarations | d263565175fd67f78c780698ca13d24331a16f38 | 2026-11-24T17:15:11Z | skills-index.yaml; config/ci-test-policy.yaml; examples/workflows/replay-coverage.yaml |
 | executed\_smoke\_count | not-yet-measured | not-yet-measured | not-yet-measured |
 | latest\_successful\_live\_sample | not-yet-measured | not-yet-measured | not-yet-measured |
 
@@ -165,14 +165,14 @@ generated: true
 
 | Axis | passed | not_verified | not_applicable |
 |---|---:|---:|---:|
-| data\_provenance | 0 | 61 | 1 |
-| empirical\_validation | 0 | 54 | 8 |
-| end\_to\_end\_replay | 5 | 32 | 25 |
-| financial\_logic\_review | 0 | 61 | 1 |
-| instruction\_contract | 0 | 62 | 0 |
-| security\_review | 22 | 40 | 0 |
-| unit\_tests | 12 | 47 | 3 |
-| workflow\_contract | 5 | 32 | 25 |
+| data\_provenance | 0 | 64 | 1 |
+| empirical\_validation | 0 | 57 | 8 |
+| end\_to\_end\_replay | 4 | 33 | 28 |
+| financial\_logic\_review | 0 | 64 | 1 |
+| instruction\_contract | 0 | 65 | 0 |
+| security\_review | 18 | 47 | 0 |
+| unit\_tests | 11 | 51 | 3 |
+| workflow\_contract | 4 | 33 | 28 |
 
 ## ランタイム指標（スナップショット）
 
@@ -180,10 +180,10 @@ generated: true
 
 | 指標 | 値 |
 |---|---|
-| スナップショット基準日: | 2026-11-17T15:35:54Z |
+| スナップショット基準日: | 2026-11-24T17:15:11Z |
 | Dual-axis スコア分布 | not-yet-measured |
-| 高深刻度の未解決 Issue | 9 |
-| 直近の成功 CI | 2026-11-17T14:45:44Z |
+| 高深刻度の未解決 Issue | 0 |
+| 直近の成功 CI | not-yet-measured |
 | パッケージ差分 | not-yet-measured |
 | ドキュメント差分 | not-yet-measured |
 | ナビゲータ差分 | not-yet-measured |
